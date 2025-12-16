@@ -1,0 +1,247 @@
+.manual-wizard {
+    background: #ffffff;
+    border-top: 1px solid #e0e0e0;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+}
+
+.manual-wizard h3 {
+    margin: 0 0 8px 0;
+    font-size: 18px;
+    color: #333;
+}
+
+.step-desc {
+    margin: 0 0 16px 0;
+    color: #666;
+    font-size: 14px;
+}
+
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    font-size: 14px;
+}
+
+.form-group textarea {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #d0d0d0;
+    border-radius: 6px;
+    font-family: inherit;
+    font-size: 14px;
+    resize: vertical;
+}
+
+.responses-list {
+    background: #f9f9f9;
+    border: 1px solid #eee;
+    border-radius: 6px;
+    padding: 12px;
+    margin-bottom: 16px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+.response-item {
+    font-size: 13px;
+    padding: 6px 0;
+    border-bottom: 1px solid #eee;
+}
+
+.response-item:last-child {
+    border-bottom: none;
+}
+
+.add-response-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    background: #f0f7ff;
+    padding: 12px;
+    border-radius: 6px;
+    margin-bottom: 16px;
+}
+
+.add-response-form input,
+.add-response-form textarea {
+    padding: 8px;
+    border: 1px solid #d0d0d0;
+    border-radius: 4px;
+    font-family: inherit;
+    font-size: 14px;
+}
+
+.add-response-form button {
+    align-self: flex-start;
+    padding: 6px 12px;
+    background: #4a90e2;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.add-response-form button:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+.wizard-actions {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 16px;
+    padding-top: 16px;
+    border-top: 1px solid #eee;
+}
+
+.primary-btn {
+    padding: 10px 20px;
+    background: #27ae60;
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.primary-btn:hover:not(:disabled) {
+    background: #219150;
+}
+
+.primary-btn:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+
+.secondary-btn {
+    padding: 10px 20px;
+    background: transparent;
+    color: #666;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    cursor: pointer;
+}
+
+.secondary-btn:hover {
+    background: #f5f5f5;
+    color: #333;
+}
+
+.prompt-box {
+    margin-bottom: 16px;
+}
+
+.prompt-preview {
+    background: #333;
+    color: #f0f0f0;
+    padding: 12px;
+    border-radius: 6px;
+    font-family: monospace;
+    font-size: 12px;
+    white-space: pre-wrap;
+    max-height: 200px;
+    overflow-y: auto;
+    margin-bottom: 8px;
+}
+
+.copy-btn {
+    padding: 6px 12px;
+    background: #eee;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+}
+
+.copy-btn:hover {
+    background: #e0e0e0;
+}
+
+.prompt-col-layout {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 16px;
+}
+
+.prompt-col-layout .prompt-box {
+    flex: 2;
+    margin-bottom: 0;
+}
+
+.mapping-box {
+    flex: 1;
+    background: #fdfdfd;
+    border: 1px solid #eee;
+    border-radius: 6px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+}
+
+.mapping-box label {
+    font-size: 14px;
+    font-weight: 500;
+    margin-bottom: 8px;
+    display: block;
+}
+
+.mapping-list {
+    font-size: 13px;
+    overflow-y: auto;
+    max-height: 200px;
+}
+
+.mapping-item {
+    padding: 4px 0;
+    border-bottom: 1px dashed #eee;
+}
+
+.model-select {
+    padding: 8px;
+    border: 1px solid #d0d0d0;
+    border-radius: 4px;
+    background: white;
+    min-width: 200px;
+    font-size: 14px;
+}
+
+.chairman-input-row {
+    margin-bottom: 8px;
+}
+
+.final-response-input {
+    background: #f0fff0;
+    border-color: #a0e0a0;
+}
+
+.manual-wizard-loading {
+    padding: 40px;
+    text-align: center;
+    color: #666;
+    font-style: italic;
+}
+
+.title-input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #d0d0d0;
+    border-radius: 6px;
+    font-size: 16px;
+    font-weight: 500;
+    margin-bottom: 4px;
+}
+
+.hint-text {
+    font-size: 12px;
+    color: #666;
+    margin: 0 0 8px 0;
+    font-style: italic;
+}

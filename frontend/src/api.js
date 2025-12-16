@@ -49,7 +49,7 @@ export const api = {
   /**
    * Send a message in a conversation.
    */
-  async sendMessage(conversationId, content) {
+  async sendMessage(conversationId, content, manualResponses = []) {
     const response = await fetch(
       `${API_BASE}/api/conversations/${conversationId}/message`,
       {
@@ -57,7 +57,7 @@ export const api = {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ content }),
+        body: JSON.stringify({ content, manual_responses: manualResponses }),
       }
     );
     if (!response.ok) {
@@ -111,5 +111,107 @@ export const api = {
         }
       }
     }
+  },
+
+  /**
+   * Get Stage 2 prompt (Manual Mode).
+   */
+  async getStage2Prompt(query, stage1Responses) {
+    const response = await fetch(`${API_BASE}/api/manual/stage2-prompt`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        user_query: query,
+        stage1_results: stage1Responses
+      }),
+    });
+    if (!response.ok) {
+      throw new Error('Failed to get Stage 2 prompt');
+    }
+    return response.json();
+  },
+
+  /**
+   * Process rankings (Manual Mode).
+   */
+  async processRankings(stage2Results, labelToModel) {
+    const response = await fetch(`${API_BASE}/api/manual/process-rankings`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        stage2_results: stage2Results,
+        label_to_model: labelToModel
+      }),
+    });
+    if (!response.ok) {
+      throw new Error('Failed to process rankings');
+    }
+    return response.json();
+  },
+
+  /**
+   * Get Stage 3 prompt (Manual Mode).
+   */
+  async getStage3Prompt(query, stage1Results, stage2Results) {
+    const response = await fetch(`${API_BASE}/api/manual/stage3-prompt`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        user_query: query,
+        stage1_results: stage1Results,
+        stage2_results: stage2Results
+      }),
+    });
+    if (!response.ok) {
+      throw new Error('Failed to get Stage 3 prompt');
+    }
+    return response.json();
+  },
+
+  /**
+   * Save a fully constructed manual message.
+   */
+  async saveManualMessage(conversationId, messageData) {
+    const response = await fetch(`${API_BASE}/api/conversations/${conversationId}/message/manual`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(messageData),
+    });
+    if (!response.ok) {
+      throw new Error('Failed to save manual message');
+    }
+    return response.json();
+  },
+
+  async deleteConversation(conversationId) {
+    const response = await fetch(`${API_BASE}/api/conversations/${conversationId}`, {
+      method: 'DELETE',
+    });
+    if (!response.ok) {
+      throw new Error('Failed to delete conversation');
+    }
+    return response.json();
+  },
+
+  async updateConversationTitle(conversationId, title) {
+    const response = await fetch(`${API_BASE}/api/conversations/${conversationId}/title`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ title }),
+    });
+    if (!response.ok) {
+      throw new Error('Failed to update conversation title');
+    }
+    return response.json();
   },
 };

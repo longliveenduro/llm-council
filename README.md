@@ -79,6 +79,17 @@ npm run dev
 
 Then open http://localhost:5173 in your browser.
 
+## Manual Copy & Paste Mode
+
+If you don't have an API key or prefer to use other LLM interfaces (like ChatGPT web UI, Claude web UI, etc.) directly, you can use the **Full Manual Mode**.
+
+1. Toggle **Full Manual Mode** at the bottom of the chat interface.
+2. **Step 1: Initial Opinions**. Enter your question, then manually query your LLMs and paste their responses into the app.
+3. **Step 2: Peer Review**. The app will generate a prompt containing all the responses. Copy this prompt to your LLMs so they can rank each other, then paste their rankings back into the app.
+4. **Step 3: Synthesis**. The app will generate a final prompt for the Chairman. Copy this to your Chairman LLM and paste the final synthesized answer.
+5. The conversation will be saved to your local history and appear in the sidebar just like an automated one.
+
+
 ## Tech Stack
 
 - **Backend:** FastAPI (Python 3.10+), async httpx, OpenRouter API

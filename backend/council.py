@@ -5,12 +5,15 @@ from .openrouter import query_models_parallel, query_model
 from .config import COUNCIL_MODELS, CHAIRMAN_MODEL
 
 
-async def stage1_collect_responses(user_query: str) -> List[Dict[str, Any]]:
+async def stage1_collect_responses(
+    user_query: str
+) -> List[Dict[str, Any]]:
     """
     Stage 1: Collect individual responses from all council models.
 
     Args:
         user_query: The user's question
+        manual_responses: Optional list of manual responses [{'model': '...', 'response': '...'}]
 
     Returns:
         List of dicts with 'model' and 'response' keys
@@ -28,6 +31,8 @@ async def stage1_collect_responses(user_query: str) -> List[Dict[str, Any]]:
                 "model": model,
                 "response": response.get('content', '')
             })
+
+
 
     return stage1_results
 
@@ -56,12 +61,46 @@ async def stage2_collect_rankings(
     }
 
     # Build the ranking prompt
+    ranking_prompt = build_ranking_prompt(user_query, stage1_results, labels)
+
+    messages = [{"role": "user", "content": ranking_prompt}]
+
+    # Get rankings from all council models in parallel
+    responses = await query_models_parallel(COUNCIL_MODELS, messages)
+
+    # Format results
+    stage2_results = []
+    for model, response in responses.items():
+        if response is not None:
+            full_text = response.get('content', '')
+            parsed = parse_ranking_from_text(full_text)
+            stage2_results.append({
+                "model": model,
+                "ranking": full_text,
+                "parsed_ranking": parsed
+            })
+
+    return stage2_results, label_to_model
+
+
+def build_ranking_prompt(user_query: str, stage1_results: List[Dict[str, Any]], labels: List[str]) -> str:
+    """
+    Build the prompt for Stage 2 (Peer Rankings).
+
+    Args:
+        user_query: The original user query
+        stage1_results: Results from Stage 1
+        labels: List of anonymized labels
+
+    Returns:
+        The complete prompt string
+    """
     responses_text = "\n\n".join([
         f"Response {label}:\n{result['response']}"
         for label, result in zip(labels, stage1_results)
     ])
 
-    ranking_prompt = f"""You are evaluating different responses to the following question:
+    return f"""You are evaluating different responses to the following question:
 
 Question: {user_query}
 
@@ -92,25 +131,6 @@ FINAL RANKING:
 
 Now provide your evaluation and ranking:"""
 
-    messages = [{"role": "user", "content": ranking_prompt}]
-
-    # Get rankings from all council models in parallel
-    responses = await query_models_parallel(COUNCIL_MODELS, messages)
-
-    # Format results
-    stage2_results = []
-    for model, response in responses.items():
-        if response is not None:
-            full_text = response.get('content', '')
-            parsed = parse_ranking_from_text(full_text)
-            stage2_results.append({
-                "model": model,
-                "ranking": full_text,
-                "parsed_ranking": parsed
-            })
-
-    return stage2_results, label_to_model
-
 
 async def stage3_synthesize_final(
     user_query: str,
@@ -128,39 +148,13 @@ async def stage3_synthesize_final(
     Returns:
         Dict with 'model' and 'response' keys
     """
-    # Build comprehensive context for chairman
-    stage1_text = "\n\n".join([
-        f"Model: {result['model']}\nResponse: {result['response']}"
-        for result in stage1_results
-    ])
-
-    stage2_text = "\n\n".join([
-        f"Model: {result['model']}\nRanking: {result['ranking']}"
-        for result in stage2_results
-    ])
-
-    chairman_prompt = f"""You are the Chairman of an LLM Council. Multiple AI models have provided responses to a user's question, and then ranked each other's responses.
-
-Original Question: {user_query}
-
-STAGE 1 - Individual Responses:
-{stage1_text}
-
-STAGE 2 - Peer Rankings:
-{stage2_text}
-
-Your task as Chairman is to synthesize all of this information into a single, comprehensive, accurate answer to the user's original question. Consider:
-- The individual responses and their insights
-- The peer rankings and what they reveal about response quality
-- Any patterns of agreement or disagreement
-
-Provide a clear, well-reasoned final answer that represents the council's collective wisdom:"""
+    chairman_prompt = build_chairman_prompt(user_query, stage1_results, stage2_results)
 
     messages = [{"role": "user", "content": chairman_prompt}]
 
     # Query the chairman model
     response = await query_model(CHAIRMAN_MODEL, messages)
-
+    
     if response is None:
         # Fallback if chairman fails
         return {
@@ -172,6 +166,66 @@ Provide a clear, well-reasoned final answer that represents the council's collec
         "model": CHAIRMAN_MODEL,
         "response": response.get('content', '')
     }
+
+
+def build_chairman_prompt(
+    user_query: str,
+    stage1_results: List[Dict[str, Any]],
+    stage2_results: List[Dict[str, Any]]
+) -> str:
+    """
+    Build the prompt for Stage 3 (Chairman Synthesis).
+    Uses anonymized labels (Response A, B...) to prevent bias if the chairman
+    is one of the council members.
+
+    Args:
+        user_query: The original user query
+        stage1_results: Individual model responses from Stage 1
+        stage2_results: Rankings from Stage 2
+
+    Returns:
+        The complete prompt string
+    """
+    # Create anonymized labels matching Stage 2
+    labels = [chr(65 + i) for i in range(len(stage1_results))]  # A, B, C...
+    
+    # Map model names to labels for Stage 2 section
+    model_to_label = {}
+    for label, result in zip(labels, stage1_results):
+        model_to_label[result['model']] = f"Response {label}"
+
+    # Format Stage 1 (Anonymized)
+    stage1_text = "\n\n".join([
+        f"Response {label}:\n{result['response']}"
+        for label, result in zip(labels, stage1_results)
+    ])
+
+    # Format Stage 2 (Anonymized attribution)
+    # We want to show "Response A's Ranking: ..." instead of "Model X's Ranking: ..."
+    stage2_parts = []
+    for result in stage2_results:
+        # Find which label corresponds to this model
+        reviewer_label = model_to_label.get(result['model'], result['model']) # Fallback if not found
+        stage2_parts.append(f"Ranking by {reviewer_label}:\n{result['ranking']}")
+
+    stage2_text = "\n\n".join(stage2_parts)
+
+    return f"""You are the Chairman of an LLM Council. Multiple AI models have provided responses to a user's question, and then ranked each other's responses.
+
+Original Question: {user_query}
+
+STAGE 1 - Individual Responses (Anonymized):
+{stage1_text}
+
+STAGE 2 - Peer Rankings (Anonymized):
+{stage2_text}
+
+Your task as Chairman is to synthesize all of this information into a single, comprehensive, accurate answer to the user's original question. Consider:
+- The individual responses and their insights
+- The peer rankings and what they reveal about response quality
+- Any patterns of agreement or disagreement
+
+Provide a clear, well-reasoned final answer that represents the council's collective wisdom:"""
 
 
 def parse_ranking_from_text(ranking_text: str) -> List[str]:
@@ -293,12 +347,15 @@ Title:"""
     return title
 
 
-async def run_full_council(user_query: str) -> Tuple[List, List, Dict, Dict]:
+async def run_full_council(
+    user_query: str
+) -> Tuple[List, List, Dict, Dict]:
     """
     Run the complete 3-stage council process.
 
     Args:
         user_query: The user's question
+        manual_responses: Optional list of manual responses
 
     Returns:
         Tuple of (stage1_results, stage2_results, stage3_result, metadata)

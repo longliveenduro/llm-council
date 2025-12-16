@@ -20,7 +20,7 @@ export default function Stage1({ responses }) {
             className={`tab ${activeTab === index ? 'active' : ''}`}
             onClick={() => setActiveTab(index)}
           >
-            {resp.model.split('/')[1] || resp.model}
+            {`Model ${String.fromCharCode(65 + index)}: ${resp.model.split('/')[1] || resp.model}`}
           </button>
         ))}
       </div>
@@ -31,6 +31,6 @@ export default function Stage1({ responses }) {
           <ReactMarkdown>{responses[activeTab].response}</ReactMarkdown>
         </div>
       </div>
-    </div>
+    </div >
   );
 }

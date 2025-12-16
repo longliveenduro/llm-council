@@ -181,6 +181,47 @@ function App() {
     }
   };
 
+  const handleDeleteConversation = async (id) => {
+    if (!window.confirm('Are you sure you want to delete this conversation?')) {
+      return;
+    }
+
+    try {
+      await api.deleteConversation(id);
+      setConversations(conversations.filter(c => c.id !== id));
+
+      // If deleted current conversation, select the first available or reset
+      if (currentConversationId === id) {
+        if (conversations.length > 1) {
+          // Find next available (simplified logic: just pick first that isn't deleted)
+          const next = conversations.find(c => c.id !== id);
+          setCurrentConversationId(next ? next.id : null);
+        } else {
+          setCurrentConversationId(null);
+          setCurrentConversation(null);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to delete conversation:', error);
+      alert('Failed to delete conversation');
+    }
+  };
+
+  const handleRenameConversation = async (id, newTitle) => {
+    try {
+      await api.updateConversationTitle(id, newTitle);
+      setConversations(conversations.map(c =>
+        c.id === id ? { ...c, title: newTitle } : c
+      ));
+      if (currentConversation && currentConversation.id === id) {
+        setCurrentConversation({ ...currentConversation, title: newTitle });
+      }
+    } catch (error) {
+      console.error('Failed to rename conversation:', error);
+      alert('Failed to rename conversation');
+    }
+  };
+
   return (
     <div className="app">
       <Sidebar
@@ -188,11 +229,17 @@ function App() {
         currentConversationId={currentConversationId}
         onSelectConversation={handleSelectConversation}
         onNewConversation={handleNewConversation}
+        onDeleteConversation={handleDeleteConversation}
+        onRenameConversation={handleRenameConversation}
       />
       <ChatInterface
         conversation={currentConversation}
         onSendMessage={handleSendMessage}
         isLoading={isLoading}
+        onReload={() => {
+          loadConversation(currentConversationId);
+          loadConversations();
+        }}
       />
     </div>
   );

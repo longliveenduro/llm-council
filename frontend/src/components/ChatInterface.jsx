@@ -3,14 +3,21 @@ import ReactMarkdown from 'react-markdown';
 import Stage1 from './Stage1';
 import Stage2 from './Stage2';
 import Stage3 from './Stage3';
+import ManualWizard from './ManualWizard';
 import './ChatInterface.css';
 
 export default function ChatInterface({
   conversation,
   onSendMessage,
   isLoading,
+  onReload, // Added prop to trigger reload after manual save
 }) {
   const [input, setInput] = useState('');
+
+
+  // Full Manual Mode State
+  const [isFullManualMode, setIsFullManualMode] = useState(false);
+
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
@@ -37,6 +44,13 @@ export default function ChatInterface({
     }
   };
 
+  const handleManualWizardComplete = () => {
+    setIsFullManualMode(false);
+    if (onReload) onReload();
+    // Also scroll bottom
+    setTimeout(scrollToBottom, 100);
+  };
+
   if (!conversation) {
     return (
       <div className="chat-interface">
@@ -51,7 +65,7 @@ export default function ChatInterface({
   return (
     <div className="chat-interface">
       <div className="messages-container">
-        {conversation.messages.length === 0 ? (
+        {conversation.messages.length === 0 && !isFullManualMode ? (
           <div className="empty-state">
             <h2>Start a conversation</h2>
             <p>Ask a question to consult the LLM Council</p>
@@ -120,26 +134,51 @@ export default function ChatInterface({
         <div ref={messagesEndRef} />
       </div>
 
-      {conversation.messages.length === 0 && (
-        <form className="input-form" onSubmit={handleSubmit}>
-          <textarea
-            className="message-input"
-            placeholder="Ask your question... (Shift+Enter for new line, Enter to send)"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={isLoading}
-            rows={3}
-          />
-          <button
-            type="submit"
-            className="send-button"
-            disabled={!input.trim() || isLoading}
-          >
-            Send
-          </button>
-        </form>
+      {conversation.messages.length >= 0 && (
+        <div className="input-area">
+          <div className="mode-toggle">
+            <label className="switch">
+              <input
+                type="checkbox"
+                checked={isFullManualMode}
+                onChange={() => setIsFullManualMode(!isFullManualMode)}
+                disabled={isLoading}
+              />
+              <span className="slider round"></span>
+            </label>
+            <span className="mode-label">Full Manual Mode</span>
+          </div>
+
+          {isFullManualMode ? (
+            <ManualWizard
+              conversationId={conversation.id}
+              onComplete={handleManualWizardComplete}
+              onCancel={() => setIsFullManualMode(false)}
+            />
+          ) : (
+            <form className="input-form" onSubmit={handleSubmit}>
+              <textarea
+                className="message-input"
+                placeholder="Ask your question... (Shift+Enter for new line, Enter to send)"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={isLoading}
+                rows={3}
+              />
+              <button
+                type="submit"
+                className="send-button"
+                disabled={!input.trim() || isLoading}
+              >
+                Send
+              </button>
+            </form>
+          )}
+        </div>
       )}
     </div>
   );
 }
+
+
