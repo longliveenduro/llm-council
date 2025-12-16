@@ -17,6 +17,7 @@ export default function ChatInterface({
 
   // Full Manual Mode State
   const [isFullManualMode, setIsFullManualMode] = useState(false);
+  const [isContinuing, setIsContinuing] = useState(false);
 
   const messagesEndRef = useRef(null);
 
@@ -28,11 +29,25 @@ export default function ChatInterface({
     scrollToBottom();
   }, [conversation]);
 
+  // Reset continuing state when switching conversations
+  useEffect(() => {
+    setIsContinuing(false);
+    setIsFullManualMode(false);
+  }, [conversation?.id]);
+
   const handleSubmit = (e) => {
     e.preventDefault();
     if (input.trim() && !isLoading) {
       onSendMessage(input);
       setInput('');
+      // Keep isContinuing true so we don't hide input immediately while loading?
+      // Actually, once response comes back, we might want to hide it to accept "historic" state again?
+      // But for smooth chat, let's keep it open?
+      // User requirement: "historic" councils should be clean.
+      // If I just asked a question, it's now "historic"?
+      // Let's reset isContinuing to false when a response completes?
+      // But we don't easily know here when it completes (streaming happens in App).
+      // Let's just leave isContinuing as true until the user switches conversation.
     }
   };
 
@@ -49,6 +64,9 @@ export default function ChatInterface({
     if (onReload) onReload();
     // Also scroll bottom
     setTimeout(scrollToBottom, 100);
+    // Note: isContinuing stays true here so user sees the result and input remains?
+    // actually if we want it to be "clean" again, we should set isContinuing(false).
+    setIsContinuing(false);
   };
 
   if (!conversation) {
@@ -61,6 +79,9 @@ export default function ChatInterface({
       </div>
     );
   }
+
+  const hasAssistantResponse = conversation.messages.some(m => m.role === 'assistant');
+  const showInput = !hasAssistantResponse || isContinuing;
 
   return (
     <div className="chat-interface">
@@ -134,7 +155,18 @@ export default function ChatInterface({
         <div ref={messagesEndRef} />
       </div>
 
-      {conversation.messages.length >= 0 && (
+      {!showInput && (
+        <div className="continue-container">
+          <button
+            className="continue-btn"
+            onClick={() => setIsContinuing(true)}
+          >
+            Continue Conversation
+          </button>
+        </div>
+      )}
+
+      {showInput && (
         <div className="input-area">
           <div className="mode-toggle">
             <label className="switch">
@@ -152,6 +184,7 @@ export default function ChatInterface({
           {isFullManualMode ? (
             <ManualWizard
               conversationId={conversation.id}
+              previousMessages={conversation.messages}
               onComplete={handleManualWizardComplete}
               onCancel={() => setIsFullManualMode(false)}
             />

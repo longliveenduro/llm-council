@@ -58,6 +58,7 @@ class Conversation(BaseModel):
 class ManualStage2Request(BaseModel):
     user_query: str
     stage1_results: List[Dict[str, Any]]
+    previous_messages: List[Dict[str, Any]] = []
 
 
 class ManualRankingProcessRequest(BaseModel):
@@ -69,6 +70,7 @@ class ManualStage3Request(BaseModel):
     user_query: str
     stage1_results: List[Dict[str, Any]]
     stage2_results: List[Dict[str, Any]]
+    previous_messages: List[Dict[str, Any]] = []
 
 
 class SaveManualMessageRequest(BaseModel):
@@ -267,7 +269,12 @@ async def manual_stage2_prompt(request: ManualStage2Request):
         for label, result in zip(labels, request.stage1_results)
     }
     
-    prompt = build_ranking_prompt(request.user_query, request.stage1_results, labels)
+    prompt = build_ranking_prompt(
+        request.user_query, 
+        request.stage1_results, 
+        labels,
+        context_messages=request.previous_messages
+    )
     
     return {
         "prompt": prompt,
@@ -303,7 +310,8 @@ async def manual_stage3_prompt(request: ManualStage3Request):
     prompt = build_chairman_prompt(
         request.user_query, 
         request.stage1_results, 
-        request.stage2_results
+        request.stage2_results,
+        context_messages=request.previous_messages
     )
     return {"prompt": prompt}
 

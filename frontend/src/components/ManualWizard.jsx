@@ -3,9 +3,11 @@ import ReactMarkdown from 'react-markdown';
 import { api } from '../api';
 import './ManualWizard.css';
 
-export default function ManualWizard({ conversationId, onComplete, onCancel }) {
+export default function ManualWizard({ conversationId, previousMessages = [], onComplete, onCancel }) {
     const [step, setStep] = useState(1); // 1: Opinions, 2: Review, 3: Synthesis
     const [isLoading, setIsLoading] = useState(false);
+
+    const isFollowUp = previousMessages.length > 0;
 
     // Data State
     const [userQuery, setUserQuery] = useState('');
@@ -23,6 +25,27 @@ export default function ManualWizard({ conversationId, onComplete, onCancel }) {
     // --- Helpers ---
     const copyToClipboard = (text) => {
         navigator.clipboard.writeText(text);
+    };
+
+    const getContextText = () => {
+        let text = 'Context so far:\n\n';
+        let turnCount = 1;
+
+        // Group messages into turns (assuming User -> Assistant pattern)
+        // We iterate through and formatting pairs
+        for (let i = 0; i < previousMessages.length; i++) {
+            const msg = previousMessages[i];
+            if (msg.role === 'user') {
+                text += `User Question ${turnCount}: ${msg.content}\n`;
+            } else if (msg.role === 'assistant') {
+                const response = msg.stage3?.response || "(No final response)";
+                text += `LLM Answer ${turnCount}: ${response}\n\n`;
+                turnCount++;
+            }
+        }
+
+        text += `Current Question: ${userQuery}`;
+        return text;
     };
 
     const addStage1Response = () => {
@@ -48,7 +71,7 @@ export default function ManualWizard({ conversationId, onComplete, onCancel }) {
 
         setIsLoading(true);
         try {
-            const data = await api.getStage2Prompt(userQuery, stage1Responses);
+            const data = await api.getStage2Prompt(userQuery, stage1Responses, previousMessages);
             setStage2Prompt(data.prompt);
             setLabelToModel(data.label_to_model);
             setStep(2);
@@ -72,7 +95,8 @@ export default function ManualWizard({ conversationId, onComplete, onCancel }) {
             const promptData = await api.getStage3Prompt(
                 userQuery,
                 stage1Responses,
-                processedData.stage2_results // Use processed with parsed rankings
+                processedData.stage2_results, // Use processed with parsed rankings
+                previousMessages
             );
 
             setStage3Prompt(promptData.prompt);
@@ -138,18 +162,31 @@ export default function ManualWizard({ conversationId, onComplete, onCancel }) {
 
     const renderStep1 = () => (
         <div className="wizard-step">
-            <h3>Step 1: Initial Opinions</h3>
+            <h3>{isFollowUp ? 'Step 1: Follow Up Opinions' : 'Step 1: Initial Opinions'}</h3>
             <p className="step-desc">Enter your query and manually add model responses.</p>
 
             <div className="form-group">
-                <label>Your Question:</label>
+                <label>{isFollowUp ? 'Your Follow Up Question:' : 'Your Question:'}</label>
                 <textarea
                     value={userQuery}
                     onChange={(e) => setUserQuery(e.target.value)}
-                    placeholder="What is your question?"
+                    placeholder={isFollowUp ? 'What is your follow up question?' : 'What is your question?'}
                     rows={2}
                 />
             </div>
+
+            {isFollowUp && (
+                <div className="form-group context-box">
+                    <label>Context for Models (Previous History + New Query):</label>
+                    <div className="context-preview">
+                        {getContextText()}
+                    </div>
+                    <button onClick={() => copyToClipboard(getContextText())} className="copy-btn">
+                        Copy Context
+                    </button>
+                    <p className="hint-text">Paste this context to your models so they know the conversation history.</p>
+                </div>
+            )}
 
             <div className="responses-list">
                 {stage1Responses.map((r, i) => (

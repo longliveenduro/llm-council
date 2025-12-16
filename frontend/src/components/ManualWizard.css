@@ -139,7 +139,8 @@
     margin-bottom: 16px;
 }
 
-.prompt-preview {
+.prompt-preview,
+.context-preview {
     background: #333;
     color: #f0f0f0;
     padding: 12px;

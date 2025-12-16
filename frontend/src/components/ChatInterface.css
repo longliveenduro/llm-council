@@ -361,3 +361,26 @@ input:checked+.slider:before {
 .add-response-btn:hover:not(:disabled) {
   background: #219150;
 }
+
+.continue-container {
+  display: flex;
+  justify-content: center;
+  padding: 20px;
+  background: #1a1a1a;
+  border-top: 1px solid #333;
+}
+
+.continue-btn {
+  padding: 12px 24px;
+  background-color: transparent;
+  color: #4CAF50;
+  border: 1px solid #4CAF50;
+  border-radius: 8px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.continue-btn:hover {
+  background-color: rgba(76, 175, 80, 0.1);
+}

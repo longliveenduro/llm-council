@@ -83,7 +83,37 @@ async def stage2_collect_rankings(
     return stage2_results, label_to_model
 
 
-def build_ranking_prompt(user_query: str, stage1_results: List[Dict[str, Any]], labels: List[str]) -> str:
+
+def _format_context(context_messages: List[Dict[str, Any]]) -> str:
+    """Format previous conversation history for context."""
+    if not context_messages:
+        return ""
+        
+    text = "PREVIOUS CONTEXT:\n\n"
+    turn_count = 1
+    
+    for msg in context_messages:
+        if msg.get('role') == 'user':
+            text += f"User Question {turn_count}: {msg.get('content', '')}\n"
+        elif msg.get('role') == 'assistant':
+            # Extract final response
+            response = "(No response)"
+            if 'stage3' in msg and isinstance(msg['stage3'], dict):
+                response = msg['stage3'].get('response', '')
+            
+            text += f"LLM Answer {turn_count}: {response}\n\n"
+            turn_count += 1
+            
+    text += "CURRENT TASK:\n"
+    return text
+
+
+def build_ranking_prompt(
+    user_query: str, 
+    stage1_results: List[Dict[str, Any]], 
+    labels: List[str],
+    context_messages: List[Dict[str, Any]] = None
+) -> str:
     """
     Build the prompt for Stage 2 (Peer Rankings).
 
@@ -91,6 +121,7 @@ def build_ranking_prompt(user_query: str, stage1_results: List[Dict[str, Any]], 
         user_query: The original user query
         stage1_results: Results from Stage 1
         labels: List of anonymized labels
+        context_messages: Optional list of previous messages
 
     Returns:
         The complete prompt string
@@ -100,8 +131,11 @@ def build_ranking_prompt(user_query: str, stage1_results: List[Dict[str, Any]], 
         for label, result in zip(labels, stage1_results)
     ])
 
+    context_section = _format_context(context_messages)
+
     return f"""You are evaluating different responses to the following question:
 
+{context_section}
 Question: {user_query}
 
 Here are the responses from different models (anonymized):
@@ -148,6 +182,11 @@ async def stage3_synthesize_final(
     Returns:
         Dict with 'model' and 'response' keys
     """
+    # Note: stage3_synthesize_final is only used by the automated path, which doesn't
+    # currently pass context (though it could). For manual manual_stage3_prompt,
+    # we call build_chairman_prompt directly.
+    # To keep automated path safe, we pass None for now or update it later if needed.
+    
     chairman_prompt = build_chairman_prompt(user_query, stage1_results, stage2_results)
 
     messages = [{"role": "user", "content": chairman_prompt}]
@@ -171,7 +210,8 @@ async def stage3_synthesize_final(
 def build_chairman_prompt(
     user_query: str,
     stage1_results: List[Dict[str, Any]],
-    stage2_results: List[Dict[str, Any]]
+    stage2_results: List[Dict[str, Any]],
+    context_messages: List[Dict[str, Any]] = None
 ) -> str:
     """
     Build the prompt for Stage 3 (Chairman Synthesis).
@@ -182,6 +222,7 @@ def build_chairman_prompt(
         user_query: The original user query
         stage1_results: Individual model responses from Stage 1
         stage2_results: Rankings from Stage 2
+        context_messages: Optional list of previous messages
 
     Returns:
         The complete prompt string
@@ -210,8 +251,11 @@ def build_chairman_prompt(
 
     stage2_text = "\n\n".join(stage2_parts)
 
+    context_section = _format_context(context_messages)
+
     return f"""You are the Chairman of an LLM Council. Multiple AI models have provided responses to a user's question, and then ranked each other's responses.
 
+{context_section}
 Original Question: {user_query}
 
 STAGE 1 - Individual Responses (Anonymized):
@@ -224,6 +268,7 @@ Your task as Chairman is to synthesize all of this information into a single, co
 - The individual responses and their insights
 - The peer rankings and what they reveal about response quality
 - Any patterns of agreement or disagreement
+- The previous conversation context (if any) to ensure continuity
 
 Provide a clear, well-reasoned final answer that represents the council's collective wisdom:"""
 

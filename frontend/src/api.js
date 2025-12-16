@@ -116,7 +116,7 @@ export const api = {
   /**
    * Get Stage 2 prompt (Manual Mode).
    */
-  async getStage2Prompt(query, stage1Responses) {
+  async getStage2Prompt(query, stage1Responses, previousMessages = []) {
     const response = await fetch(`${API_BASE}/api/manual/stage2-prompt`, {
       method: 'POST',
       headers: {
@@ -124,7 +124,8 @@ export const api = {
       },
       body: JSON.stringify({
         user_query: query,
-        stage1_results: stage1Responses
+        stage1_results: stage1Responses,
+        previous_messages: previousMessages
       }),
     });
     if (!response.ok) {
@@ -156,7 +157,7 @@ export const api = {
   /**
    * Get Stage 3 prompt (Manual Mode).
    */
-  async getStage3Prompt(query, stage1Results, stage2Results) {
+  async getStage3Prompt(query, stage1Results, stage2Results, previousMessages = []) {
     const response = await fetch(`${API_BASE}/api/manual/stage3-prompt`, {
       method: 'POST',
       headers: {
@@ -165,7 +166,8 @@ export const api = {
       body: JSON.stringify({
         user_query: query,
         stage1_results: stage1Results,
-        stage2_results: stage2Results
+        stage2_results: stage2Results,
+        previous_messages: previousMessages
       }),
     });
     if (!response.ok) {
