@@ -9,11 +9,20 @@ function App() {
   const [currentConversationId, setCurrentConversationId] = useState(null);
   const [currentConversation, setCurrentConversation] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [llmNames, setLlmNames] = useState(() => {
+    const saved = localStorage.getItem('llmNames');
+    return saved ? JSON.parse(saved) : ['GPT-4o', 'Claude 3.5 Sonnet', 'Gemini 1.5 Pro'];
+  });
 
   // Load conversations on mount
   useEffect(() => {
     loadConversations();
   }, []);
+
+  // Save LLM names to localStorage when they change
+  useEffect(() => {
+    localStorage.setItem('llmNames', JSON.stringify(llmNames));
+  }, [llmNames]);
 
   // Load conversation details when selected
   useEffect(() => {
@@ -222,6 +231,16 @@ function App() {
     }
   };
 
+  const addLlmName = (name) => {
+    if (!llmNames.includes(name)) {
+      setLlmNames([...llmNames, name]);
+    }
+  };
+
+  const removeLlmName = (name) => {
+    setLlmNames(llmNames.filter(n => n !== name));
+  };
+
   return (
     <div className="app">
       <Sidebar
@@ -231,11 +250,15 @@ function App() {
         onNewConversation={handleNewConversation}
         onDeleteConversation={handleDeleteConversation}
         onRenameConversation={handleRenameConversation}
+        llmNames={llmNames}
+        onAddLlmName={addLlmName}
+        onRemoveLlmName={removeLlmName}
       />
       <ChatInterface
         conversation={currentConversation}
         onSendMessage={handleSendMessage}
         isLoading={isLoading}
+        llmNames={llmNames}
         onReload={() => {
           loadConversation(currentConversationId);
           loadConversations();

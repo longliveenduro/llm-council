@@ -8,16 +8,46 @@ export default function Sidebar({
   onNewConversation,
   onDeleteConversation,
   onRenameConversation,
+  llmNames,
+  onAddLlmName,
+  onRemoveLlmName,
 }) {
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
+  const [isAddingLlm, setIsAddingLlm] = useState(false);
+  const [newLlmName, setNewLlmName] = useState('');
   const editInputRef = useRef(null);
+  const llmInputRef = useRef(null);
 
   useEffect(() => {
     if (editingId && editInputRef.current) {
       editInputRef.current.focus();
     }
   }, [editingId]);
+
+  useEffect(() => {
+    if (isAddingLlm && llmInputRef.current) {
+      llmInputRef.current.focus();
+    }
+  }, [isAddingLlm]);
+
+  const handleAddLlm = (e) => {
+    e.preventDefault();
+    if (newLlmName.trim()) {
+      onAddLlmName(newLlmName.trim());
+      setNewLlmName('');
+      setIsAddingLlm(false);
+    }
+  };
+
+  const handleLlmKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      handleAddLlm(e);
+    } else if (e.key === 'Escape') {
+      setIsAddingLlm(false);
+      setNewLlmName('');
+    }
+  };
 
   const handleStartEdit = (e, conv) => {
     e.stopPropagation();
@@ -51,6 +81,56 @@ export default function Sidebar({
         <button className="new-conversation-btn" onClick={onNewConversation}>
           + New Conversation
         </button>
+      </div>
+
+      <div className="sidebar-section">
+        <div className="section-header">
+          <h2>Council Members</h2>
+          <button
+            className="add-llm-btn"
+            onClick={() => setIsAddingLlm(true)}
+            title="Add Council Member"
+          >
+            +
+          </button>
+        </div>
+
+        <div className="llm-list">
+          {isAddingLlm && (
+            <div className="add-llm-input-container">
+              <input
+                ref={llmInputRef}
+                type="text"
+                className="add-llm-input"
+                placeholder="Model name..."
+                value={newLlmName}
+                onChange={(e) => setNewLlmName(e.target.value)}
+                onKeyDown={handleLlmKeyDown}
+                onBlur={() => {
+                  if (!newLlmName.trim()) setIsAddingLlm(false);
+                }}
+              />
+            </div>
+          )}
+          {llmNames.map((name) => (
+            <div key={name} className="llm-item">
+              <span className="llm-name" title={name}>{name}</span>
+              <button
+                className="remove-llm-btn"
+                onClick={() => onRemoveLlmName(name)}
+                title="Remove"
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="sidebar-section">
+        <div className="section-header">
+          <h2>Conversations</h2>
+        </div>
       </div>
 
       <div className="conversation-list">

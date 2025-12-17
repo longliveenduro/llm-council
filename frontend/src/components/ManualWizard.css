@@ -97,9 +97,25 @@
 .wizard-actions {
     display: flex;
     justify-content: space-between;
+    align-items: center;
     margin-top: 16px;
     padding-top: 16px;
     border-top: 1px solid #eee;
+}
+
+.left-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.discard-btn {
+    border-color: #ff4d4d;
+    color: #ff4d4d;
+}
+
+.discard-btn:hover {
+    background: #fff0f0;
+    color: #d73a49;
 }
 
 .primary-btn {
@@ -212,6 +228,16 @@
     background: white;
     min-width: 200px;
     font-size: 14px;
+}
+
+.model-input-group {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.custom-model-input {
+    flex: 1;
 }
 
 .chairman-input-row {

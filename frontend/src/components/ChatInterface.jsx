@@ -11,6 +11,7 @@ export default function ChatInterface({
   onSendMessage,
   isLoading,
   onReload, // Added prop to trigger reload after manual save
+  llmNames,
 }) {
   const [input, setInput] = useState('');
 
@@ -32,7 +33,8 @@ export default function ChatInterface({
   // Reset continuing state when switching conversations
   useEffect(() => {
     setIsContinuing(false);
-    setIsFullManualMode(false);
+    const hasDraft = localStorage.getItem(`manual_draft_${conversation?.id}`);
+    setIsFullManualMode(!!hasDraft);
   }, [conversation?.id]);
 
   const handleSubmit = (e) => {
@@ -183,8 +185,10 @@ export default function ChatInterface({
 
           {isFullManualMode ? (
             <ManualWizard
+              key={conversation.id}
               conversationId={conversation.id}
               previousMessages={conversation.messages}
+              llmNames={llmNames}
               onComplete={handleManualWizardComplete}
               onCancel={() => setIsFullManualMode(false)}
             />

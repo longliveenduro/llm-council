@@ -1,26 +1,50 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { api } from '../api';
 import './ManualWizard.css';
 
-export default function ManualWizard({ conversationId, previousMessages = [], onComplete, onCancel }) {
-    const [step, setStep] = useState(1); // 1: Opinions, 2: Review, 3: Synthesis
+export default function ManualWizard({ conversationId, previousMessages = [], llmNames = [], onComplete, onCancel }) {
+    const draftKey = `manual_draft_${conversationId}`;
+    const savedDraft = JSON.parse(localStorage.getItem(draftKey) || '{}');
+
+    const [step, setStep] = useState(savedDraft.step || 1); // 1: Opinions, 2: Review, 3: Synthesis
     const [isLoading, setIsLoading] = useState(false);
 
     const isFollowUp = previousMessages.length > 0;
 
     // Data State
-    const [userQuery, setUserQuery] = useState('');
-    const [stage1Responses, setStage1Responses] = useState([]); // { model, response }
-    const [stage2Prompt, setStage2Prompt] = useState('');
-    const [labelToModel, setLabelToModel] = useState({});
-    const [stage2Responses, setStage2Responses] = useState([]); // { model, ranking }
-    const [stage3Prompt, setStage3Prompt] = useState('');
-    const [stage3Response, setStage3Response] = useState(''); // { model, response }
+    const [userQuery, setUserQuery] = useState(savedDraft.userQuery || '');
+    const [stage1Responses, setStage1Responses] = useState(savedDraft.stage1Responses || []); // { model, response }
+    const [stage2Prompt, setStage2Prompt] = useState(savedDraft.stage2Prompt || '');
+    const [labelToModel, setLabelToModel] = useState(savedDraft.labelToModel || {});
+    const [stage2Responses, setStage2Responses] = useState(savedDraft.stage2Responses || []); // { model, ranking }
+    const [stage3Prompt, setStage3Prompt] = useState(savedDraft.stage3Prompt || '');
+    const [stage3Response, setStage3Response] = useState(savedDraft.stage3Response || { model: 'Manual Chairman', response: '' }); // { model, response }
+    const [manualTitle, setManualTitle] = useState(savedDraft.manualTitle || '');
+    const [aggregateRankings, setAggregateRankings] = useState(savedDraft.aggregateRankings || []);
 
     // Input State for current item
-    const [currentModel, setCurrentModel] = useState('');
-    const [currentText, setCurrentText] = useState('');
+    const [currentModel, setCurrentModel] = useState(savedDraft.currentModel || llmNames[0] || '');
+    const [currentText, setCurrentText] = useState(savedDraft.currentText || '');
+
+    // --- Persistence ---
+    useEffect(() => {
+        const draft = {
+            step,
+            userQuery,
+            stage1Responses,
+            stage2Prompt,
+            labelToModel,
+            stage2Responses,
+            stage3Prompt,
+            stage3Response,
+            manualTitle,
+            aggregateRankings,
+            currentModel,
+            currentText
+        };
+        localStorage.setItem(draftKey, JSON.stringify(draft));
+    }, [draftKey, step, userQuery, stage1Responses, stage2Prompt, labelToModel, stage2Responses, stage3Prompt, stage3Response, manualTitle, aggregateRankings, currentModel, currentText]);
 
     // --- Helpers ---
     const copyToClipboard = (text) => {
@@ -111,7 +135,7 @@ export default function ManualWizard({ conversationId, previousMessages = [], on
             // But processedData returns aggregate_rankings.
 
             // Pass aggregate_rankings to step 3 or state
-            window.tempAggregateRankings = processedData.aggregate_rankings; // Hacky but effective for now
+            setAggregateRankings(processedData.aggregate_rankings);
 
             setStep(3);
         } catch (error) {
@@ -122,7 +146,6 @@ export default function ManualWizard({ conversationId, previousMessages = [], on
         }
     };
 
-    const [manualTitle, setManualTitle] = useState('');
 
     const handleComplete = async () => {
         if (!stage3Response.model || !stage3Response.response) return;
@@ -139,7 +162,7 @@ export default function ManualWizard({ conversationId, previousMessages = [], on
                 },
                 metadata: {
                     label_to_model: labelToModel,
-                    aggregate_rankings: window.tempAggregateRankings || []
+                    aggregate_rankings: aggregateRankings
                 },
                 title: manualTitle // Optional
             };
@@ -149,6 +172,7 @@ export default function ManualWizard({ conversationId, previousMessages = [], on
             // Feedback
             alert('Conversation saved successfully!');
 
+            localStorage.removeItem(draftKey);
             onComplete();
         } catch (error) {
             console.error(error);
@@ -197,11 +221,32 @@ export default function ManualWizard({ conversationId, previousMessages = [], on
             </div>
 
             <div className="add-response-form">
-                <input
-                    placeholder="Model Name"
-                    value={currentModel}
-                    onChange={(e) => setCurrentModel(e.target.value)}
-                />
+                <div className="model-input-group">
+                    <select
+                        value={llmNames.includes(currentModel) ? currentModel : 'custom'}
+                        onChange={(e) => {
+                            if (e.target.value === 'custom') {
+                                setCurrentModel('');
+                            } else {
+                                setCurrentModel(e.target.value);
+                            }
+                        }}
+                        className="model-select"
+                    >
+                        {llmNames.map(name => (
+                            <option key={name} value={name}>{name}</option>
+                        ))}
+                        <option value="custom">Custom...</option>
+                    </select>
+                    {!llmNames.includes(currentModel) && (
+                        <input
+                            placeholder="Enter Model Name"
+                            value={currentModel}
+                            onChange={(e) => setCurrentModel(e.target.value)}
+                            className="custom-model-input"
+                        />
+                    )}
+                </div>
                 <textarea
                     placeholder="Model Response"
                     value={currentText}
@@ -212,7 +257,22 @@ export default function ManualWizard({ conversationId, previousMessages = [], on
             </div>
 
             <div className="wizard-actions">
-                <button onClick={onCancel} className="secondary-btn">Cancel</button>
+                <div className="left-actions">
+                    <button onClick={onCancel} className="secondary-btn">Cancel</button>
+                    {(userQuery || stage1Responses.length > 0) && (
+                        <button
+                            onClick={() => {
+                                if (window.confirm('Clear all entries and start over?')) {
+                                    localStorage.removeItem(draftKey);
+                                    window.location.reload(); // Simplest way to reset all state
+                                }
+                            }}
+                            className="secondary-btn discard-btn"
+                        >
+                            Discard Draft
+                        </button>
+                    )}
+                </div>
                 <button
                     onClick={handleGoToStep2}
                     className="primary-btn"
@@ -265,9 +325,16 @@ export default function ManualWizard({ conversationId, previousMessages = [], on
                     className="model-select"
                 >
                     <option value="">Select Reviewer Model</option>
-                    {stage1Responses.map((r, i) => (
-                        <option key={i} value={r.model}>{r.model}</option>
-                    ))}
+                    <optgroup label="Stage 1 Participants">
+                        {stage1Responses.map((r, i) => (
+                            <option key={i} value={r.model}>{r.model}</option>
+                        ))}
+                    </optgroup>
+                    <optgroup label="Other Council Members">
+                        {llmNames.filter(name => !stage1Responses.some(r => r.model === name)).map(name => (
+                            <option key={name} value={name}>{name}</option>
+                        ))}
+                    </optgroup>
                 </select>
                 <textarea
                     placeholder="Paste Ranking Response (must include 'FINAL RANKING:...')"
@@ -279,7 +346,20 @@ export default function ManualWizard({ conversationId, previousMessages = [], on
             </div>
 
             <div className="wizard-actions">
-                <button onClick={() => setStep(1)} className="secondary-btn">Back</button>
+                <div className="left-actions">
+                    <button onClick={() => setStep(1)} className="secondary-btn">Back</button>
+                    <button
+                        onClick={() => {
+                            if (window.confirm('Clear all entries and start over?')) {
+                                localStorage.removeItem(draftKey);
+                                window.location.reload();
+                            }
+                        }}
+                        className="secondary-btn discard-btn"
+                    >
+                        Discard Draft
+                    </button>
+                </div>
                 <button
                     onClick={handleGoToStep3}
                     className="primary-btn"
@@ -341,7 +421,20 @@ export default function ManualWizard({ conversationId, previousMessages = [], on
             </div>
 
             <div className="wizard-actions">
-                <button onClick={() => setStep(2)} className="secondary-btn">Back</button>
+                <div className="left-actions">
+                    <button onClick={() => setStep(2)} className="secondary-btn">Back</button>
+                    <button
+                        onClick={() => {
+                            if (window.confirm('Clear all entries and start over?')) {
+                                localStorage.removeItem(draftKey);
+                                window.location.reload();
+                            }
+                        }}
+                        className="secondary-btn discard-btn"
+                    >
+                        Discard Draft
+                    </button>
+                </div>
                 <button
                     onClick={handleComplete}
                     className="primary-btn complete-btn"
