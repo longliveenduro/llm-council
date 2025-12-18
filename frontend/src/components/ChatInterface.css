@@ -147,7 +147,7 @@
 .input-area {
   background: var(--bg-secondary);
   border-top: 1px solid var(--border-color);
-  padding: 24px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 16px;
@@ -429,4 +429,29 @@ input:checked+.slider:before {
 
 .continue-btn:hover {
   background-color: rgba(76, 175, 80, 0.1);
+}
+
+.manual-wizard-fullscreen {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--bg-secondary);
+  padding: 16px;
+  overflow: hidden;
+}
+
+.manual-wizard-fullscreen .mode-toggle {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.manual-wizard-fullscreen .manual-wizard {
+  flex: 1;
+  overflow-y: auto;
+  border-top: none;
+  padding: 0;
+  background: transparent;
 }

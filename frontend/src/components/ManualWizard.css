@@ -1,7 +1,7 @@
 .manual-wizard {
     background: var(--bg-primary);
     border-top: 1px solid var(--border-color);
-    padding: 24px;
+    padding: 16px;
     display: flex;
     flex-direction: column;
 }
@@ -48,7 +48,7 @@
     border-radius: 6px;
     padding: 12px;
     margin-bottom: 16px;
-    max-height: 200px;
+    max-height: 250px;
     overflow-y: auto;
 }
 
@@ -192,7 +192,7 @@
     font-family: monospace;
     font-size: 12px;
     white-space: pre-wrap;
-    max-height: 200px;
+    max-height: 300px;
     overflow-y: auto;
     margin-bottom: 8px;
 }

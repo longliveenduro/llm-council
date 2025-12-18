@@ -214,7 +214,7 @@ export default function ManualWizard({ conversationId, previousMessages = [], ll
                     value={userQuery}
                     onChange={(e) => setUserQuery(e.target.value)}
                     placeholder={isFollowUp ? 'What is your follow up question?' : 'What is your question?'}
-                    rows={2}
+                    rows={4}
                 />
             </div>
 
@@ -270,7 +270,7 @@ export default function ManualWizard({ conversationId, previousMessages = [], ll
                     placeholder="Model Response"
                     value={currentText}
                     onChange={(e) => setCurrentText(e.target.value)}
-                    rows={3}
+                    rows={8}
                 />
                 <button onClick={addStage1Response} disabled={!currentModel || !currentText}>Add Response</button>
             </div>
@@ -359,7 +359,7 @@ export default function ManualWizard({ conversationId, previousMessages = [], ll
                     placeholder="Paste Ranking Response (must include 'FINAL RANKING:...')"
                     value={currentText}
                     onChange={(e) => setCurrentText(e.target.value)}
-                    rows={3}
+                    rows={8}
                 />
                 <button onClick={addStage2Response} disabled={!currentModel || !currentText}>Add Ranking</button>
             </div>
@@ -435,7 +435,7 @@ export default function ManualWizard({ conversationId, previousMessages = [], ll
                     value={stage3Response.response || ''}
                     onChange={(e) => setStage3Response({ ...stage3Response, response: e.target.value })}
                     placeholder="Paste the final answer here..."
-                    rows={6}
+                    rows={12}
                 />
             </div>
 
