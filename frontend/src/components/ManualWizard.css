@@ -1,6 +1,6 @@
 .manual-wizard {
-    background: #ffffff;
-    border-top: 1px solid #e0e0e0;
+    background: var(--bg-primary);
+    border-top: 1px solid var(--border-color);
     padding: 24px;
     display: flex;
     flex-direction: column;
@@ -9,12 +9,12 @@
 .manual-wizard h3 {
     margin: 0 0 8px 0;
     font-size: 18px;
-    color: #333;
+    color: var(--text-primary);
 }
 
 .step-desc {
     margin: 0 0 16px 0;
-    color: #666;
+    color: var(--text-secondary);
     font-size: 14px;
 }
 
@@ -27,12 +27,15 @@
     margin-bottom: 8px;
     font-weight: 500;
     font-size: 14px;
+    color: var(--text-primary);
 }
 
 .form-group textarea {
     width: 100%;
     padding: 10px;
-    border: 1px solid #d0d0d0;
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
     border-radius: 6px;
     font-family: inherit;
     font-size: 14px;
@@ -40,8 +43,8 @@
 }
 
 .responses-list {
-    background: #f9f9f9;
-    border: 1px solid #eee;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
     border-radius: 6px;
     padding: 12px;
     margin-bottom: 16px;
@@ -52,10 +55,11 @@
 .response-item {
     font-size: 13px;
     padding: 8px 0;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--border-color);
     display: flex;
     align-items: center;
     gap: 4px;
+    color: var(--text-primary);
 }
 
 .model-badge {
@@ -82,7 +86,7 @@
     display: flex;
     flex-direction: column;
     gap: 8px;
-    background: #f0f7ff;
+    background: var(--item-active);
     padding: 12px;
     border-radius: 6px;
     margin-bottom: 16px;
@@ -91,7 +95,9 @@
 .add-response-form input,
 .add-response-form textarea {
     padding: 8px;
-    border: 1px solid #d0d0d0;
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
     border-radius: 4px;
     font-family: inherit;
     font-size: 14px;
@@ -100,7 +106,7 @@
 .add-response-form button {
     align-self: flex-start;
     padding: 6px 12px;
-    background: #4a90e2;
+    background: var(--accent-color);
     color: white;
     border: none;
     border-radius: 4px;
@@ -109,7 +115,8 @@
 }
 
 .add-response-form button:disabled {
-    background: #ccc;
+    background: var(--border-color);
+    color: var(--text-muted);
     cursor: not-allowed;
 }
 
@@ -119,7 +126,7 @@
     align-items: center;
     margin-top: 16px;
     padding-top: 16px;
-    border-top: 1px solid #eee;
+    border-top: 1px solid var(--border-color);
 }
 
 .left-actions {
@@ -133,7 +140,7 @@
 }
 
 .discard-btn:hover {
-    background: #fff0f0;
+    background: rgba(255, 77, 77, 0.1);
     color: #d73a49;
 }
 
@@ -152,22 +159,23 @@
 }
 
 .primary-btn:disabled {
-    background: #ccc;
+    background: var(--border-color);
+    color: var(--text-muted);
     cursor: not-allowed;
 }
 
 .secondary-btn {
     padding: 10px 20px;
     background: transparent;
-    color: #666;
-    border: 1px solid #ccc;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-color);
     border-radius: 6px;
     cursor: pointer;
 }
 
 .secondary-btn:hover {
-    background: #f5f5f5;
-    color: #333;
+    background: var(--item-hover);
+    color: var(--text-primary);
 }
 
 .prompt-box {
@@ -176,10 +184,11 @@
 
 .prompt-preview,
 .context-preview {
-    background: #333;
-    color: #f0f0f0;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
     padding: 12px;
     border-radius: 6px;
+    border: 1px solid var(--border-color);
     font-family: monospace;
     font-size: 12px;
     white-space: pre-wrap;
@@ -190,15 +199,16 @@
 
 .copy-btn {
     padding: 6px 12px;
-    background: #eee;
-    border: 1px solid #ccc;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
     border-radius: 4px;
     cursor: pointer;
     font-size: 12px;
 }
 
 .copy-btn:hover {
-    background: #e0e0e0;
+    background: var(--item-hover);
 }
 
 .prompt-col-layout {
@@ -214,8 +224,8 @@
 
 .mapping-box {
     flex: 1;
-    background: #fdfdfd;
-    border: 1px solid #eee;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
     border-radius: 6px;
     padding: 12px;
     display: flex;
@@ -227,6 +237,7 @@
     font-weight: 500;
     margin-bottom: 8px;
     display: block;
+    color: var(--text-primary);
 }
 
 .mapping-list {
@@ -237,17 +248,19 @@
 
 .mapping-item {
     padding: 6px 0;
-    border-bottom: 1px dashed #eee;
+    border-bottom: 1px dashed var(--border-color);
     display: flex;
     align-items: center;
     gap: 8px;
+    color: var(--text-primary);
 }
 
 .model-select {
     padding: 8px;
-    border: 1px solid #d0d0d0;
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
     border-radius: 4px;
-    background: white;
     min-width: 200px;
     font-size: 14px;
 }
@@ -267,21 +280,23 @@
 }
 
 .final-response-input {
-    background: #f0fff0;
-    border-color: #a0e0a0;
+    background: var(--bg-primary);
+    border-color: var(--accent-color);
 }
 
 .manual-wizard-loading {
     padding: 40px;
     text-align: center;
-    color: #666;
+    color: var(--text-secondary);
     font-style: italic;
 }
 
 .title-input {
     width: 100%;
     padding: 10px;
-    border: 1px solid #d0d0d0;
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
     border-radius: 6px;
     font-size: 16px;
     font-weight: 500;
@@ -290,7 +305,7 @@
 
 .hint-text {
     font-size: 12px;
-    color: #666;
+    color: var(--text-muted);
     margin: 0 0 8px 0;
     font-style: italic;
 }

@@ -283,10 +283,6 @@
   background: var(--item-hover);
 }
 
-.conversation-item.active {
-  background: #e8f0fe;
-  border: 1px solid #4a90e2;
-}
 
 .conversation-title {
   color: var(--text-primary);

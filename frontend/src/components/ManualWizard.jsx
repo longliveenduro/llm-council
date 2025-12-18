@@ -13,6 +13,7 @@ const ModelBadge = ({ model }) => {
                     src={iconUrl}
                     alt=""
                     className="model-badge-icon"
+                    style={{ filter: 'var(--icon-filter)' }}
                     onError={(e) => e.target.style.display = 'none'}
                 />
             )}
