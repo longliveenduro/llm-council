@@ -51,8 +51,27 @@
 
 .response-item {
     font-size: 13px;
-    padding: 6px 0;
+    padding: 8px 0;
     border-bottom: 1px solid #eee;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.model-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.model-badge-icon {
+    width: 14px;
+    height: 14px;
+    object-fit: contain;
+}
+
+.model-badge-name {
+    font-weight: 600;
 }
 
 .response-item:last-child {
@@ -217,8 +236,11 @@
 }
 
 .mapping-item {
-    padding: 4px 0;
+    padding: 6px 0;
     border-bottom: 1px dashed #eee;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .model-select {

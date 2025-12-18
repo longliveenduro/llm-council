@@ -1,7 +1,25 @@
 import { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { api } from '../api';
+import { getModelIcon } from '../utils/modelIcons';
 import './ManualWizard.css';
+
+const ModelBadge = ({ model }) => {
+    const iconUrl = getModelIcon(model);
+    return (
+        <span className="model-badge">
+            {iconUrl && (
+                <img
+                    src={iconUrl}
+                    alt=""
+                    className="model-badge-icon"
+                    onError={(e) => e.target.style.display = 'none'}
+                />
+            )}
+            <span className="model-badge-name">{model}</span>
+        </span>
+    );
+};
 
 export default function ManualWizard({ conversationId, previousMessages = [], llmNames = [], onComplete, onCancel }) {
     const draftKey = `manual_draft_${conversationId}`;
@@ -215,7 +233,7 @@ export default function ManualWizard({ conversationId, previousMessages = [], ll
             <div className="responses-list">
                 {stage1Responses.map((r, i) => (
                     <div key={i} className="response-item">
-                        <strong>{r.model}</strong>: {r.response.substring(0, 50)}...
+                        <ModelBadge model={r.model} />: {r.response.substring(0, 50)}...
                     </div>
                 ))}
             </div>
@@ -313,7 +331,7 @@ export default function ManualWizard({ conversationId, previousMessages = [], ll
             <div className="responses-list">
                 {stage2Responses.map((r, i) => (
                     <div key={i} className="response-item">
-                        <strong>{r.model}</strong>: {r.ranking.substring(0, 50)}...
+                        <ModelBadge model={r.model} />: {r.ranking.substring(0, 50)}...
                     </div>
                 ))}
             </div>
@@ -390,7 +408,7 @@ export default function ManualWizard({ conversationId, previousMessages = [], ll
                     <div className="mapping-list">
                         {Object.entries(labelToModel).map(([label, model]) => (
                             <div key={label} className="mapping-item">
-                                <strong>{label}</strong> = {model}
+                                <strong>{label}</strong> = <ModelBadge model={model} />
                             </div>
                         ))}
                     </div>

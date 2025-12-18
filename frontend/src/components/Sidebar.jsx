@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { getModelIcon } from '../utils/modelIcons';
 import './Sidebar.css';
 
 export default function Sidebar({
@@ -112,18 +113,33 @@ export default function Sidebar({
               />
             </div>
           )}
-          {llmNames.map((name) => (
-            <div key={name} className="llm-item">
-              <span className="llm-name" title={name}>{name}</span>
-              <button
-                className="remove-llm-btn"
-                onClick={() => onRemoveLlmName(name)}
-                title="Remove"
-              >
-                ×
-              </button>
-            </div>
-          ))}
+          {llmNames.map((name) => {
+            const iconUrl = getModelIcon(name);
+            return (
+              <div key={name} className="llm-item">
+                <div className="llm-icon-container">
+                  {iconUrl ? (
+                    <img
+                      src={iconUrl}
+                      alt=""
+                      className="llm-icon"
+                      onError={(e) => e.target.style.display = 'none'}
+                    />
+                  ) : (
+                    <div className="llm-icon-placeholder" />
+                  )}
+                </div>
+                <span className="llm-name" title={name}>{name}</span>
+                <button
+                  className="remove-llm-btn"
+                  onClick={() => onRemoveLlmName(name)}
+                  title="Remove"
+                >
+                  ×
+                </button>
+              </div>
+            );
+          })}
         </div>
       </div>
 

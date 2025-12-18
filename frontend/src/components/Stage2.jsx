@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { getModelIcon } from '../utils/modelIcons';
 import './Stage2.css';
 
 function deAnonymizeText(text, labelToModel) {
@@ -32,20 +33,41 @@ export default function Stage2({ rankings, labelToModel, aggregateRankings }) {
       </p>
 
       <div className="tabs">
-        {rankings.map((rank, index) => (
-          <button
-            key={index}
-            className={`tab ${activeTab === index ? 'active' : ''}`}
-            onClick={() => setActiveTab(index)}
-          >
-            {`Model ${String.fromCharCode(65 + index)}: ${rank.model.split('/')[1] || rank.model}`}
-          </button>
-        ))}
+        {rankings.map((rank, index) => {
+          const iconUrl = getModelIcon(rank.model);
+          return (
+            <button
+              key={index}
+              className={`tab ${activeTab === index ? 'active' : ''}`}
+              onClick={() => setActiveTab(index)}
+            >
+              {iconUrl && (
+                <img
+                  src={iconUrl}
+                  alt=""
+                  className="tab-icon"
+                  onError={(e) => e.target.style.display = 'none'}
+                />
+              )}
+              {`Model ${String.fromCharCode(65 + index)}: ${rank.model.split('/')[1] || rank.model}`}
+            </button>
+          );
+        })}
       </div>
 
       <div className="tab-content">
-        <div className="ranking-model">
-          {rankings[activeTab].model}
+        <div className="ranking-model-header">
+          {getModelIcon(rankings[activeTab].model) && (
+            <img
+              src={getModelIcon(rankings[activeTab].model)}
+              alt=""
+              className="ranking-model-icon"
+              onError={(e) => e.target.style.display = 'none'}
+            />
+          )}
+          <div className="ranking-model">
+            {rankings[activeTab].model}
+          </div>
         </div>
         <div className="ranking-content markdown-content">
           <ReactMarkdown>
@@ -80,8 +102,18 @@ export default function Stage2({ rankings, labelToModel, aggregateRankings }) {
             {aggregateRankings.map((agg, index) => (
               <div key={index} className="aggregate-item">
                 <span className="rank-position">#{index + 1}</span>
-                <span className="rank-model">
-                  {agg.model.split('/')[1] || agg.model}
+                <span className="rank-model-container">
+                  {getModelIcon(agg.model) && (
+                    <img
+                      src={getModelIcon(agg.model)}
+                      alt=""
+                      className="rank-model-icon"
+                      onError={(e) => e.target.style.display = 'none'}
+                    />
+                  )}
+                  <span className="rank-model">
+                    {agg.model.split('/')[1] || agg.model}
+                  </span>
                 </span>
                 <span className="rank-score">
                   Avg: {agg.average_rank.toFixed(2)}

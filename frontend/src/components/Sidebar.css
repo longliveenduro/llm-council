@@ -83,19 +83,48 @@
   background: #fff;
   border: 1px solid #e0e0e0;
   border-radius: 4px;
-  padding: 4px 8px;
+  padding: 4px 10px 4px 6px;
   font-size: 13px;
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 8px;
   max-width: 100%;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.llm-item:hover {
+  border-color: #4a90e2;
+}
+
+.llm-icon-container {
+  width: 18px;
+  height: 18px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.llm-icon {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.llm-icon-placeholder {
+  width: 14px;
+  height: 14px;
+  background: #f0f0f0;
+  border-radius: 50%;
+  border: 1px solid #e0e0e0;
 }
 
 .llm-name {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: #555;
+  color: #333;
+  flex: 1;
 }
 
 .remove-llm-btn {

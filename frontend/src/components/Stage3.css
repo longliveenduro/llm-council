@@ -10,11 +10,25 @@
   border: 1px solid #c8e6c8;
 }
 
+.chairman-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #e0f2e0;
+  padding-bottom: 8px;
+}
+
+.chairman-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
 .chairman-label {
   color: #2d8a2d;
-  font-size: 12px;
-  font-family: monospace;
-  margin-bottom: 12px;
+  font-size: 13px;
+  font-family: inherit;
   font-weight: 600;
 }
 

@@ -57,10 +57,21 @@
   min-width: 35px;
 }
 
-.rank-model {
+.rank-model-container {
   flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rank-model-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
+.rank-model {
   color: #333;
-  font-family: monospace;
   font-size: 14px;
   font-weight: 500;
 }
@@ -87,6 +98,15 @@
   cursor: pointer;
   font-size: 14px;
   transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tab-icon {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
 }
 
 .stage2 .tab:hover {
@@ -111,11 +131,25 @@
   margin-bottom: 20px;
 }
 
+.ranking-model-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #f0f0f0;
+  padding-bottom: 8px;
+}
+
+.ranking-model-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
 .ranking-model {
   color: #888;
-  font-size: 12px;
-  font-family: monospace;
-  margin-bottom: 12px;
+  font-size: 13px;
+  font-family: inherit;
 }
 
 .ranking-content {

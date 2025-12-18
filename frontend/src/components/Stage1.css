@@ -29,6 +29,15 @@
   cursor: pointer;
   font-size: 14px;
   transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tab-icon {
+  width: 14px;
+  height: 14px;
+  object-fit: contain;
 }
 
 .tab:hover {
@@ -52,11 +61,25 @@
   border: 1px solid #e0e0e0;
 }
 
+.model-info-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #f0f0f0;
+  padding-bottom: 8px;
+}
+
+.model-header-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+}
+
 .model-name {
   color: #888;
-  font-size: 12px;
-  margin-bottom: 12px;
-  font-family: monospace;
+  font-size: 13px;
+  font-family: inherit;
 }
 
 .response-text {
