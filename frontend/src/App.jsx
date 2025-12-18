@@ -276,6 +276,7 @@ function App() {
         onSendMessage={handleSendMessage}
         isLoading={isLoading}
         llmNames={llmNames}
+        theme={theme}
         onReload={() => {
           loadConversation(currentConversationId);
           loadConversations();

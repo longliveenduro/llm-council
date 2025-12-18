@@ -12,6 +12,7 @@ export default function ChatInterface({
   isLoading,
   onReload, // Added prop to trigger reload after manual save
   llmNames,
+  theme,
 }) {
   const [input, setInput] = useState('');
 
@@ -75,7 +76,13 @@ export default function ChatInterface({
     return (
       <div className="chat-interface">
         <div className="empty-state">
-          <h2>Welcome to LLM Council</h2>
+          <div className="council-image-container">
+            <img
+              src={theme === 'dark' ? '/header-dark.png' : '/header-light.png'}
+              alt="LLM Council"
+              className="council-header-img"
+            />
+          </div>
           <p>Create a new conversation to get started</p>
         </div>
       </div>
@@ -90,7 +97,13 @@ export default function ChatInterface({
       <div className="messages-container">
         {conversation.messages.length === 0 && !isFullManualMode ? (
           <div className="empty-state">
-            <h2>Start a conversation</h2>
+            <div className="council-image-container">
+              <img
+                src={theme === 'dark' ? '/header-dark.png' : '/header-light.png'}
+                alt="LLM Council"
+                className="council-header-img"
+              />
+            </div>
             <p>Ask a question to consult the LLM Council</p>
           </div>
         ) : (

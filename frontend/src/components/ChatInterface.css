@@ -29,6 +29,26 @@
   color: var(--text-primary);
 }
 
+.council-image-container {
+  width: 100%;
+  max-width: 1600px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 24px;
+  /* Ultra-aggressive mask to ensure NO edges or corners are visible */
+  -webkit-mask-image: radial-gradient(circle, black 70%, transparent 98%);
+  mask-image: radial-gradient(circle, black 70%, transparent 98%);
+}
+
+.council-header-img {
+  width: 100%;
+  height: auto;
+  max-height: 80vh;
+  object-fit: contain;
+  border-radius: 12px;
+}
+
 .empty-state p {
   margin: 0;
   font-size: 16px;
