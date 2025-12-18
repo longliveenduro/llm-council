@@ -29,6 +29,7 @@ export default function Stage1({ responses }) {
                   src={iconUrl}
                   alt=""
                   className="tab-icon"
+                  style={{ filter: 'var(--icon-filter)' }}
                   onError={(e) => e.target.style.display = 'none'}
                 />
               )}
@@ -45,6 +46,7 @@ export default function Stage1({ responses }) {
               src={getModelIcon(responses[activeTab].model)}
               alt=""
               className="model-header-icon"
+              style={{ filter: 'var(--icon-filter)' }}
               onError={(e) => e.target.style.display = 'none'}
             />
           )}

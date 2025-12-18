@@ -17,6 +17,7 @@ export default function Stage3({ finalResponse }) {
               src={getModelIcon(finalResponse.model)}
               alt=""
               className="chairman-icon"
+              style={{ filter: 'var(--icon-filter)' }}
               onError={(e) => e.target.style.display = 'none'}
             />
           )}

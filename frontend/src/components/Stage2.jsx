@@ -46,6 +46,7 @@ export default function Stage2({ rankings, labelToModel, aggregateRankings }) {
                   src={iconUrl}
                   alt=""
                   className="tab-icon"
+                  style={{ filter: 'var(--icon-filter)' }}
                   onError={(e) => e.target.style.display = 'none'}
                 />
               )}
@@ -62,6 +63,7 @@ export default function Stage2({ rankings, labelToModel, aggregateRankings }) {
               src={getModelIcon(rankings[activeTab].model)}
               alt=""
               className="ranking-model-icon"
+              style={{ filter: 'var(--icon-filter)' }}
               onError={(e) => e.target.style.display = 'none'}
             />
           )}
@@ -108,6 +110,7 @@ export default function Stage2({ rankings, labelToModel, aggregateRankings }) {
                       src={getModelIcon(agg.model)}
                       alt=""
                       className="rank-model-icon"
+                      style={{ filter: 'var(--icon-filter)' }}
                       onError={(e) => e.target.style.display = 'none'}
                     />
                   )}

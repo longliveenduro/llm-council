@@ -12,6 +12,8 @@ export default function Sidebar({
   llmNames,
   onAddLlmName,
   onRemoveLlmName,
+  theme,
+  onToggleTheme,
 }) {
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
@@ -78,7 +80,16 @@ export default function Sidebar({
   return (
     <div className="sidebar">
       <div className="sidebar-header">
-        <h1>LLM Council</h1>
+        <div className="header-top">
+          <h1>LLM Council</h1>
+          <button
+            className="theme-toggle-btn"
+            onClick={onToggleTheme}
+            title={`Switch to ${theme === 'light' ? 'dark' : 'light'} mode`}
+          >
+            {theme === 'light' ? '🌙' : '☀️'}
+          </button>
+        </div>
         <button className="new-conversation-btn" onClick={onNewConversation}>
           + New Conversation
         </button>
@@ -123,6 +134,7 @@ export default function Sidebar({
                       src={iconUrl}
                       alt=""
                       className="llm-icon"
+                      style={{ filter: 'var(--icon-filter)' }}
                       onError={(e) => e.target.style.display = 'none'}
                     />
                   ) : (

@@ -13,6 +13,11 @@ function App() {
     const saved = localStorage.getItem('llmNames');
     return saved ? JSON.parse(saved) : ['GPT-4o', 'Claude 3.5 Sonnet', 'Gemini 1.5 Pro'];
   });
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem('theme');
+    if (saved) return saved;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  });
 
   // Load conversations on mount
   useEffect(() => {
@@ -23,6 +28,16 @@ function App() {
   useEffect(() => {
     localStorage.setItem('llmNames', JSON.stringify(llmNames));
   }, [llmNames]);
+
+  // Apply theme to document and save to localStorage
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
 
   // Load conversation details when selected
   useEffect(() => {
@@ -253,6 +268,8 @@ function App() {
         llmNames={llmNames}
         onAddLlmName={addLlmName}
         onRemoveLlmName={removeLlmName}
+        theme={theme}
+        onToggleTheme={toggleTheme}
       />
       <ChatInterface
         conversation={currentConversation}
