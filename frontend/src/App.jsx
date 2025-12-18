@@ -274,6 +274,7 @@ function App() {
       <ChatInterface
         conversation={currentConversation}
         onSendMessage={handleSendMessage}
+        onNewConversation={handleNewConversation}
         isLoading={isLoading}
         llmNames={llmNames}
         theme={theme}

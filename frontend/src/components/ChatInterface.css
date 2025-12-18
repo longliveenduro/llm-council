@@ -54,6 +54,29 @@
   font-size: 16px;
 }
 
+.new-conv-empty-btn {
+  background: none;
+  border: 1px solid var(--accent-color);
+  color: var(--accent-color);
+  padding: 10px 20px;
+  border-radius: 20px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-top: 8px;
+}
+
+.new-conv-empty-btn:hover {
+  background: var(--accent-color);
+  color: white;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.new-conv-empty-btn:active {
+  transform: translateY(0);
+}
+
 .message-group {
   margin-bottom: 32px;
 }

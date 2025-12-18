@@ -9,6 +9,7 @@ import './ChatInterface.css';
 export default function ChatInterface({
   conversation,
   onSendMessage,
+  onNewConversation,
   isLoading,
   onReload, // Added prop to trigger reload after manual save
   llmNames,
@@ -83,7 +84,9 @@ export default function ChatInterface({
               className="council-header-img"
             />
           </div>
-          <p>Create a new conversation to get started</p>
+          <button className="new-conv-empty-btn" onClick={onNewConversation}>
+            Create a new conversation to get started
+          </button>
         </div>
       </div>
     );
