@@ -19,3 +19,6 @@ data/
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
+
+# Browser Automation
+browser_automation/.browser_data/
