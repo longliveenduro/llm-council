@@ -114,6 +114,24 @@ export const api = {
   },
 
   /**
+   * Run AI Studio automation for a prompt.
+   */
+  async runAutomation(prompt, model) {
+    const response = await fetch(`${API_BASE}/api/manual/run-automation`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ prompt, model }),
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Automation failed');
+    }
+    return response.json();
+  },
+
+  /**
    * Get Stage 2 prompt (Manual Mode).
    */
   async getStage2Prompt(query, stage1Responses, previousMessages = []) {

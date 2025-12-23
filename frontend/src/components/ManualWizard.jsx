@@ -28,6 +28,7 @@ export default function ManualWizard({ conversationId, previousMessages = [], ll
 
     const [step, setStep] = useState(savedDraft.step || 1); // 1: Opinions, 2: Review, 3: Synthesis
     const [isLoading, setIsLoading] = useState(false);
+    const [isAutomating, setIsAutomating] = useState(false);
 
     const isFollowUp = previousMessages.length > 0;
 
@@ -41,6 +42,7 @@ export default function ManualWizard({ conversationId, previousMessages = [], ll
     const [stage3Response, setStage3Response] = useState(savedDraft.stage3Response || { model: 'Manual Chairman', response: '' }); // { model, response }
     const [manualTitle, setManualTitle] = useState(savedDraft.manualTitle || '');
     const [aggregateRankings, setAggregateRankings] = useState(savedDraft.aggregateRankings || []);
+    const [aiStudioModel, setAiStudioModel] = useState(savedDraft.aiStudioModel || 'Gemini 3 Flash');
 
     // Input State for current item
     const [currentModel, setCurrentModel] = useState(savedDraft.currentModel || llmNames[0] || '');
@@ -59,11 +61,12 @@ export default function ManualWizard({ conversationId, previousMessages = [], ll
             stage3Response,
             manualTitle,
             aggregateRankings,
+            aiStudioModel,
             currentModel,
             currentText
         };
         localStorage.setItem(draftKey, JSON.stringify(draft));
-    }, [draftKey, step, userQuery, stage1Responses, stage2Prompt, labelToModel, stage2Responses, stage3Prompt, stage3Response, manualTitle, aggregateRankings, currentModel, currentText]);
+    }, [draftKey, step, userQuery, stage1Responses, stage2Prompt, labelToModel, stage2Responses, stage3Prompt, stage3Response, manualTitle, aggregateRankings, aiStudioModel, currentModel, currentText]);
 
     // --- Helpers ---
     const copyToClipboard = (text) => {
@@ -104,6 +107,36 @@ export default function ManualWizard({ conversationId, previousMessages = [], ll
             setStage2Responses([...stage2Responses, { model: currentModel, ranking: currentText }]);
             setCurrentModel('');
             setCurrentText('');
+        }
+    };
+
+    const handleRunAutomation = async (prompt) => {
+        if (!prompt) return;
+        setIsAutomating(true);
+        setCurrentText(''); // Clear existing text
+        try {
+            const data = await api.runAutomation(prompt, aiStudioModel);
+            setCurrentText(data.response);
+        } catch (error) {
+            console.error(error);
+            alert(`Automation failed: ${error.message}`);
+        } finally {
+            setIsAutomating(false);
+        }
+    };
+
+    const handleRunStage3Automation = async (prompt) => {
+        if (!prompt) return;
+        setIsAutomating(true);
+        setStage3Response(prev => ({ ...prev, response: '' })); // Clear existing text
+        try {
+            const data = await api.runAutomation(prompt, aiStudioModel);
+            setStage3Response(prev => ({ ...prev, response: data.response }));
+        } catch (error) {
+            console.error(error);
+            alert(`Automation failed: ${error.message}`);
+        } finally {
+            setIsAutomating(false);
         }
     };
 
@@ -208,6 +241,18 @@ export default function ManualWizard({ conversationId, previousMessages = [], ll
             <h3>{isFollowUp ? 'Step 1: Follow Up Opinions' : 'Step 1: Initial Opinions'}</h3>
             <p className="step-desc">Enter your query and manually add model responses.</p>
 
+            <div className="automation-settings">
+                <label>AI Studio Model for Automation:</label>
+                <div className="automation-input-row">
+                    <input
+                        type="text"
+                        value={aiStudioModel}
+                        onChange={(e) => setAiStudioModel(e.target.value)}
+                        placeholder="e.g. Gemini 3 Pro Preview"
+                    />
+                </div>
+            </div>
+
             <div className="form-group">
                 <label>{isFollowUp ? 'Your Follow Up Question:' : 'Your Question:'}</label>
                 <textarea
@@ -272,7 +317,16 @@ export default function ManualWizard({ conversationId, previousMessages = [], ll
                     onChange={(e) => setCurrentText(e.target.value)}
                     rows={8}
                 />
-                <button onClick={addStage1Response} disabled={!currentModel || !currentText}>Add Response</button>
+                <div className="add-response-actions">
+                    <button onClick={addStage1Response} disabled={!currentModel || !currentText}>Add Response</button>
+                    <button
+                        onClick={() => handleRunAutomation(isFollowUp ? getContextText() : userQuery)}
+                        className="automation-btn"
+                        disabled={isAutomating || !userQuery}
+                    >
+                        {isAutomating ? 'Running Automation...' : 'Run via AI Studio'}
+                    </button>
+                </div>
             </div>
 
             <div className="wizard-actions">
@@ -361,7 +415,16 @@ export default function ManualWizard({ conversationId, previousMessages = [], ll
                     onChange={(e) => setCurrentText(e.target.value)}
                     rows={8}
                 />
-                <button onClick={addStage2Response} disabled={!currentModel || !currentText}>Add Ranking</button>
+                <div className="add-response-actions">
+                    <button onClick={addStage2Response} disabled={!currentModel || !currentText}>Add Ranking</button>
+                    <button
+                        onClick={() => handleRunAutomation(stage2Prompt)}
+                        className="automation-btn"
+                        disabled={isAutomating || !stage2Prompt}
+                    >
+                        {isAutomating ? 'Running Automation...' : 'Run via AI Studio'}
+                    </button>
+                </div>
             </div>
 
             <div className="wizard-actions">
@@ -429,6 +492,13 @@ export default function ManualWizard({ conversationId, previousMessages = [], ll
                             <option key={i} value={r.model}>{r.model}</option>
                         ))}
                     </select>
+                    <button
+                        onClick={() => handleRunStage3Automation(stage3Prompt)}
+                        className="automation-btn stage3-auto-btn"
+                        disabled={isAutomating || !stage3Prompt}
+                    >
+                        {isAutomating ? 'Automating...' : 'Run via AI Studio'}
+                    </button>
                 </div>
                 <textarea
                     className="final-response-input"

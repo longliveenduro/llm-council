@@ -14,7 +14,8 @@ from . import storage
 from .council import (
     run_full_council, generate_conversation_title, stage1_collect_responses,
     stage2_collect_rankings, stage3_synthesize_final, calculate_aggregate_rankings,
-    build_ranking_prompt, build_chairman_prompt, parse_ranking_from_text
+    build_ranking_prompt, build_chairman_prompt, parse_ranking_from_text,
+    run_ai_studio_automation
 )
 
 app = FastAPI(title="LLM Council API")
@@ -80,6 +81,11 @@ class SaveManualMessageRequest(BaseModel):
     metadata: Dict[str, Any]
     user_query: str
     title: str = None  # Optional manual title
+
+
+class AutomationRequest(BaseModel):
+    prompt: str
+    model: str = "Gemini 3 Flash"
 
 
 
@@ -256,6 +262,16 @@ async def send_message_stream(conversation_id: str, request: SendMessageRequest)
 
 
 # --- Manual Mode Helper Endpoints ---
+
+@app.post("/api/manual/run-automation")
+async def manual_run_automation(request: AutomationRequest):
+    """Run AI Studio automation for a prompt."""
+    try:
+        response = await run_ai_studio_automation(request.prompt, request.model)
+        return {"response": response}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.post("/api/manual/stage2-prompt")
 async def manual_stage2_prompt(request: ManualStage2Request):

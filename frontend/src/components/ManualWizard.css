@@ -309,3 +309,75 @@
     margin: 0 0 8px 0;
     font-style: italic;
 }
+
+/* Automation Integration Styles */
+.automation-settings {
+    background: var(--bg-secondary);
+    padding: 12px;
+    border-radius: 6px;
+    margin-bottom: 16px;
+    border: 1px solid var(--border-color);
+}
+
+.automation-settings label {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--text-secondary);
+}
+
+.automation-input-row {
+    display: flex;
+    gap: 8px;
+}
+
+.automation-input-row input {
+    flex: 1;
+    padding: 8px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--input-bg);
+    color: var(--text-primary);
+    font-size: 14px;
+}
+
+.add-response-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
+}
+
+.automation-btn {
+    background: var(--accent-color);
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: filter 0.2s;
+}
+
+.automation-btn:hover:not(:disabled) {
+    filter: brightness(1.1);
+}
+
+.automation-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.chairman-input-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.stage3-auto-btn {
+    flex-shrink: 0;
+}

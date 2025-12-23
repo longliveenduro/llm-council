@@ -3,6 +3,11 @@
 from typing import List, Dict, Any, Tuple
 from .openrouter import query_models_parallel, query_model
 from .config import COUNCIL_MODELS, CHAIRMAN_MODEL
+import subprocess
+import os
+import sys
+import asyncio
+from pathlib import Path
 
 
 async def stage1_collect_responses(
@@ -390,6 +395,47 @@ Title:"""
         title = title[:47] + "..."
 
     return title
+
+
+async def run_ai_studio_automation(prompt: str, model: str = "Gemini 3 Flash") -> str:
+    """
+    Run the AI Studio automation script via subprocess.
+    """
+    script_path = Path(__file__).parent.parent / "browser_automation" / "ai_studio_automation.py"
+    
+    # Use the same python interpreter as the current process
+    args = [sys.executable, str(script_path), prompt, "--model", model]
+    
+    try:
+        print(f"Executing automation: {model}")
+        # Run subprocess and capture output
+        process = await asyncio.create_subprocess_exec(
+            *args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        
+        stdout, stderr = await process.communicate()
+        
+        if process.returncode != 0:
+            error_msg = stderr.decode().strip()
+            print(f"Automation Error (Code {process.returncode}): {error_msg}")
+            return f"Error: Automation script failed. {error_msg}"
+            
+        output = stdout.decode().strip()
+        
+        # The script prints various DEBUG info, the final response is after "Response:"
+        if "Response:" in output:
+            response = output.split("Response:")[-1].strip()
+            # Clean up exit logs if any
+            if "Exit code:" in response:
+                response = response.split("Exit code:")[0].strip()
+            return response
+            
+        return output
+    except Exception as e:
+        print(f"Subprocess Exception: {e}")
+        return f"Error running automation: {str(e)}"
 
 
 async def run_full_council(

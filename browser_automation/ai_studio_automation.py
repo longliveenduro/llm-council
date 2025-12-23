@@ -51,7 +51,10 @@ async def get_browser_context() -> tuple[BrowserContext, Page]:
     # Navigate to AI Studio if not already there
     if "aistudio.google.com" not in page.url:
         await page.goto("https://aistudio.google.com/prompts/new_chat")
-        await page.wait_for_load_state("networkidle")
+        try:
+            await page.wait_for_load_state("networkidle", timeout=60000)
+        except:
+            print("Warning: Network idle timeout, proceeding potentially without full load.")
     
     return context, page
 
@@ -103,9 +106,36 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None) -> st
     await asyncio.sleep(0.3)
     
     # Clear any existing text and type the prompt
+    # Clear any existing text
     await page.keyboard.press("Control+a")
     await page.keyboard.press("Backspace")
-    await page.type(input_selector, prompt, delay=10)
+
+    try:
+        # Use clipboard paste for speed (avoid timeout on long prompts)
+        # Grant permissions first (context level)
+        try:
+             await page.context.grant_permissions(['clipboard-read', 'clipboard-write'])
+        except:
+             pass
+        
+        # Write to clipboard
+        await page.evaluate("navigator.clipboard.writeText(arguments[0])", prompt)
+        await asyncio.sleep(0.1)
+        
+        # Paste
+        await page.keyboard.press("Control+v")
+        
+        # Fallback verification: if empty, try fill
+        await asyncio.sleep(0.5)
+        val = await page.input_value(input_selector)
+        if len(val) < 10:
+             print("Warning: Paste might have failed, trying fill fallback...")
+             await page.fill(input_selector, prompt)
+
+    except Exception as e:
+        print(f"Paste failed ({e}), falling back to fill (instant)...")
+        # Use fill instead of type to prevent timeouts on massive prompts
+        await page.fill(input_selector, prompt)
     
     print(f"Typed prompt: {prompt[:50]}...")
     
@@ -207,7 +237,55 @@ async def extract_response(page: Page) -> str:
          except:
              pass
 
-    # AI Studio specific selectors based on HTML analysis
+    # Try Clipboard Extraction first (High Fidelity for formatted text)
+    try:
+        # Grant permissions if possible
+        try:
+            await context.grant_permissions(['clipboard-read', 'clipboard-write'])
+        except:
+             pass
+
+        turn_selector = 'ms-chat-turn:last-of-type'
+        turn = await page.query_selector(turn_selector)
+        
+        if turn:
+            # Hover to potentially reveal buttons
+            await turn.hover()
+            
+            # 1. Try direct copy button
+            copy_btn = await turn.query_selector('button[aria-label*="copy" i]')
+            
+            # 2. Try 'more_vert' menu if direct button missing
+            if not copy_btn:
+                menu_btn = await turn.query_selector('button[aria-label="Open options"]')
+                if menu_btn:
+                    await menu_btn.click()
+                    # Wait/Find menu
+                    try:
+                        await page.wait_for_selector('div[role="menu"]', timeout=2000)
+                        menu_items = await page.query_selector_all('div[role="menu"] button')
+                        for item in menu_items:
+                            txt = await item.text_content()
+                            if "copy" in txt.lower():
+                                copy_btn = item
+                                break
+                    except:
+                        pass
+            
+            if copy_btn:
+                await copy_btn.click()
+                # Short wait for clipboard write
+                await asyncio.sleep(0.5)
+                clipboard_text = await page.evaluate("navigator.clipboard.readText()")
+                if clipboard_text and len(clipboard_text) > 5:
+                    print("DEBUG: Extracted response via Clipboard")
+                    return clipboard_text
+
+    except Exception as e:
+        print(f"DEBUG: Clipboard extraction failed: {e}")
+
+    # Fallback to AI Studio specific selectors based on HTML analysis
+    print("DEBUG: Falling back to visual extraction...")
     response_selectors = [
         # Precise selector for the text content (ignoring thoughts)
         'ms-chat-turn:last-of-type ms-text-chunk',
