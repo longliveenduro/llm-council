@@ -22,3 +22,4 @@ frontend/.vite/
 
 # Browser Automation
 browser_automation/.browser_data/
+browser_automation/.chatgpt_browser_data/

@@ -433,9 +433,52 @@ async def run_ai_studio_automation(prompt: str, model: str = "Gemini 3 Flash") -
             return response
             
         return output
+
     except Exception as e:
         print(f"Subprocess Exception: {e}")
         return f"Error running automation: {str(e)}"
+
+
+async def run_chatgpt_automation(prompt: str, model: str = "auto") -> str:
+    """
+    Run the ChatGPT automation script via subprocess.
+    """
+    script_path = Path(__file__).parent.parent / "browser_automation" / "chatgpt_automation.py"
+    
+    # Use the same python interpreter as the current process
+    args = [sys.executable, str(script_path), prompt, "--model", model]
+    
+    try:
+        print(f"Executing ChatGPT automation...")
+        # Run subprocess and capture output
+        process = await asyncio.create_subprocess_exec(
+            *args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        
+        stdout, stderr = await process.communicate()
+        
+        if process.returncode != 0:
+            error_msg = stderr.decode().strip()
+            print(f"ChatGPT Automation Error (Code {process.returncode}): {error_msg}")
+            return f"Error: ChatGPT automation script failed. {error_msg}"
+            
+        output = stdout.decode().strip()
+        
+        # The script prints various DEBUG info, the final response is after "Response:"
+        if "Response:" in output:
+            response = output.split("Response:")[-1].strip()
+            # Clean up exit logs if any
+            if "Exit code:" in response:
+                response = response.split("Exit code:")[0].strip()
+            return response
+            
+        return output
+    except Exception as e:
+        print(f"Subprocess Exception: {e}")
+        return f"Error running ChatGPT automation: {str(e)}"
+
 
 
 async def run_full_council(
