@@ -110,12 +110,12 @@ export default function ManualWizard({ conversationId, previousMessages = [], ll
         }
     };
 
-    const handleRunAutomation = async (prompt) => {
+    const handleRunAutomation = async (prompt, provider = "ai_studio") => {
         if (!prompt) return;
         setIsAutomating(true);
         setCurrentText(''); // Clear existing text
         try {
-            const data = await api.runAutomation(prompt, aiStudioModel);
+            const data = await api.runAutomation(prompt, aiStudioModel, provider);
             setCurrentText(data.response);
         } catch (error) {
             console.error(error);
@@ -125,12 +125,12 @@ export default function ManualWizard({ conversationId, previousMessages = [], ll
         }
     };
 
-    const handleRunStage3Automation = async (prompt) => {
+    const handleRunStage3Automation = async (prompt, provider = "ai_studio") => {
         if (!prompt) return;
         setIsAutomating(true);
         setStage3Response(prev => ({ ...prev, response: '' })); // Clear existing text
         try {
-            const data = await api.runAutomation(prompt, aiStudioModel);
+            const data = await api.runAutomation(prompt, aiStudioModel, provider);
             setStage3Response(prev => ({ ...prev, response: data.response }));
         } catch (error) {
             console.error(error);
@@ -320,11 +320,19 @@ export default function ManualWizard({ conversationId, previousMessages = [], ll
                 <div className="add-response-actions">
                     <button onClick={addStage1Response} disabled={!currentModel || !currentText}>Add Response</button>
                     <button
-                        onClick={() => handleRunAutomation(isFollowUp ? getContextText() : userQuery)}
+                        onClick={() => handleRunAutomation(isFollowUp ? getContextText() : userQuery, 'ai_studio')}
                         className="automation-btn"
                         disabled={isAutomating || !userQuery}
                     >
-                        {isAutomating ? 'Running Automation...' : 'Run via AI Studio'}
+                        {isAutomating ? 'Running...' : 'Run via AI Studio'}
+                    </button>
+                    <button
+                        onClick={() => handleRunAutomation(isFollowUp ? getContextText() : userQuery, 'chatgpt')}
+                        className="automation-btn chatgpt-btn"
+                        disabled={isAutomating || !userQuery}
+                        style={{ backgroundColor: '#10a37f' }} // ChatGPT green
+                    >
+                        {isAutomating ? 'Running...' : 'Run via ChatGPT'}
                     </button>
                 </div>
             </div>
@@ -418,11 +426,19 @@ export default function ManualWizard({ conversationId, previousMessages = [], ll
                 <div className="add-response-actions">
                     <button onClick={addStage2Response} disabled={!currentModel || !currentText}>Add Ranking</button>
                     <button
-                        onClick={() => handleRunAutomation(stage2Prompt)}
+                        onClick={() => handleRunAutomation(stage2Prompt, 'ai_studio')}
                         className="automation-btn"
                         disabled={isAutomating || !stage2Prompt}
                     >
-                        {isAutomating ? 'Running Automation...' : 'Run via AI Studio'}
+                        {isAutomating ? 'Running...' : 'Run via AI Studio'}
+                    </button>
+                    <button
+                        onClick={() => handleRunAutomation(stage2Prompt, 'chatgpt')}
+                        className="automation-btn chatgpt-btn"
+                        disabled={isAutomating || !stage2Prompt}
+                        style={{ backgroundColor: '#10a37f' }}
+                    >
+                        {isAutomating ? 'Running...' : 'Run via ChatGPT'}
                     </button>
                 </div>
             </div>
@@ -493,11 +509,19 @@ export default function ManualWizard({ conversationId, previousMessages = [], ll
                         ))}
                     </select>
                     <button
-                        onClick={() => handleRunStage3Automation(stage3Prompt)}
+                        onClick={() => handleRunStage3Automation(stage3Prompt, 'ai_studio')}
                         className="automation-btn stage3-auto-btn"
                         disabled={isAutomating || !stage3Prompt}
                     >
                         {isAutomating ? 'Automating...' : 'Run via AI Studio'}
+                    </button>
+                    <button
+                        onClick={() => handleRunStage3Automation(stage3Prompt, 'chatgpt')}
+                        className="automation-btn stage3-auto-btn chatgpt-btn"
+                        disabled={isAutomating || !stage3Prompt}
+                        style={{ backgroundColor: '#10a37f', marginLeft: '5px' }}
+                    >
+                        {isAutomating ? 'Automating...' : 'Run via ChatGPT'}
                     </button>
                 </div>
                 <textarea

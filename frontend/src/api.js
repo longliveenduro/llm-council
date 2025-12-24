@@ -114,15 +114,16 @@ export const api = {
   },
 
   /**
-   * Run AI Studio automation for a prompt.
+   * Run automation for a prompt.
+   * provider: "ai_studio" or "chatgpt"
    */
-  async runAutomation(prompt, model) {
+  async runAutomation(prompt, model, provider = "ai_studio") {
     const response = await fetch(`${API_BASE}/api/manual/run-automation`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ prompt, model }),
+      body: JSON.stringify({ prompt, model, provider }),
     });
     if (!response.ok) {
       const error = await response.json();

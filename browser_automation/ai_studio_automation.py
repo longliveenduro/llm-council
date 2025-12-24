@@ -185,7 +185,8 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None) -> st
     for selector in loading_selectors:
         try:
             # Wait for loading indicator to appear then disappear
-            await page.wait_for_selector(selector, timeout=3000)
+            # Increased timeout to 10s to account for initial latency
+            await page.wait_for_selector(selector, timeout=10000)
             await page.wait_for_selector(selector, state="hidden", timeout=120000)
             print("Response generation completed")
             break

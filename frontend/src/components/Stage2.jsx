@@ -50,7 +50,7 @@ export default function Stage2({ rankings, labelToModel, aggregateRankings }) {
                   onError={(e) => e.target.style.display = 'none'}
                 />
               )}
-              {`Model ${String.fromCharCode(65 + index)}: ${rank.model.split('/')[1] || rank.model}`}
+              {rank.model.split('/')[1] || rank.model}
             </button>
           );
         })}

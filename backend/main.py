@@ -15,7 +15,7 @@ from .council import (
     run_full_council, generate_conversation_title, stage1_collect_responses,
     stage2_collect_rankings, stage3_synthesize_final, calculate_aggregate_rankings,
     build_ranking_prompt, build_chairman_prompt, parse_ranking_from_text,
-    run_ai_studio_automation
+    run_ai_studio_automation, run_chatgpt_automation
 )
 
 app = FastAPI(title="LLM Council API")
@@ -86,6 +86,7 @@ class SaveManualMessageRequest(BaseModel):
 class AutomationRequest(BaseModel):
     prompt: str
     model: str = "Gemini 3 Flash"
+    provider: str = "ai_studio"  # "ai_studio" or "chatgpt"
 
 
 
@@ -265,9 +266,14 @@ async def send_message_stream(conversation_id: str, request: SendMessageRequest)
 
 @app.post("/api/manual/run-automation")
 async def manual_run_automation(request: AutomationRequest):
-    """Run AI Studio automation for a prompt."""
+    """Run automation for a prompt using specified provider."""
     try:
-        response = await run_ai_studio_automation(request.prompt, request.model)
+        if request.provider == "chatgpt":
+            response = await run_chatgpt_automation(request.prompt, request.model)
+        else:
+            # Default to AI Studio
+            response = await run_ai_studio_automation(request.prompt, request.model)
+            
         return {"response": response}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
