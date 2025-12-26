@@ -59,8 +59,33 @@ async def get_browser_context() -> tuple[BrowserContext, Page]:
     return context, page
 
 
+async def check_login_required(page: Page) -> bool:
+    """Check if a login modal is blocking the interface."""
+    login_modal_selectors = [
+        '[data-testid="modal-no-auth-login"]',
+        '[data-testid="login-modal"]',
+        'button:has-text("Log in")',
+        'button:has-text("Sign up")',
+    ]
+    
+    for selector in login_modal_selectors:
+        try:
+            element = await page.query_selector(selector)
+            if element and await element.is_visible():
+                return True
+        except:
+            continue
+    
+    return False
+
+
 async def wait_for_chat_interface(page: Page, timeout: int = 30000):
     """Wait for the chat interface to be ready."""
+    
+    # First check if login is required
+    if await check_login_required(page):
+        raise Exception("Login required. Please log in to ChatGPT first using the Login button in the sidebar.")
+    
     # Wait for the prompt input area to be available
     selectors = [
         '#prompt-textarea',
@@ -94,12 +119,16 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None) -> st
         The response text
     """
     
+    # Check if login modal is blocking
+    if await check_login_required(page):
+        raise Exception("Login required. Please log in to ChatGPT first using the Login button in the sidebar.")
+    
     # Find the input element if not specified
     if not input_selector:
         input_selector = await wait_for_chat_interface(page)
     
     # Click on the input to focus it
-    await page.click(input_selector)
+    await page.click(input_selector, timeout=10000)
     await asyncio.sleep(0.3)
     
     # Clear and fill

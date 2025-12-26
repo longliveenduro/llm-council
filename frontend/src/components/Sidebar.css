@@ -181,6 +181,100 @@
   outline: none;
 }
 
+/* Automation Section */
+.automation-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 8px;
+}
+
+.automation-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  transition: border-color 0.2s;
+}
+
+.automation-item:hover {
+  border-color: var(--accent-color);
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.status-dot.online {
+  background: #22c55e;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.5);
+}
+
+.status-dot.offline {
+  background: #6b7280;
+}
+
+.automation-name {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.automation-btn {
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.2s;
+}
+
+.automation-btn.login {
+  background: var(--accent-color);
+  color: #fff;
+  border-color: var(--accent-color);
+}
+
+.automation-btn.login:hover {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+}
+
+.automation-btn.logout {
+  background: transparent;
+  color: var(--text-muted);
+  border-color: var(--border-color);
+}
+
+.automation-btn.logout:hover {
+  color: #ef4444;
+  border-color: #ef4444;
+}
+
+.automation-loading {
+  font-size: 12px;
+  color: var(--text-muted);
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.4;
+  }
+}
+
 .conversation-list {
   flex: 1;
   overflow-y: auto;

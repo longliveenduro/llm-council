@@ -235,4 +235,46 @@ export const api = {
     }
     return response.json();
   },
+
+  // --- Automation Session Methods ---
+
+  /**
+   * Get automation login status for all providers.
+   */
+  async getAutomationStatus() {
+    const response = await fetch(`${API_BASE}/api/automation/status`);
+    if (!response.ok) {
+      throw new Error('Failed to get automation status');
+    }
+    return response.json();
+  },
+
+  /**
+   * Initiate interactive login for a provider.
+   * @param {string} provider - "ai_studio" or "chatgpt"
+   */
+  async loginAutomation(provider) {
+    const response = await fetch(`${API_BASE}/api/automation/login/${provider}`, {
+      method: 'POST',
+    });
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.detail || 'Login failed');
+    }
+    return response.json();
+  },
+
+  /**
+   * Logout (clear session) for a provider.
+   * @param {string} provider - "ai_studio" or "chatgpt"
+   */
+  async logoutAutomation(provider) {
+    const response = await fetch(`${API_BASE}/api/automation/logout/${provider}`, {
+      method: 'POST',
+    });
+    if (!response.ok) {
+      throw new Error('Logout failed');
+    }
+    return response.json();
+  },
 };

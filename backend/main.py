@@ -15,7 +15,8 @@ from .council import (
     run_full_council, generate_conversation_title, stage1_collect_responses,
     stage2_collect_rankings, stage3_synthesize_final, calculate_aggregate_rankings,
     build_ranking_prompt, build_chairman_prompt, parse_ranking_from_text,
-    run_ai_studio_automation, run_chatgpt_automation
+    run_ai_studio_automation, run_chatgpt_automation,
+    check_automation_session, clear_automation_session, run_interactive_login
 )
 
 app = FastAPI(title="LLM Council API")
@@ -380,6 +381,41 @@ async def _generate_and_save_title(conversation_id: str, query: str):
         storage.update_conversation_title(conversation_id, title)
     except Exception:
         pass
+
+
+# --- Automation Session Endpoints ---
+
+@app.get("/api/automation/status")
+async def get_automation_status():
+    """Get login status for all automation providers."""
+    return {
+        "ai_studio": check_automation_session("ai_studio"),
+        "chatgpt": check_automation_session("chatgpt")
+    }
+
+
+@app.post("/api/automation/login/{provider}")
+async def login_automation(provider: str):
+    """Launch interactive login for a provider."""
+    if provider not in ["ai_studio", "chatgpt"]:
+        raise HTTPException(status_code=400, detail="Invalid provider. Use 'ai_studio' or 'chatgpt'.")
+    
+    result = await run_interactive_login(provider)
+    
+    if not result.get("success"):
+        raise HTTPException(status_code=500, detail=result.get("message", "Login failed"))
+    
+    return result
+
+
+@app.post("/api/automation/logout/{provider}")
+async def logout_automation(provider: str):
+    """Clear session data for a provider."""
+    if provider not in ["ai_studio", "chatgpt"]:
+        raise HTTPException(status_code=400, detail="Invalid provider. Use 'ai_studio' or 'chatgpt'.")
+    
+    success = clear_automation_session(provider)
+    return {"success": success, "provider": provider}
 
 
 if __name__ == "__main__":

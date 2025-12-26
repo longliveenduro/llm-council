@@ -14,6 +14,9 @@ export default function Sidebar({
   onRemoveLlmName,
   theme,
   onToggleTheme,
+  automationStatus,
+  onAutomationLogin,
+  onAutomationLogout,
 }) {
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
@@ -152,6 +155,56 @@ export default function Sidebar({
               </div>
             );
           })}
+        </div>
+      </div>
+
+      <div className="sidebar-section">
+        <div className="section-header">
+          <h2>Automations</h2>
+        </div>
+        <div className="automation-list">
+          <div className="automation-item">
+            <span className={`status-dot ${automationStatus?.ai_studio ? 'online' : 'offline'}`} />
+            <span className="automation-name">AI Studio</span>
+            {automationStatus?.loading?.ai_studio ? (
+              <span className="automation-loading">...</span>
+            ) : automationStatus?.ai_studio ? (
+              <button
+                className="automation-btn logout"
+                onClick={() => onAutomationLogout('ai_studio')}
+              >
+                Logout
+              </button>
+            ) : (
+              <button
+                className="automation-btn login"
+                onClick={() => onAutomationLogin('ai_studio')}
+              >
+                Login
+              </button>
+            )}
+          </div>
+          <div className="automation-item">
+            <span className={`status-dot ${automationStatus?.chatgpt ? 'online' : 'offline'}`} />
+            <span className="automation-name">ChatGPT</span>
+            {automationStatus?.loading?.chatgpt ? (
+              <span className="automation-loading">...</span>
+            ) : automationStatus?.chatgpt ? (
+              <button
+                className="automation-btn logout"
+                onClick={() => onAutomationLogout('chatgpt')}
+              >
+                Logout
+              </button>
+            ) : (
+              <button
+                className="automation-btn login"
+                onClick={() => onAutomationLogin('chatgpt')}
+              >
+                Login
+              </button>
+            )}
+          </div>
         </div>
       </div>
 

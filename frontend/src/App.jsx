@@ -18,10 +18,16 @@ function App() {
     if (saved) return saved;
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   });
+  const [automationStatus, setAutomationStatus] = useState({
+    ai_studio: false,
+    chatgpt: false,
+    loading: { ai_studio: false, chatgpt: false }
+  });
 
   // Load conversations on mount
   useEffect(() => {
     loadConversations();
+    loadAutomationStatus();
   }, []);
 
   // Save LLM names to localStorage when they change
@@ -61,6 +67,52 @@ function App() {
       setCurrentConversation(conv);
     } catch (error) {
       console.error('Failed to load conversation:', error);
+    }
+  };
+
+  const loadAutomationStatus = async () => {
+    try {
+      const status = await api.getAutomationStatus();
+      setAutomationStatus(prev => ({
+        ...prev,
+        ai_studio: status.ai_studio,
+        chatgpt: status.chatgpt
+      }));
+    } catch (error) {
+      console.error('Failed to load automation status:', error);
+    }
+  };
+
+  const handleAutomationLogin = async (provider) => {
+    // Set loading state
+    setAutomationStatus(prev => ({
+      ...prev,
+      loading: { ...prev.loading, [provider]: true }
+    }));
+
+    try {
+      await api.loginAutomation(provider);
+      // Refresh status after login
+      await loadAutomationStatus();
+    } catch (error) {
+      console.error(`Failed to login to ${provider}:`, error);
+      alert(`Login failed: ${error.message}`);
+    } finally {
+      setAutomationStatus(prev => ({
+        ...prev,
+        loading: { ...prev.loading, [provider]: false }
+      }));
+    }
+  };
+
+  const handleAutomationLogout = async (provider) => {
+    try {
+      await api.logoutAutomation(provider);
+      // Refresh status after logout
+      await loadAutomationStatus();
+    } catch (error) {
+      console.error(`Failed to logout from ${provider}:`, error);
+      alert(`Logout failed: ${error.message}`);
     }
   };
 
@@ -270,6 +322,9 @@ function App() {
         onRemoveLlmName={removeLlmName}
         theme={theme}
         onToggleTheme={toggleTheme}
+        automationStatus={automationStatus}
+        onAutomationLogin={handleAutomationLogin}
+        onAutomationLogout={handleAutomationLogout}
       />
       <ChatInterface
         conversation={currentConversation}

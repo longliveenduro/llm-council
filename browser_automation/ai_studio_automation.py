@@ -24,7 +24,7 @@ from pathlib import Path
 from playwright.async_api import async_playwright, Page, BrowserContext
 
 # Directory to store browser profile (keeps you logged in)
-BROWSER_DATA_DIR = Path(__file__).parent / ".browser_data"
+BROWSER_DATA_DIR = Path(__file__).parent / ".ai_studio_browser_data"
 
 
 async def get_browser_context() -> tuple[BrowserContext, Page]:

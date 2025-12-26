@@ -8,6 +8,222 @@ import os
 import sys
 import asyncio
 from pathlib import Path
+import shutil
+
+
+# Browser data directories for automation sessions
+AI_STUDIO_BROWSER_DATA = Path(__file__).parent.parent / "browser_automation" / ".ai_studio_browser_data"
+CHATGPT_BROWSER_DATA = Path(__file__).parent.parent / "browser_automation" / ".chatgpt_browser_data"
+
+
+def get_browser_data_dir(provider: str) -> Path:
+    """Get the browser data directory for a provider."""
+    if provider == "chatgpt":
+        return CHATGPT_BROWSER_DATA
+    return AI_STUDIO_BROWSER_DATA
+
+
+def check_automation_session(provider: str) -> bool:
+    """
+    Check if a browser session exists for the given provider.
+    
+    A session is considered valid if the browser data directory exists
+    and contains typical Chromium profile files.
+    """
+    data_dir = get_browser_data_dir(provider)
+    
+    if not data_dir.exists():
+        return False
+    
+    # Check for typical Chromium profile indicators
+    # These files/dirs are created when Chromium stores login state
+    indicators = ["Default", "Local State", "Cookies"]
+    
+    for indicator in indicators:
+        if (data_dir / indicator).exists():
+            return True
+    
+    return False
+
+
+def clear_automation_session(provider: str) -> bool:
+    """
+    Clear the browser session data for a provider.
+    
+    Returns True if session was cleared, False if no session existed.
+    """
+    data_dir = get_browser_data_dir(provider)
+    
+    if not data_dir.exists():
+        return False
+    
+    try:
+        shutil.rmtree(data_dir)
+        return True
+    except Exception as e:
+        print(f"Error clearing session for {provider}: {e}")
+        return False
+
+
+async def run_interactive_login(provider: str) -> dict:
+    """
+    Launch a headful browser for the user to log in interactively.
+    
+    Returns a dict with status and message.
+    """
+    from playwright.async_api import async_playwright
+    
+    data_dir = get_browser_data_dir(provider)
+    data_dir.mkdir(exist_ok=True)
+    
+    if provider == "chatgpt":
+        url = "https://chatgpt.com/"
+        expected_domain = "chatgpt.com"
+    else:
+        url = "https://aistudio.google.com/prompts/new_chat"
+        expected_domain = "aistudio.google.com"
+    
+    playwright = None
+    context = None
+    browser_closed = False
+    
+    def on_close():
+        nonlocal browser_closed
+        browser_closed = True
+        print(f"Browser was closed by user for {provider}")
+    
+    try:
+        playwright = await async_playwright().start()
+        
+        # Launch persistent context (headful)
+        context = await playwright.chromium.launch_persistent_context(
+            user_data_dir=str(data_dir),
+            headless=False,
+            viewport={"width": 1200, "height": 800},
+            args=["--disable-blink-features=AutomationControlled"],
+        )
+        
+        # Listen for browser close
+        context.on("close", on_close)
+        
+        page = context.pages[0] if context.pages else await context.new_page()
+        
+        # Navigate to the login page
+        await page.goto(url)
+        
+        # Wait for page to load
+        try:
+            await page.wait_for_load_state("networkidle", timeout=30000)
+        except:
+            pass  # Continue anyway
+        
+        # Wait for the user to complete login
+        print(f"Waiting for user to complete login on {provider}...")
+        print("Please complete the login in the browser window.")
+        
+        max_wait = 300  # 5 minutes max
+        check_interval = 2
+        elapsed = 0
+        logged_in = False
+        
+        async def is_chatgpt_logged_in(page) -> bool:
+            """Check if ChatGPT is actually logged in (no login modal visible)."""
+            try:
+                # Check for login modal - if it exists, we're NOT logged in
+                login_modal = await page.query_selector('[data-testid="modal-no-auth-login"]')
+                if login_modal:
+                    is_visible = await login_modal.is_visible()
+                    if is_visible:
+                        return False
+                
+                # Also check for login/signup buttons in the UI
+                login_btn = await page.query_selector('button:has-text("Log in")')
+                if login_btn:
+                    is_visible = await login_btn.is_visible()
+                    if is_visible:
+                        return False
+                
+                # Check if we can see the chat input (indicates logged in)
+                chat_input = await page.query_selector('#prompt-textarea')
+                if chat_input:
+                    is_visible = await chat_input.is_visible()
+                    if is_visible:
+                        return True
+                
+                return False
+            except:
+                return False
+        
+        async def is_ai_studio_logged_in(page) -> bool:
+            """Check if AI Studio is logged in."""
+            try:
+                current_url = page.url
+                # If we're on accounts.google.com, still logging in
+                if "accounts.google.com" in current_url:
+                    return False
+                # If on AI Studio, check for prompt input
+                if "aistudio.google.com" in current_url:
+                    # Look for the prompt textarea
+                    prompt_input = await page.query_selector('textarea')
+                    if prompt_input:
+                        return True
+                return False
+            except:
+                return False
+        
+        while elapsed < max_wait and not browser_closed:
+            try:
+                # Check if page is still valid
+                if page.is_closed():
+                    browser_closed = True
+                    break
+                
+                current_url = page.url
+                
+                # Provider-specific login checks
+                if provider == "chatgpt":
+                    if "chatgpt.com" in current_url:
+                        if await is_chatgpt_logged_in(page):
+                            # Wait a bit more for session to stabilize
+                            await asyncio.sleep(2)
+                            logged_in = True
+                            break
+                elif provider == "ai_studio":
+                    if await is_ai_studio_logged_in(page):
+                        await asyncio.sleep(2)
+                        logged_in = True
+                        break
+                
+                await asyncio.sleep(check_interval)
+                elapsed += check_interval
+                
+            except Exception as e:
+                # Page might be closed/disconnected
+                print(f"Error checking login state: {e}")
+                browser_closed = True
+                break
+        
+        if browser_closed:
+            return {"success": False, "message": "Browser was closed. Login cancelled."}
+        
+        if elapsed >= max_wait:
+            return {"success": False, "message": "Login timed out. Please try again."}
+        
+        if logged_in:
+            return {"success": True, "message": f"Successfully logged in to {provider}"}
+        
+        return {"success": False, "message": "Login was not completed."}
+        
+    except Exception as e:
+        return {"success": False, "message": f"Login failed: {str(e)}"}
+    finally:
+        if context:
+            try:
+                await context.close()
+            except:
+                pass  # Already closed
+        if playwright:
+            await playwright.stop()
 
 
 async def stage1_collect_responses(
