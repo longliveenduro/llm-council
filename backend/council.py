@@ -639,6 +639,10 @@ async def run_ai_studio_automation(prompt: str, model: str = "Gemini 3 Flash") -
             return f"Error: Automation script failed. {error_msg}"
             
         output = stdout.decode().strip()
+        # Print full output for debugging
+        print("-" * 20 + " Automation Output " + "-" * 20)
+        print(output)
+        print("-" * 59)
         
         # The script prints various DEBUG info, the final response is after "Response:"
         if "Response:" in output:
@@ -681,6 +685,10 @@ async def run_chatgpt_automation(prompt: str, model: str = "auto") -> str:
             return f"Error: ChatGPT automation script failed. {error_msg}"
             
         output = stdout.decode().strip()
+        # Print full output for debugging
+        print("-" * 20 + " ChatGPT Automation Output " + "-" * 20)
+        print(output)
+        print("-" * 67)
         
         # The script prints various DEBUG info, the final response is after "Response:"
         if "Response:" in output:

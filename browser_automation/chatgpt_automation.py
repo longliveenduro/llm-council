@@ -51,13 +51,49 @@ async def get_browser_context() -> tuple[BrowserContext, Page]:
     # Navigate to ChatGPT if not already there
     if "chatgpt.com" not in page.url:
         await page.goto("https://chatgpt.com/")
-        try:
-            await page.wait_for_load_state("networkidle", timeout=60000)
-        except:
-            print("Warning: Network idle timeout, proceeding potentially without full load.")
+    
+    # Check for Captcha immediately
+    if await detect_captcha(page):
+        await wait_for_user_intervention(page)
+
+    try:
+        await page.wait_for_load_state("load", timeout=30000)
+    except:
+        print("Warning: Page load timeout, proceeding...")
     
     return context, page
 
+
+async def detect_captcha(page: Page) -> bool:
+    """Detect if a captcha or human verification is blocking the page."""
+    try:
+        # Check title and common captcha text
+        title = await page.title()
+        if "Just a moment" in title or "Verify you are human" in title:
+            return True
+        
+        # Check for Cloudflare/hCaptcha iframe or text
+        content = await page.content()
+        if "cf-challenge" in content or "cf-turnstile-wrapper" in content:
+            return True
+            
+        return False
+    except:
+        return False
+
+async def wait_for_user_intervention(page: Page):
+    """Wait for the user to solve a captcha or login."""
+    print("\n" + "!"*50)
+    print("ACTION REQUIRED: Captcha or human verification detected.")
+    print("Please go to the browser window and complete the verification.")
+    print("The script will resume once the chat interface is visible.")
+    print("!"*50 + "\n")
+    
+    # Wait until chat interface is visible
+    while await detect_captcha(page):
+        await asyncio.sleep(2)
+    
+    print("Verification completed. Resuming...")
 
 async def check_login_required(page: Page) -> bool:
     """Check if a login modal is blocking the interface."""
@@ -96,7 +132,7 @@ async def wait_for_chat_interface(page: Page, timeout: int = 30000):
     
     for selector in selectors:
         try:
-            element = await page.wait_for_selector(selector, timeout=5000)
+            element = await page.wait_for_selector(selector, timeout=2000)
             if element:
                 print(f"Found input element with selector: {selector}")
                 return selector
@@ -127,9 +163,13 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None) -> st
     if not input_selector:
         input_selector = await wait_for_chat_interface(page)
     
+    # Select model if specified
+    if hasattr(page, 'target_model') and page.target_model:
+        await select_model(page, page.target_model)
+
     # Click on the input to focus it
     await page.click(input_selector, timeout=10000)
-    await asyncio.sleep(0.3)
+    await asyncio.sleep(0.1)
     
     # Clear and fill
     await page.fill(input_selector, "")
@@ -144,13 +184,13 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None) -> st
         
         # Write to clipboard
         await page.evaluate("text => navigator.clipboard.writeText(text)", prompt)
-        await asyncio.sleep(0.1)
+        await asyncio.sleep(0.05)
         
         # Paste
         await page.keyboard.press("Control+v")
         
         # Fallback verification: if empty, try fill
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(0.2)
         # Determine if it's a textarea or contenteditable div to check value properly
         val = await page.input_value(input_selector) if await page.evaluate(f"document.querySelector('{input_selector}').tagName === 'TEXTAREA'") else await page.inner_text(input_selector)
 
@@ -163,7 +203,7 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None) -> st
         await page.fill(input_selector, prompt)
     
     print(f"Typed prompt: {prompt[:50]}...")
-    await asyncio.sleep(0.5)
+    await asyncio.sleep(0.2)
     
     # Click Send button
     send_button_selectors = [
@@ -175,7 +215,7 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None) -> st
     send_button = None
     for selector in send_button_selectors:
         try:
-            send_button = await page.wait_for_selector(selector, timeout=2000)
+            send_button = await page.wait_for_selector(selector, timeout=1000)
             if send_button and await send_button.is_visible() and not await send_button.is_disabled():
                 print(f"Found send button with selector: {selector}")
                 break
@@ -192,13 +232,13 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None) -> st
     
     # Wait for response generation to complete
     # ChatGPT usually shows a "Stop generating" button or similar while working
-    await asyncio.sleep(2)
+    await asyncio.sleep(1)
     
     # Wait for streaming to finish (stop button disappears)
     try:
         # Wait for potential stop button to appear (it might appear briefly)
         # We don't error if it doesn't appear, as short responses might be instant
-        await page.wait_for_selector('[data-testid="stop-button"]', timeout=3000)
+        await page.wait_for_selector('[data-testid="stop-button"]', timeout=2000)
         # Then wait for it to disappear
         await page.wait_for_selector('[data-testid="stop-button"]', state="hidden", timeout=120000)
         print("Response generation completed (stop button missing)")
@@ -206,7 +246,7 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None) -> st
         # If we didn't see a stop button, maybe it was too fast or selector changed
         # We'll rely on text stability
         print("Did not detect stop button, waiting for stability...")
-        await asyncio.sleep(3)
+        await asyncio.sleep(2)
 
     return await extract_response(page)
 
@@ -215,7 +255,7 @@ async def extract_response(page: Page) -> str:
     """Extract the latest response from the chat."""
     
     # Wait a bit for final render
-    await asyncio.sleep(1)
+    await asyncio.sleep(0.5)
     
     # Selectors for assistant messages
     response_selectors = [
@@ -242,12 +282,131 @@ async def extract_response(page: Page) -> str:
 
 async def select_model(page: Page, model_name: str):
     """
-    Attempt to select a model (placeholder mostly, as ChatGPT 
-    often remembers last used or requires URL param).
+    1. Select specific model from top-left (o1, o3, etc.)
+    2. Toggle thinking mode if requested (via + menu)
     """
-    # Simple URL based switching could be added here
-    # e.g. if model_name == "gpt-4", goto https://chatgpt.com/?model=gpt-4
-    pass 
+    if model_name == "auto" or not model_name:
+        return
+
+    print(f"[DEBUG] Setting up ChatGPT mode: {model_name}")
+    
+    # 1. TOP-LEFT MODEL SELECTION (Non-critical for Thinking)
+    target_model_text = model_name.replace("Thinking", "").replace("Reasoning", "").strip()
+    if target_model_text and "ChatGPT" not in target_model_text and len(target_model_text) > 1:
+        try:
+            selector_btn = await page.query_selector('button[aria-label*="Model selector"]')
+            if selector_btn:
+                await selector_btn.click()
+                await asyncio.sleep(0.5)
+                # Try simple text match
+                model_item = await page.query_selector(f'button:has-text("{target_model_text}")')
+                if model_item:
+                    print(f"[DEBUG] Found model '{target_model_text}' in dropdown, selecting...")
+                    await model_item.click()
+                    await asyncio.sleep(0.5)
+                await page.keyboard.press("Escape")
+        except:
+            pass
+
+    # 2. THINKING MODE TOGGLE (Critical)
+    wants_thinking = "thinking" in model_name.lower() or "reason" in model_name.lower()
+    if not wants_thinking:
+        return
+
+    print(f"[DEBUG] Thinking mode requested for: {model_name}")
+    
+    try:
+        # Check if already active
+        verified = await page.evaluate('''() => {
+            const composer = document.querySelector('form, [data-testid*="composer"]');
+            const bodyText = document.body.innerText.toLowerCase();
+            const composerText = composer ? composer.innerText.toLowerCase() : "";
+            return bodyText.includes('think') || bodyText.includes('reason') || composerText.includes('think');
+        }''')
+        if (verified):
+            print("[DEBUG] Thinking/Think indicator already found on page. Proceeding.")
+            return
+
+        # 1. Check for direct toggle button in the composer area
+        print("[DEBUG] Checking for direct Thinking toggle in composer...")
+        direct_toggle = await page.query_selector('form button:has-text("Think"), form button:has-text("Reason"), [aria-label*="Thinking"], [aria-label*="Reasoning"]')
+        if not direct_toggle:
+            direct_toggle = await page.query_selector('form button:has(svg path[d*="M12"]), form button:has(svg[class*="sparkle"])')
+            
+        if direct_toggle and await direct_toggle.is_visible():
+            print("[DEBUG] Found potential direct Thinking toggle, clicking...")
+            await direct_toggle.click(force=True)
+            await asyncio.sleep(1.2)
+            
+            verified = await page.evaluate('''() => {
+                const composer = document.querySelector('form, [data-testid*="composer"]');
+                const bodyText = document.body.innerText.toLowerCase();
+                const composerText = composer ? composer.innerText.toLowerCase() : "";
+                return bodyText.includes('think') || bodyText.includes('reason') || composerText.includes('think');
+            }''')
+            if verified:
+                print("[SUCCESS] Thinking activated via direct toggle!")
+                return
+            else:
+                print("[DEBUG] Direct toggle didn't seem to work, falling back to menu.")
+
+        # 2. Plus Menu Toggle (Matches user screenshot)
+        for attempt in range(3):
+            print(f"[DEBUG] Opening Plus menu for Thinking (attempt {attempt+1})...")
+            
+            plus_btn = await page.query_selector('button[data-testid="composer-plus-btn"]')
+            if not plus_btn:
+                 plus_btn = await page.query_selector('button[aria-label*="Add files"], button[aria-label*="Attach"], button:has(svg)')
+            
+            if plus_btn:
+                await plus_btn.scroll_into_view_if_needed()
+                await plus_btn.click(force=True)
+                await asyncio.sleep(1.5) # Wait for menu to fully render
+                
+                # Scan EVERY potential menu item
+                # Based on screenshot, these are likely in a list-like structure
+                menu_items = await page.query_selector_all('[role="menuitem"], [role="option"], button, div, li')
+                visible_thinking = None
+                
+                print("[DEBUG] Scanning menu for 'Thinking' option...")
+                for item in menu_items:
+                    try:
+                        if not await item.is_visible(): continue
+                        text = await item.inner_text()
+                        if text and ("Thinking" in text or "Reasoning" in text):
+                            print(f"[DEBUG] Found Thinking option in menu: '{text.strip()}'")
+                            visible_thinking = item
+                            break
+                    except: continue
+                
+                if visible_thinking:
+                    print("[DEBUG] Clicking Thinking option...")
+                    # Sometimes a direct click on the item text's parent is more reliable
+                    await visible_thinking.click(force=True)
+                    await asyncio.sleep(1.5)
+                    
+                    verified = await page.evaluate('''() => {
+                        const composer = document.querySelector('form, [data-testid*="composer"]');
+                        const bodyText = document.body.innerText.toLowerCase();
+                        const composerText = composer ? composer.innerText.toLowerCase() : "";
+                        return bodyText.includes('think') || bodyText.includes('reason') || composerText.includes('think');
+                    }''')
+                    
+                    if verified:
+                        print("[SUCCESS] Thinking mode verified on page!")
+                        return
+                    else:
+                        print("[WARNING] Thinking clicked but indicator not detected. Retrying...")
+                else:
+                    print("[WARNING] 'Thinking' option not found in the opened menu.")
+            
+            await page.keyboard.press("Escape")
+            await asyncio.sleep(0.5)
+
+        print("[ERROR] Thinking mode activation failed. Proceeding without it.")
+        
+    except Exception as e:
+        print(f"[ERROR] select_model Thinking error: {e}")
 
 
 
@@ -328,6 +487,8 @@ async def main():
         if args.interactive:
             await interactive_mode(page)
         else:
+            # Store model in page object for send_prompt to use
+            page.target_model = args.model
             response = await send_prompt(page, args.prompt)
             print(f"\nResponse:\n{response}")
             

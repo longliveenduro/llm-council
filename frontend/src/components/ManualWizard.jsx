@@ -115,7 +115,26 @@ export default function ManualWizard({ conversationId, previousMessages = [], ll
         setIsAutomating(true);
         setCurrentText(''); // Clear existing text
         try {
-            const data = await api.runAutomation(prompt, aiStudioModel, provider);
+            let modelToUse = aiStudioModel;
+            console.log(`[DEBUG] Step 1 Automation provider: ${provider}`);
+
+            if (provider === 'chatgpt') {
+                const chatGptModels = (llmNames || []).filter(n => n.toLowerCase().includes('chatgpt'));
+                const thinkingModel = chatGptModels.find(n => n.toLowerCase().includes('thinking'));
+
+                if (currentModel && currentModel.toLowerCase().includes('chatgpt')) {
+                    modelToUse = currentModel;
+                } else {
+                    modelToUse = thinkingModel || chatGptModels[0] || 'ChatGPT';
+                }
+
+                if (!modelToUse.toLowerCase().includes('thinking')) {
+                    modelToUse += ' Thinking';
+                }
+            }
+
+            console.log(`[DEBUG] Final model: ${modelToUse}`);
+            const data = await api.runAutomation(prompt, modelToUse, provider);
             setCurrentText(data.response);
         } catch (error) {
             console.error(error);
@@ -130,7 +149,26 @@ export default function ManualWizard({ conversationId, previousMessages = [], ll
         setIsAutomating(true);
         setStage3Response(prev => ({ ...prev, response: '' })); // Clear existing text
         try {
-            const data = await api.runAutomation(prompt, aiStudioModel, provider);
+            let modelToUse = aiStudioModel;
+            console.log(`[DEBUG] Stage 3 Automation provider: ${provider}`);
+
+            if (provider === 'chatgpt') {
+                const chatGptModels = (llmNames || []).filter(n => n.toLowerCase().includes('chatgpt'));
+                const thinkingModel = chatGptModels.find(n => n.toLowerCase().includes('thinking'));
+
+                if (stage3Response.model && stage3Response.model.toLowerCase().includes('chatgpt')) {
+                    modelToUse = stage3Response.model;
+                } else {
+                    modelToUse = thinkingModel || chatGptModels[0] || 'ChatGPT';
+                }
+
+                if (!modelToUse.toLowerCase().includes('thinking')) {
+                    modelToUse += ' Thinking';
+                }
+            }
+
+            console.log(`[DEBUG] Final Stage 3 model: ${modelToUse}`);
+            const data = await api.runAutomation(prompt, modelToUse, provider);
             setStage3Response(prev => ({ ...prev, response: data.response }));
         } catch (error) {
             console.error(error);
