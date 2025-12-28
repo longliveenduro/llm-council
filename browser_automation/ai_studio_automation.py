@@ -122,7 +122,7 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None) -> st
              pass
         
         # Write to clipboard
-        await page.evaluate("navigator.clipboard.writeText(arguments[0])", prompt)
+        await page.evaluate("(text) => navigator.clipboard.writeText(text)", prompt)
         await asyncio.sleep(0.1)
         
         # Paste
@@ -183,21 +183,43 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None) -> st
         '.loading',
         '[data-loading="true"]',
         'button[aria-label*="stop" i]',
+        'button[aria-label*="abbrechen" i]',
+        'button:has-text("Stop")',
+        'button:has-text("Abbrechen")',
+        '.thinking-indicator',
+        'ms-thinking-block',
     ]
     
-    for selector in loading_selectors:
-        try:
-            # Wait for loading indicator to appear then disappear
-            # Increased timeout to 10s to account for initial latency
-            await page.wait_for_selector(selector, timeout=10000)
-            await page.wait_for_selector(selector, state="hidden", timeout=120000)
+    combined_selector = ", ".join(loading_selectors)
+    
+    try:
+        # Wait for ANY loading indicator to appear
+        # Increased timeout to 20s to account for initial reasoning latency in Thinking models
+        print(f"DEBUG: Waiting for any loading indicator to appear...")
+        await page.wait_for_selector(combined_selector, timeout=20000)
+        
+        # Now find WHICH one appeared and wait for it to disappear
+        # This is more efficient than sequential waiting
+        active_selector = None
+        for selector in loading_selectors:
+            if await page.query_selector(selector):
+                active_selector = selector
+                break
+        
+        if active_selector:
+            print(f"DEBUG: Indicator '{active_selector}' detected. Waiting for it to disappear (max 10 mins)...")
+            await page.wait_for_selector(active_selector, state="hidden", timeout=600000)
             print("Response generation completed")
-            break
-        except:
-            continue
+        else:
+            print("DEBUG: Loading indicator appeared but could not be identified precisely.")
+            # Fallback: wait a bit and hope
+            await asyncio.sleep(5)
+
+    except Exception as e:
+        print(f"DEBUG: No loading indicator appeared within timeout ({e}). It might have finished instantly or failed to start.")
     
     # Additional wait for response to fully render
-    await asyncio.sleep(1)
+    await asyncio.sleep(2)
     
     # Extract the response
     response = await extract_response(page)
