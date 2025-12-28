@@ -22,7 +22,7 @@ const ModelBadge = ({ model }) => {
     );
 };
 
-export default function ManualWizard({ conversationId, previousMessages = [], llmNames = [], onComplete, onCancel }) {
+export default function ManualWizard({ conversationId, previousMessages = [], llmNames = [], onAddLlmName, onComplete, onCancel }) {
     const draftKey = `manual_draft_${conversationId}`;
     const savedDraft = JSON.parse(localStorage.getItem(draftKey) || '{}');
 
@@ -43,10 +43,32 @@ export default function ManualWizard({ conversationId, previousMessages = [], ll
     const [manualTitle, setManualTitle] = useState(savedDraft.manualTitle || '');
     const [aggregateRankings, setAggregateRankings] = useState(savedDraft.aggregateRankings || []);
     const [aiStudioModel, setAiStudioModel] = useState(savedDraft.aiStudioModel || 'Gemini 3 Flash');
+    const [automationModels, setAutomationModels] = useState({ ai_studio: [], chatgpt: [] });
+    const [isLoadingModels, setIsLoadingModels] = useState(false);
 
     // Input State for current item
     const [currentModel, setCurrentModel] = useState(savedDraft.currentModel || llmNames[0] || '');
     const [currentText, setCurrentText] = useState(savedDraft.currentText || '');
+
+    // Load available models for automation
+    useEffect(() => {
+        const fetchModels = async () => {
+            setIsLoadingModels(true);
+            try {
+                const aiStudioModels = await api.getAutomationModels('ai_studio');
+                const chatgptModels = await api.getAutomationModels('chatgpt');
+                setAutomationModels({
+                    ai_studio: aiStudioModels,
+                    chatgpt: chatgptModels
+                });
+            } catch (error) {
+                console.error('Failed to fetch automation models:', error);
+            } finally {
+                setIsLoadingModels(false);
+            }
+        };
+        fetchModels();
+    }, []);
 
     // --- Persistence ---
     useEffect(() => {
@@ -282,12 +304,49 @@ export default function ManualWizard({ conversationId, previousMessages = [], ll
             <div className="automation-settings">
                 <label>AI Studio Model for Automation:</label>
                 <div className="automation-input-row">
-                    <input
-                        type="text"
-                        value={aiStudioModel}
-                        onChange={(e) => setAiStudioModel(e.target.value)}
-                        placeholder="e.g. Gemini 3 Pro Preview"
-                    />
+                    <div className="model-select-wrapper">
+                        <select
+                            value={aiStudioModel}
+                            onChange={(e) => {
+                                const newModel = e.target.value;
+                                setAiStudioModel(newModel);
+                            }}
+                            className="automation-model-select"
+                        >
+                            <optgroup label="AI Studio Models">
+                                {automationModels.ai_studio.map(m => (
+                                    <option key={m.id} value={m.name}>{m.name}</option>
+                                ))}
+                            </optgroup>
+                            {!automationModels.ai_studio.some(m => m.name === aiStudioModel) && (
+                                <option value={aiStudioModel}>{aiStudioModel}</option>
+                            )}
+                            <option value="custom">Custom...</option>
+                        </select>
+                        {aiStudioModel === 'custom' && (
+                            <input
+                                type="text"
+                                value=""
+                                onChange={(e) => setAiStudioModel(e.target.value)}
+                                placeholder="Enter custom model name"
+                                className="custom-automation-input"
+                                autoFocus
+                            />
+                        )}
+                        <button
+                            className="sync-council-btn"
+                            onClick={() => {
+                                if (onAddLlmName && aiStudioModel && !llmNames.includes(aiStudioModel)) {
+                                    onAddLlmName(aiStudioModel);
+                                    setCurrentModel(aiStudioModel); // Also set as active manual model
+                                }
+                            }}
+                            disabled={llmNames.includes(aiStudioModel)}
+                            title="Add to Council & Active Selection"
+                        >
+                            {llmNames.includes(aiStudioModel) ? '✓ In Council' : '+ Add to Council'}
+                        </button>
+                    </div>
                 </div>
             </div>
 

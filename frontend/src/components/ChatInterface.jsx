@@ -13,6 +13,7 @@ export default function ChatInterface({
   isLoading,
   onReload, // Added prop to trigger reload after manual save
   llmNames,
+  onAddLlmName,
   theme,
 }) {
   const [input, setInput] = useState('');
@@ -116,6 +117,7 @@ export default function ChatInterface({
             conversationId={conversation.id}
             previousMessages={conversation.messages}
             llmNames={llmNames}
+            onAddLlmName={onAddLlmName}
             onComplete={handleManualWizardComplete}
             onCancel={() => setIsFullManualMode(false)}
           />

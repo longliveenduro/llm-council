@@ -659,6 +659,41 @@ async def run_ai_studio_automation(prompt: str, model: str = "Gemini 3 Flash") -
         return f"Error running automation: {str(e)}"
 
 
+async def get_ai_studio_models() -> List[Dict[str, str]]:
+    """
+    Get the list of available models from AI Studio.
+    """
+    script_path = Path(__file__).parent.parent / "browser_automation" / "ai_studio_automation.py"
+    args = [sys.executable, str(script_path), "--list-models"]
+    
+    try:
+        process = await asyncio.create_subprocess_exec(
+            *args,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE
+        )
+        
+        stdout, stderr = await process.communicate()
+        
+        if process.returncode != 0:
+            return []
+            
+        output = stdout.decode().strip()
+        models = []
+        
+        if "MODELS_BEGIN" in output and "MODELS_END" in output:
+            model_section = output.split("MODELS_BEGIN")[1].split("MODELS_END")[0].strip()
+            for line in model_section.split("\n"):
+                if "|" in line:
+                    name, model_id = line.split("|", 1)
+                    models.append({"name": name.strip(), "id": model_id.strip()})
+        
+        return models
+    except Exception as e:
+        print(f"Error getting AI Studio models: {e}")
+        return []
+
+
 async def run_chatgpt_automation(prompt: str, model: str = "auto") -> str:
     """
     Run the ChatGPT automation script via subprocess.

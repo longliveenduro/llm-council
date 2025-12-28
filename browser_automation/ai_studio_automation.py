@@ -14,6 +14,9 @@ Usage:
        
     Interactive mode:
        python ai_studio_automation.py --interactive
+
+    List models:
+       python ai_studio_automation.py --list-models
 """
 
 import asyncio
@@ -402,6 +405,71 @@ async def select_model(page: Page, model_name: str):
         print(f"ERROR: Failed to select model {model_name}: {e}")
 
 
+async def list_models(page: Page):
+    """List available models from the dropdown."""
+    try:
+        # 1. Open the model selector
+        selector_btn = "ms-model-selector button"
+        await page.wait_for_selector(selector_btn, timeout=10000)
+        await page.click(selector_btn)
+        
+        # 2. Wait for carousel
+        await page.wait_for_selector("ms-model-carousel", state="visible", timeout=10000)
+        
+        # 3. Extract models
+        # Find all model cards
+        # The cards usually have the model name in a primary heading or similar
+        cards = await page.query_selector_all("ms-model-carousel [id]")
+
+        models = []
+        for card in cards:
+            try:
+                model_id = await card.get_attribute("id")
+                if not model_id or "model-carousel-row-models" not in model_id:
+                    continue
+                
+                # Try to get name from h3, .name, or just text
+                name = None
+                name_el = await card.query_selector("h3, .name, [role='heading']")
+                if name_el:
+                    name = await name_el.inner_text()
+                
+                if not name:
+                    # Look for the first span that isn't "New" or empty
+                    spans = await card.query_selector_all("span")
+                    for span in spans:
+                        txt = await span.inner_text()
+                        txt = txt.strip()
+                        if txt and txt.lower() not in ["new", "spark", "image_edit_auto", "live"]:
+                            name = txt
+                            break
+                
+                if not name:
+                    # Last resort: first line of inner_text
+                    name = await card.inner_text()
+                    name = name.split('\n')[0].strip()
+                
+                if name and name.lower() not in ["spark", "image_edit_auto", "new", "live"]:
+                    # Clean up
+                    name = name.replace("New", "").strip()
+                    models.append({"name": name, "id": model_id})
+            except:
+                continue
+        
+        # Deduplicate and sort
+        seen = set()
+        unique_models = []
+        for m in models:
+            if m['name'] not in seen:
+                unique_models.append(m)
+                seen.add(m['name'])
+        
+        return unique_models
+    except Exception as e:
+        print(f"Error listing models: {e}")
+        return []
+
+
 async def interactive_mode(page: Page):
     """Run in interactive mode, accepting prompts from stdin."""
     print("\n=== AI Studio Interactive Mode ===")
@@ -436,12 +504,14 @@ async def main():
                         help="Run in interactive mode")
     parser.add_argument("--model", "-m", default="Gemini 3 Flash",
                         help="Model to use (default: Gemini 3 Flash)")
+    parser.add_argument("--list-models", action="store_true",
+                        help="List available models and exit")
     
     args = parser.parse_args()
     
-    if not args.prompt and not args.interactive:
+    if not args.prompt and not args.interactive and not args.list_models:
         parser.print_help()
-        print("\nError: Please provide a prompt or use --interactive mode")
+        print("\nError: Please provide a prompt, use --interactive mode, or use --list-models")
         sys.exit(1)
     
     context = None
@@ -464,6 +534,14 @@ async def main():
         # Select the requested model
         if args.model:
             await select_model(page, args.model)
+
+        if args.list_models:
+            models = await list_models(page)
+            print("\nMODELS_BEGIN")
+            for m in models:
+                print(f"{m['name']}|{m['id']}")
+            print("MODELS_END")
+            return
 
         if args.interactive:
             await interactive_mode(page)

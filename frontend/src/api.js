@@ -277,4 +277,16 @@ export const api = {
     }
     return response.json();
   },
+
+  /**
+   * Get available models for a provider.
+   * @param {string} provider - "ai_studio" or "chatgpt"
+   */
+  async getAutomationModels(provider) {
+    const response = await fetch(`${API_BASE}/api/automation/models/${provider}`);
+    if (!response.ok) {
+      throw new Error('Failed to get automation models');
+    }
+    return response.json();
+  },
 };

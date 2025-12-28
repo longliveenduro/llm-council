@@ -16,7 +16,8 @@ from .council import (
     stage2_collect_rankings, stage3_synthesize_final, calculate_aggregate_rankings,
     build_ranking_prompt, build_chairman_prompt, parse_ranking_from_text,
     run_ai_studio_automation, run_chatgpt_automation,
-    check_automation_session, clear_automation_session, run_interactive_login
+    check_automation_session, clear_automation_session, run_interactive_login,
+    get_ai_studio_models
 )
 
 app = FastAPI(title="LLM Council API")
@@ -416,6 +417,24 @@ async def logout_automation(provider: str):
     
     success = clear_automation_session(provider)
     return {"success": success, "provider": provider}
+
+
+@app.get("/api/automation/models/{provider}")
+async def get_automation_models(provider: str):
+    """Get available models for a provider."""
+    if provider == "ai_studio":
+        models = await get_ai_studio_models()
+        return models
+    elif provider == "chatgpt":
+        # For now, just return hardcoded ChatGPT models as we don't have a list script yet
+        return [
+            {"name": "ChatGPT 4o", "id": "gpt-4o"},
+            {"name": "ChatGPT 4o mini", "id": "gpt-4o-mini"},
+            {"name": "ChatGPT o1", "id": "o1"},
+            {"name": "ChatGPT o1 thinking", "id": "o1-preview"},
+        ]
+    else:
+        raise HTTPException(status_code=400, detail="Invalid provider")
 
 
 if __name__ == "__main__":

@@ -332,6 +332,7 @@ function App() {
         onNewConversation={handleNewConversation}
         isLoading={isLoading}
         llmNames={llmNames}
+        onAddLlmName={addLlmName}
         theme={theme}
         onReload={() => {
           loadConversation(currentConversationId);
