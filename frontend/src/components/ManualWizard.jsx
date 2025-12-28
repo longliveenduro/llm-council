@@ -22,7 +22,7 @@ const ModelBadge = ({ model }) => {
     );
 };
 
-export default function ManualWizard({ conversationId, previousMessages = [], llmNames = [], onAddLlmName, onComplete, onCancel }) {
+export default function ManualWizard({ conversationId, previousMessages = [], llmNames = [], onAddLlmName, onComplete, onCancel, automationModels = { ai_studio: [], chatgpt: [] } }) {
     const draftKey = `manual_draft_${conversationId}`;
     const savedDraft = JSON.parse(localStorage.getItem(draftKey) || '{}');
 
@@ -42,38 +42,27 @@ export default function ManualWizard({ conversationId, previousMessages = [], ll
     const [stage3Response, setStage3Response] = useState(savedDraft.stage3Response || { model: 'Manual Chairman', response: '' }); // { model, response }
     const [manualTitle, setManualTitle] = useState(savedDraft.manualTitle || '');
     const [aggregateRankings, setAggregateRankings] = useState(savedDraft.aggregateRankings || []);
-    const [aiStudioModel, setAiStudioModel] = useState(savedDraft.aiStudioModel || 'Gemini 3 Flash');
-    const [automationModels, setAutomationModels] = useState({ ai_studio: [], chatgpt: [] });
+    const [aiStudioModel, setAiStudioModel] = useState(savedDraft.aiStudioModel || (automationModels.ai_studio[0]?.name) || 'Gemini 2.5 Flash');
     const [isLoadingModels, setIsLoadingModels] = useState(false);
 
     // Input State for current item
     const [currentModel, setCurrentModel] = useState(savedDraft.currentModel || llmNames[0] || '');
     const [currentText, setCurrentText] = useState(savedDraft.currentText || '');
 
-    // Load available models for automation
+    // Load available models for automation - OBSOLETE: Now handled globally
+    // But we still want to set a default model if aiStudioModel is just the default placeholder
     useEffect(() => {
-        const fetchModels = async () => {
-            setIsLoadingModels(true);
-            try {
-                const aiStudioModels = await api.getAutomationModels('ai_studio');
-                const chatgptModels = await api.getAutomationModels('chatgpt');
-                setAutomationModels({
-                    ai_studio: aiStudioModels,
-                    chatgpt: chatgptModels
-                });
+        const fallbacks = ['Gemini 3 Flash', 'Gemini 2.5 Flash', 'Gemini 1.5 Flash'];
+        const isFallback = !aiStudioModel || fallbacks.includes(aiStudioModel);
 
-                // Auto-select the first (best) model if not already set by a draft
-                if (!savedDraft.aiStudioModel && aiStudioModels.length > 0) {
-                    setAiStudioModel(aiStudioModels[0].name);
-                }
-            } catch (error) {
-                console.error('Failed to fetch automation models:', error);
-            } finally {
-                setIsLoadingModels(false);
+        if (automationModels.ai_studio.length > 0) {
+            const currentInList = automationModels.ai_studio.find(m => m.name === aiStudioModel);
+            // If current model is a fallback or not in the newly arrived list, pick the best one
+            if (isFallback || !currentInList) {
+                setAiStudioModel(automationModels.ai_studio[0].name);
             }
-        };
-        fetchModels();
-    }, []);
+        }
+    }, [automationModels.ai_studio]);
 
     // --- Persistence ---
     useEffect(() => {

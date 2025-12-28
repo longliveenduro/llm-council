@@ -15,6 +15,7 @@ export default function ChatInterface({
   llmNames,
   onAddLlmName,
   theme,
+  automationModels,
 }) {
   const [input, setInput] = useState('');
 
@@ -120,6 +121,7 @@ export default function ChatInterface({
             onAddLlmName={onAddLlmName}
             onComplete={handleManualWizardComplete}
             onCancel={() => setIsFullManualMode(false)}
+            automationModels={automationModels}
           />
         </div>
       ) : (

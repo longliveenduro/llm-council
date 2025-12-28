@@ -20,6 +20,8 @@ from .council import (
     get_ai_studio_models
 )
 
+from .storage import get_cached_models, save_cached_models
+
 app = FastAPI(title="LLM Council API")
 
 # Enable CORS for local development
@@ -87,7 +89,7 @@ class SaveManualMessageRequest(BaseModel):
 
 class AutomationRequest(BaseModel):
     prompt: str
-    model: str = "Gemini 3 Flash"
+    model: str = "Gemini 2.5 Flash"
     provider: str = "ai_studio"  # "ai_studio" or "chatgpt"
 
 
@@ -421,10 +423,11 @@ async def logout_automation(provider: str):
 
 @app.get("/api/automation/models/{provider}")
 async def get_automation_models(provider: str):
-    """Get available models for a provider."""
+    """Get available models for a provider (cached)."""
     if provider == "ai_studio":
-        models = await get_ai_studio_models()
-        return models
+        # Try cache first
+        cached = get_cached_models(provider)
+        return cached if cached else []
     elif provider == "chatgpt":
         # For now, just return hardcoded ChatGPT models as we don't have a list script yet
         return [
@@ -433,6 +436,26 @@ async def get_automation_models(provider: str):
             {"name": "ChatGPT o1", "id": "o1"},
             {"name": "ChatGPT o1 thinking", "id": "o1-preview"},
         ]
+    else:
+        raise HTTPException(status_code=400, detail="Invalid provider")
+
+
+@app.post("/api/automation/models/{provider}/sync")
+async def sync_automation_models(provider: str):
+    """Force a sync of models for a provider."""
+    if provider == "ai_studio":
+        models = await get_ai_studio_models()
+        if models:
+            save_cached_models(provider, models)
+        return {"success": True, "models": models}
+    elif provider == "chatgpt":
+        # No sync implemented for ChatGPT yet, just return the hardcoded ones
+        return {"success": True, "models": [
+            {"name": "ChatGPT 4o", "id": "gpt-4o"},
+            {"name": "ChatGPT 4o mini", "id": "gpt-4o-mini"},
+            {"name": "ChatGPT o1", "id": "o1"},
+            {"name": "ChatGPT o1 thinking", "id": "o1-preview"},
+        ]}
     else:
         raise HTTPException(status_code=400, detail="Invalid provider")
 

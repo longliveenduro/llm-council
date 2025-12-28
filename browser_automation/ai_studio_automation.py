@@ -378,6 +378,7 @@ async def select_model(page: Page, model_name: str):
     model_map = {
         "Gemini 3 Flash": "gemini-3-flash-preview",
         "Gemini 3 Pro": "gemini-3-pro-preview",
+        "Gemini 3 Pro Preview": "gemini-3-pro-preview",
         "Gemini 2.5 Flash": "gemini-flash-latest",
         "Gemini 2.5 Flash-Lite": "gemini-flash-lite-latest",
         "Imagen 3": "imagen-3", # Guessing/Placeholder
@@ -524,8 +525,8 @@ async def main():
     parser.add_argument("prompt", nargs="?", help="The prompt to send")
     parser.add_argument("--interactive", "-i", action="store_true", 
                         help="Run in interactive mode")
-    parser.add_argument("--model", "-m", default="Gemini 3 Flash",
-                        help="Model to use (default: Gemini 3 Flash)")
+    parser.add_argument("--model", "-m", default="Gemini 2.5 Flash",
+                        help="Model to use (default: Gemini 2.5 Flash)")
     parser.add_argument("--list-models", action="store_true",
                         help="List available models and exit")
     

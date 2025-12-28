@@ -17,6 +17,7 @@ export default function Sidebar({
   automationStatus,
   onAutomationLogin,
   onAutomationLogout,
+  onSyncModels,
 }) {
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState('');
@@ -183,6 +184,14 @@ export default function Sidebar({
                 Login
               </button>
             )}
+            <button
+              className={`sync-btn ${automationStatus?.loading?.sync?.ai_studio ? 'syncing' : ''}`}
+              onClick={() => onSyncModels('ai_studio')}
+              title="Sync Model Names"
+              disabled={automationStatus?.loading?.sync?.ai_studio}
+            >
+              {automationStatus?.loading?.sync?.ai_studio ? '⌛' : '🔄'}
+            </button>
           </div>
           <div className="automation-item">
             <span className={`status-dot ${automationStatus?.chatgpt ? 'online' : 'offline'}`} />
@@ -204,6 +213,14 @@ export default function Sidebar({
                 Login
               </button>
             )}
+            <button
+              className={`sync-btn ${automationStatus?.loading?.sync?.chatgpt ? 'syncing' : ''}`}
+              onClick={() => onSyncModels('chatgpt')}
+              title="Sync Model Names"
+              disabled={automationStatus?.loading?.sync?.chatgpt}
+            >
+              {automationStatus?.loading?.sync?.chatgpt ? '⌛' : '🔄'}
+            </button>
           </div>
         </div>
       </div>

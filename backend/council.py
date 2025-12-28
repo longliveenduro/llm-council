@@ -613,7 +613,7 @@ Title:"""
     return title
 
 
-async def run_ai_studio_automation(prompt: str, model: str = "Gemini 3 Flash") -> str:
+async def run_ai_studio_automation(prompt: str, model: str = "Gemini 2.5 Flash") -> str:
     """
     Run the AI Studio automation script via subprocess.
     """

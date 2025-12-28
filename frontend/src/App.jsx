@@ -21,13 +21,15 @@ function App() {
   const [automationStatus, setAutomationStatus] = useState({
     ai_studio: false,
     chatgpt: false,
-    loading: { ai_studio: false, chatgpt: false }
+    loading: { ai_studio: false, chatgpt: false, sync: { ai_studio: false, chatgpt: false } }
   });
+  const [automationModels, setAutomationModels] = useState({ ai_studio: [], chatgpt: [] });
 
   // Load conversations on mount
   useEffect(() => {
     loadConversations();
     loadAutomationStatus();
+    loadAutomationModels();
   }, []);
 
   // Save LLM names to localStorage when they change
@@ -80,6 +82,42 @@ function App() {
       }));
     } catch (error) {
       console.error('Failed to load automation status:', error);
+    }
+  };
+
+  const loadAutomationModels = async () => {
+    try {
+      const aiStudioModels = await api.getAutomationModels('ai_studio');
+      const chatgptModels = await api.getAutomationModels('chatgpt');
+      setAutomationModels({
+        ai_studio: aiStudioModels,
+        chatgpt: chatgptModels
+      });
+    } catch (error) {
+      console.error('Failed to load automation models:', error);
+    }
+  };
+
+  const handleSyncModels = async (provider) => {
+    setAutomationStatus(prev => ({
+      ...prev,
+      loading: { ...prev.loading, sync: { ...prev.loading.sync, [provider]: true } }
+    }));
+
+    try {
+      const result = await api.syncAutomationModels(provider);
+      setAutomationModels(prev => ({
+        ...prev,
+        [provider]: result.models
+      }));
+    } catch (error) {
+      console.error(`Failed to sync ${provider} models:`, error);
+      alert(`Sync failed: ${error.message}`);
+    } finally {
+      setAutomationStatus(prev => ({
+        ...prev,
+        loading: { ...prev.loading, sync: { ...prev.loading.sync, [provider]: false } }
+      }));
     }
   };
 
@@ -325,6 +363,7 @@ function App() {
         automationStatus={automationStatus}
         onAutomationLogin={handleAutomationLogin}
         onAutomationLogout={handleAutomationLogout}
+        onSyncModels={handleSyncModels}
       />
       <ChatInterface
         conversation={currentConversation}
@@ -334,6 +373,7 @@ function App() {
         llmNames={llmNames}
         onAddLlmName={addLlmName}
         theme={theme}
+        automationModels={automationModels}
         onReload={() => {
           loadConversation(currentConversationId);
           loadConversations();

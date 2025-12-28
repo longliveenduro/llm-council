@@ -91,15 +91,23 @@ def list_conversations() -> List[Dict[str, Any]]:
     for filename in os.listdir(DATA_DIR):
         if filename.endswith('.json'):
             path = os.path.join(DATA_DIR, filename)
-            with open(path, 'r') as f:
-                data = json.load(f)
-                # Return metadata only
-                conversations.append({
-                    "id": data["id"],
-                    "created_at": data["created_at"],
-                    "title": data.get("title", "New Conversation"),
-                    "message_count": len(data["messages"])
-                })
+            try:
+                with open(path, 'r') as f:
+                    data = json.load(f)
+                    # Skip files that aren't conversations
+                    if "id" not in data or "messages" not in data:
+                        continue
+                        
+                    # Return metadata only
+                    conversations.append({
+                        "id": data["id"],
+                        "created_at": data["created_at"],
+                        "title": data.get("title", "New Conversation"),
+                        "message_count": len(data["messages"])
+                    })
+            except Exception as e:
+                print(f"Error loading conversation {filename}: {e}")
+                continue
 
     # Sort by creation time, newest first
     conversations.sort(key=lambda x: x["created_at"], reverse=True)
@@ -187,3 +195,39 @@ def delete_conversation(conversation_id: str) -> bool:
         os.remove(path)
         return True
     return False
+
+
+def get_cached_models(provider: str) -> Optional[List[Dict[str, str]]]:
+    """Get cached models for a provider."""
+    # Store cache in the parent directory of conversations to avoid listing it as a conversation
+    base_dir = Path(DATA_DIR).parent
+    cache_path = os.path.join(base_dir, "models_cache.json")
+    if not os.path.exists(cache_path):
+        return None
+    
+    try:
+        with open(cache_path, 'r') as f:
+            cache = json.load(f)
+            return cache.get(provider)
+    except Exception:
+        return None
+
+
+def save_cached_models(provider: str, models: List[Dict[str, str]]):
+    """Save models to cache for a provider."""
+    base_dir = Path(DATA_DIR).parent
+    base_dir.mkdir(parents=True, exist_ok=True)
+    cache_path = os.path.join(base_dir, "models_cache.json")
+    
+    cache = {}
+    if os.path.exists(cache_path):
+        try:
+            with open(cache_path, 'r') as f:
+                cache = json.load(f)
+        except Exception:
+            pass
+            
+    cache[provider] = models
+    
+    with open(cache_path, 'w') as f:
+        json.dump(cache, f, indent=2)

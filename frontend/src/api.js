@@ -289,4 +289,18 @@ export const api = {
     }
     return response.json();
   },
+
+  /**
+   * Force a sync of automation models for a provider.
+   * @param {string} provider - "ai_studio" or "chatgpt"
+   */
+  async syncAutomationModels(provider) {
+    const response = await fetch(`${API_BASE}/api/automation/models/${provider}/sync`, {
+      method: 'POST',
+    });
+    if (!response.ok) {
+      throw new Error('Failed to sync automation models');
+    }
+    return response.json();
+  },
 };

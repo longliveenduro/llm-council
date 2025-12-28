@@ -257,6 +257,44 @@
   border-color: #ef4444;
 }
 
+.sync-btn {
+  background: transparent;
+  border: none;
+  font-size: 14px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  color: var(--text-muted);
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sync-btn:hover:not(:disabled) {
+  background: var(--item-hover);
+  color: var(--text-primary);
+}
+
+.sync-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.sync-btn.syncing {
+  animation: spin 1s linear infinite;
+}
+
 .automation-loading {
   font-size: 12px;
   color: var(--text-muted);
