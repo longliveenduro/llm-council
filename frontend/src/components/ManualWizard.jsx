@@ -61,6 +61,11 @@ export default function ManualWizard({ conversationId, previousMessages = [], ll
                     ai_studio: aiStudioModels,
                     chatgpt: chatgptModels
                 });
+
+                // Auto-select the first (best) model if not already set by a draft
+                if (!savedDraft.aiStudioModel && aiStudioModels.length > 0) {
+                    setAiStudioModel(aiStudioModels[0].name);
+                }
             } catch (error) {
                 console.error('Failed to fetch automation models:', error);
             } finally {

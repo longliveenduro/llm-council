@@ -659,9 +659,72 @@ async def run_ai_studio_automation(prompt: str, model: str = "Gemini 3 Flash") -
         return f"Error running automation: {str(e)}"
 
 
+def sort_gemini_models(models: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    """
+    Sort Gemini models based on capability:
+    1. Version number (higher is better)
+    2. Tier (Ultra > Pro > Flash)
+    3. "Thinking" models as tiebreaker
+    """
+    def get_model_score(model):
+        name = model['name'].lower()
+        model_id = model.get('id', '').lower()
+        score = 0
+        
+        # 0. Brand Priority (Highest Priority)
+        # Ensure Gemini models are always preferred over others (like Imagen)
+        # Prefer "Gemini" in the display name over just in the ID
+        if "gemini" in name:
+            score += 2000000
+        elif "gemini" in model_id:
+            score += 1000000
+
+        # Helper to check name or ID for a keyword
+        def contains(keyword):
+            return keyword in name or keyword in model_id
+
+        # 1. Version number (Highest Priority within brand)
+        if contains("4.0"): # Anticipating Future
+            score += 40000
+        elif contains("4"):
+            score += 40000
+        elif contains("3.5"):
+            score += 35000
+        elif contains("3"):
+            score += 30000
+        elif contains("2.5"):
+            score += 25000
+        elif contains("2"):
+            score += 20000
+        elif contains("1.5"):
+            score += 15000
+            
+        # 2. Tier (Second Priority)
+        if contains("ultra"):
+            score += 5000
+        elif contains("pro"):
+            score += 3000
+        elif contains("flash-lite"):
+            score += 1000
+        elif contains("flash"):
+            score += 2000
+            
+        # 3. "Thinking" preference (Third Priority - tiebreaker within version/tier)
+        if contains("thinking") or contains("reasoning"):
+            score += 200
+            
+        # 4. "Preview" preference (Fourth Priority - tiebreaker)
+        if contains("preview"):
+            score += 100
+            
+        return score
+
+    return sorted(models, key=get_model_score, reverse=True)
+
+
 async def get_ai_studio_models() -> List[Dict[str, str]]:
     """
-    Get the list of available models from AI Studio.
+    Get the list of available models from AI Studio, sorted by capability.
     """
     script_path = Path(__file__).parent.parent / "browser_automation" / "ai_studio_automation.py"
     args = [sys.executable, str(script_path), "--list-models"]
@@ -688,7 +751,10 @@ async def get_ai_studio_models() -> List[Dict[str, str]]:
                     name, model_id = line.split("|", 1)
                     models.append({"name": name.strip(), "id": model_id.strip()})
         
-        return models
+        # Sort models based on user criteria
+        sorted_models = sort_gemini_models(models)
+        
+        return sorted_models
     except Exception as e:
         print(f"Error getting AI Studio models: {e}")
         return []
