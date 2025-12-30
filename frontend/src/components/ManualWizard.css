@@ -310,6 +310,22 @@
     font-style: italic;
 }
 
+.wizard-title-display {
+    padding: 12px;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    font-size: 16px;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+.wizard-title-display strong {
+    color: var(--text-secondary);
+    margin-right: 8px;
+    font-weight: 600;
+}
+
 /* Automation Integration Styles */
 .automation-settings {
     background: var(--bg-secondary);

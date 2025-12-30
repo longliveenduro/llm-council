@@ -374,6 +374,7 @@ function App() {
         onAddLlmName={addLlmName}
         theme={theme}
         automationModels={automationModels}
+        onTitleUpdate={handleRenameConversation}
         onReload={() => {
           loadConversation(currentConversationId);
           loadConversations();

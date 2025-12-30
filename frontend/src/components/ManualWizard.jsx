@@ -22,7 +22,7 @@ const ModelBadge = ({ model }) => {
     );
 };
 
-export default function ManualWizard({ conversationId, previousMessages = [], llmNames = [], onAddLlmName, onComplete, onCancel, automationModels = { ai_studio: [], chatgpt: [] } }) {
+export default function ManualWizard({ conversationId, currentTitle, previousMessages = [], llmNames = [], onAddLlmName, onComplete, onCancel, automationModels = { ai_studio: [], chatgpt: [] }, onTitleUpdate }) {
     const draftKey = `manual_draft_${conversationId}`;
     const savedDraft = JSON.parse(localStorage.getItem(draftKey) || '{}');
 
@@ -40,7 +40,7 @@ export default function ManualWizard({ conversationId, previousMessages = [], ll
     const [stage2Responses, setStage2Responses] = useState(savedDraft.stage2Responses || []); // { model, ranking }
     const [stage3Prompt, setStage3Prompt] = useState(savedDraft.stage3Prompt || '');
     const [stage3Response, setStage3Response] = useState(savedDraft.stage3Response || { model: 'Manual Chairman', response: '' }); // { model, response }
-    const [manualTitle, setManualTitle] = useState(savedDraft.manualTitle || '');
+    const [manualTitle, setManualTitle] = useState(savedDraft.manualTitle || (currentTitle !== 'New Conversation' ? currentTitle : ''));
     const [aggregateRankings, setAggregateRankings] = useState(savedDraft.aggregateRankings || []);
     const [aiStudioModel, setAiStudioModel] = useState(savedDraft.aiStudioModel || (automationModels.ai_studio[0]?.name) || 'Gemini 2.5 Flash');
     const [isLoadingModels, setIsLoadingModels] = useState(false);
@@ -201,6 +201,33 @@ export default function ManualWizard({ conversationId, previousMessages = [], ll
 
         setIsLoading(true);
         try {
+            // Generate title if it hasn't been set yet
+            if (!manualTitle || manualTitle === 'New Conversation') {
+                const titlePrompt = `Generate a very short title (3-5 words maximum) that summarizes the following question.
+The title should be concise and descriptive. Do not use quotes or punctuation in the title.
+
+Question: ${userQuery}
+
+Title:`;
+                try {
+                    // Force using Flash model for title generation
+                    // NOTE: Hardcoded to ensure cheap/fast model is used, ignoring the selected "aiStudioModel" which is for content
+                    const titleData = await api.runAutomation(titlePrompt, 'Gemini 2.5 Flash', 'ai_studio');
+                    const generatedTitle = titleData.response.trim().replace(/["']/g, '');
+                    setManualTitle(generatedTitle);
+
+                    // Update in backend
+                    await api.updateConversationTitle(conversationId, generatedTitle);
+
+                    // Update in parent (App) so sidebar reflects it immediately
+                    if (onTitleUpdate) {
+                        onTitleUpdate(conversationId, generatedTitle);
+                    }
+                } catch (err) {
+                    console.error('Failed to generate title, continuing without one', err);
+                }
+            }
+
             const data = await api.getStage2Prompt(userQuery, stage1Responses, previousMessages);
             setStage2Prompt(data.prompt);
             setLabelToModel(data.label_to_model);
@@ -461,15 +488,9 @@ export default function ManualWizard({ conversationId, previousMessages = [], ll
             <h3>Step 2: Peer Review</h3>
 
             <div className="form-group">
-                <label>Conversation Title (Optional):</label>
-                <input
-                    type="text"
-                    placeholder="Enter a title for this conversation..."
-                    value={manualTitle}
-                    onChange={(e) => setManualTitle(e.target.value)}
-                    className="title-input"
-                />
-                <p className="hint-text">You can set a title now based on the responses so far.</p>
+                <div className="wizard-title-display">
+                    <strong>Conversation Title:</strong> {manualTitle || 'Generating...'}
+                </div>
             </div>
 
             <p className="step-desc">Copy the prompt below, send it to models, and paste their rankings.</p>

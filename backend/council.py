@@ -592,16 +592,12 @@ Question: {user_query}
 
 Title:"""
 
-    messages = [{"role": "user", "content": title_prompt}]
+    # Use AI Studio automation for title generation (using a Flash model)
+    title = await run_ai_studio_automation(title_prompt, model="Gemini 2.5 Flash")
 
-    # Use gemini-2.5-flash for title generation (fast and cheap)
-    response = await query_model("google/gemini-2.5-flash", messages, timeout=30.0)
-
-    if response is None:
-        # Fallback to a generic title
+    if not title or title.startswith("Error:"):
+        # Fallback to a generic title if automation fails
         return "New Conversation"
-
-    title = response.get('content', 'New Conversation').strip()
 
     # Clean up the title - remove quotes, limit length
     title = title.strip('"\'')
