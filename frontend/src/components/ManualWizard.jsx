@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { api } from '../api';
 import { getModelIcon } from '../utils/modelIcons';
@@ -22,7 +22,7 @@ const ModelBadge = ({ model }) => {
     );
 };
 
-export default function ManualWizard({ conversationId, currentTitle, previousMessages = [], llmNames = [], onAddLlmName, onComplete, onCancel, automationModels = { ai_studio: [], chatgpt: [] }, onTitleUpdate }) {
+export default function ManualWizard({ conversationId, currentTitle, previousMessages = [], llmNames = [], onAddLlmName, onComplete, onCancel, automationModels = { ai_studio: [], chatgpt: [] }, onTitleUpdate, initialQuestion = '' }) {
     const draftKey = `manual_draft_${conversationId}`;
     const savedDraft = JSON.parse(localStorage.getItem(draftKey) || '{}');
 
@@ -33,7 +33,7 @@ export default function ManualWizard({ conversationId, currentTitle, previousMes
     const isFollowUp = previousMessages.length > 0;
 
     // Data State
-    const [userQuery, setUserQuery] = useState(savedDraft.userQuery || '');
+    const [userQuery, setUserQuery] = useState(savedDraft.userQuery || initialQuestion || '');
     const [stage1Responses, setStage1Responses] = useState(savedDraft.stage1Responses || []); // { model, response }
     const [stage2Prompt, setStage2Prompt] = useState(savedDraft.stage2Prompt || '');
     const [labelToModel, setLabelToModel] = useState(savedDraft.labelToModel || {});
@@ -83,6 +83,48 @@ export default function ManualWizard({ conversationId, currentTitle, previousMes
         };
         localStorage.setItem(draftKey, JSON.stringify(draft));
     }, [draftKey, step, userQuery, stage1Responses, stage2Prompt, labelToModel, stage2Responses, stage3Prompt, stage3Response, manualTitle, aggregateRankings, aiStudioModel, currentModel, currentText]);
+
+    const [isGeneratingTitle, setIsGeneratingTitle] = useState(false);
+    const generatingLock = useRef(false);
+
+    // --- Auto Title Generation ---
+    const generateTitle = async (query) => {
+        if (!query || isGeneratingTitle || generatingLock.current) return;
+        setIsGeneratingTitle(true);
+        generatingLock.current = true;
+
+        try {
+            const titlePrompt = `Generate a very short title (3-5 words maximum) that summarizes the following question.
+The title should be concise and descriptive. Do not use quotes or punctuation in the title.
+
+Question: ${query}
+
+Title:`;
+            // Force using Flash model for title generation
+            const titleData = await api.runAutomation(titlePrompt, 'Gemini 2.5 Flash', 'ai_studio');
+            const generatedTitle = titleData.response.trim().replace(/["']/g, '');
+            setManualTitle(generatedTitle);
+
+            // Update in backend
+            await api.updateConversationTitle(conversationId, generatedTitle);
+
+            // Update in parent (App) so sidebar reflects it immediately
+            if (onTitleUpdate) {
+                onTitleUpdate(conversationId, generatedTitle);
+            }
+        } catch (err) {
+            console.error('Failed to generate title, continuing without one', err);
+        } finally {
+            setIsGeneratingTitle(false);
+            generatingLock.current = false;
+        }
+    };
+
+    useEffect(() => {
+        if (initialQuestion && (!manualTitle || manualTitle === 'New Conversation')) {
+            generateTitle(initialQuestion);
+        }
+    }, [initialQuestion]);
 
     // --- Helpers ---
     const copyToClipboard = (text) => {
@@ -203,29 +245,7 @@ export default function ManualWizard({ conversationId, currentTitle, previousMes
         try {
             // Generate title if it hasn't been set yet
             if (!manualTitle || manualTitle === 'New Conversation') {
-                const titlePrompt = `Generate a very short title (3-5 words maximum) that summarizes the following question.
-The title should be concise and descriptive. Do not use quotes or punctuation in the title.
-
-Question: ${userQuery}
-
-Title:`;
-                try {
-                    // Force using Flash model for title generation
-                    // NOTE: Hardcoded to ensure cheap/fast model is used, ignoring the selected "aiStudioModel" which is for content
-                    const titleData = await api.runAutomation(titlePrompt, 'Gemini 2.5 Flash', 'ai_studio');
-                    const generatedTitle = titleData.response.trim().replace(/["']/g, '');
-                    setManualTitle(generatedTitle);
-
-                    // Update in backend
-                    await api.updateConversationTitle(conversationId, generatedTitle);
-
-                    // Update in parent (App) so sidebar reflects it immediately
-                    if (onTitleUpdate) {
-                        onTitleUpdate(conversationId, generatedTitle);
-                    }
-                } catch (err) {
-                    console.error('Failed to generate title, continuing without one', err);
-                }
+                await generateTitle(userQuery);
             }
 
             const data = await api.getStage2Prompt(userQuery, stage1Responses, previousMessages);
@@ -677,6 +697,14 @@ Title:`;
 
     return (
         <div className="manual-wizard">
+            {isGeneratingTitle && (
+                <div className="modal-overlay">
+                    <div className="modal-content">
+                        <div className="modal-spinner"></div>
+                        <div className="modal-text">Generating conversation title...</div>
+                    </div>
+                </div>
+            )}
             {step === 1 && renderStep1()}
             {step === 2 && renderStep2()}
             {step === 3 && renderStep3()}

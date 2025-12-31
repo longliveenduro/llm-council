@@ -35,12 +35,23 @@ export default function ChatInterface({
     scrollToBottom();
   }, [conversation]);
 
+  // Track previous conversation ID to detect switches during render
+  const prevConversationIdRef = useRef(conversation?.id);
+
   // Reset continuing state when switching conversations
   useEffect(() => {
     setIsContinuing(false);
+    setInput(''); // Clear input when switching conversations
     const hasDraft = localStorage.getItem(`manual_draft_${conversation?.id}`);
     setIsFullManualMode(!!hasDraft);
+
+    // Update ref after side effects
+    prevConversationIdRef.current = conversation?.id;
   }, [conversation?.id]);
+
+  // If conversation changed (render ID != ref ID), force input to empty to prevent leakage
+  // into the ManualWizard before the useEffect can clear the state.
+  const effectiveInput = conversation?.id === prevConversationIdRef.current ? input : '';
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -125,6 +136,7 @@ export default function ChatInterface({
             onCancel={() => setIsFullManualMode(false)}
             automationModels={automationModels}
             onTitleUpdate={onTitleUpdate}
+            initialQuestion={effectiveInput}
           />
         </div>
       ) : (

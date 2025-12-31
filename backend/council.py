@@ -13,7 +13,12 @@ import shutil
 
 # Browser data directories for automation sessions
 AI_STUDIO_BROWSER_DATA = Path(__file__).parent.parent / "browser_automation" / ".ai_studio_browser_data"
+AI_STUDIO_BROWSER_DATA = Path(__file__).parent.parent / "browser_automation" / ".ai_studio_browser_data"
 CHATGPT_BROWSER_DATA = Path(__file__).parent.parent / "browser_automation" / ".chatgpt_browser_data"
+
+# Global locks to prevent concurrent browser sessions for the same provider
+AI_STUDIO_LOCK = asyncio.Lock()
+CHATGPT_LOCK = asyncio.Lock()
 
 
 def get_browser_data_dir(provider: str) -> Path:
@@ -78,10 +83,10 @@ async def run_interactive_login(provider: str) -> dict:
     
     if provider == "chatgpt":
         url = "https://chatgpt.com/"
-        expected_domain = "chatgpt.com"
+        excepted_domain = "chatgpt.com"
     else:
         url = "https://aistudio.google.com/prompts/new_chat"
-        expected_domain = "aistudio.google.com"
+        excepted_domain = "aistudio.google.com"
     
     playwright = None
     context = None
@@ -93,126 +98,130 @@ async def run_interactive_login(provider: str) -> dict:
         print(f"Browser was closed by user for {provider}")
     
     try:
-        playwright = await async_playwright().start()
+        lock = AI_STUDIO_LOCK if provider == "ai_studio" else CHATGPT_LOCK
         
-        # Launch persistent context (headful)
-        context = await playwright.chromium.launch_persistent_context(
-            user_data_dir=str(data_dir),
-            headless=False,
-            viewport={"width": 1200, "height": 800},
-            args=["--disable-blink-features=AutomationControlled"],
-        )
-        
-        # Listen for browser close
-        context.on("close", on_close)
-        
-        page = context.pages[0] if context.pages else await context.new_page()
-        
-        # Navigate to the login page
-        await page.goto(url)
-        
-        # Wait for page to load
-        try:
-            await page.wait_for_load_state("networkidle", timeout=30000)
-        except:
-            pass  # Continue anyway
-        
-        # Wait for the user to complete login
-        print(f"Waiting for user to complete login on {provider}...")
-        print("Please complete the login in the browser window.")
-        
-        max_wait = 300  # 5 minutes max
-        check_interval = 2
-        elapsed = 0
-        logged_in = False
-        
-        async def is_chatgpt_logged_in(page) -> bool:
-            """Check if ChatGPT is actually logged in (no login modal visible)."""
+        # Acquire lock to ensure no other automation is running
+        async with lock:
+            playwright = await async_playwright().start()
+            
+            # Launch persistent context (headful)
+            context = await playwright.chromium.launch_persistent_context(
+                user_data_dir=str(data_dir),
+                headless=False,
+                viewport={"width": 1200, "height": 800},
+                args=["--disable-blink-features=AutomationControlled"],
+            )
+            
+            # Listen for browser close
+            context.on("close", on_close)
+            
+            page = context.pages[0] if context.pages else await context.new_page()
+            
+            # Navigate to the login page
+            await page.goto(url)
+            
+            # Wait for page to load
             try:
-                # Check for login modal - if it exists, we're NOT logged in
-                login_modal = await page.query_selector('[data-testid="modal-no-auth-login"]')
-                if login_modal:
-                    is_visible = await login_modal.is_visible()
-                    if is_visible:
-                        return False
-                
-                # Also check for login/signup buttons in the UI
-                login_btn = await page.query_selector('button:has-text("Log in")')
-                if login_btn:
-                    is_visible = await login_btn.is_visible()
-                    if is_visible:
-                        return False
-                
-                # Check if we can see the chat input (indicates logged in)
-                chat_input = await page.query_selector('#prompt-textarea')
-                if chat_input:
-                    is_visible = await chat_input.is_visible()
-                    if is_visible:
-                        return True
-                
-                return False
+                await page.wait_for_load_state("networkidle", timeout=30000)
             except:
-                return False
-        
-        async def is_ai_studio_logged_in(page) -> bool:
-            """Check if AI Studio is logged in."""
-            try:
-                current_url = page.url
-                # If we're on accounts.google.com, still logging in
-                if "accounts.google.com" in current_url:
+                pass  # Continue anyway
+            
+            # Wait for the user to complete login
+            print(f"Waiting for user to complete login on {provider}...")
+            print("Please complete the login in the browser window.")
+            
+            max_wait = 300  # 5 minutes max
+            check_interval = 2
+            elapsed = 0
+            logged_in = False
+            
+            async def is_chatgpt_logged_in(page) -> bool:
+                """Check if ChatGPT is actually logged in (no login modal visible)."""
+                try:
+                    # Check for login modal - if it exists, we're NOT logged in
+                    login_modal = await page.query_selector('[data-testid="modal-no-auth-login"]')
+                    if login_modal:
+                        is_visible = await login_modal.is_visible()
+                        if is_visible:
+                            return False
+                    
+                    # Also check for login/signup buttons in the UI
+                    login_btn = await page.query_selector('button:has-text("Log in")')
+                    if login_btn:
+                        is_visible = await login_btn.is_visible()
+                        if is_visible:
+                            return False
+                    
+                    # Check if we can see the chat input (indicates logged in)
+                    chat_input = await page.query_selector('#prompt-textarea')
+                    if chat_input:
+                        is_visible = await chat_input.is_visible()
+                        if is_visible:
+                            return True
+                    
                     return False
-                # If on AI Studio, check for prompt input
-                if "aistudio.google.com" in current_url:
-                    # Look for the prompt textarea
-                    prompt_input = await page.query_selector('textarea')
-                    if prompt_input:
-                        return True
-                return False
-            except:
-                return False
-        
-        while elapsed < max_wait and not browser_closed:
-            try:
-                # Check if page is still valid
-                if page.is_closed():
-                    browser_closed = True
-                    break
-                
-                current_url = page.url
-                
-                # Provider-specific login checks
-                if provider == "chatgpt":
-                    if "chatgpt.com" in current_url:
-                        if await is_chatgpt_logged_in(page):
-                            # Wait a bit more for session to stabilize
+                except:
+                    return False
+            
+            async def is_ai_studio_logged_in(page) -> bool:
+                """Check if AI Studio is logged in."""
+                try:
+                    current_url = page.url
+                    # If we're on accounts.google.com, still logging in
+                    if "accounts.google.com" in current_url:
+                        return False
+                    # If on AI Studio, check for prompt input
+                    if "aistudio.google.com" in current_url:
+                        # Look for the prompt textarea
+                        prompt_input = await page.query_selector('textarea')
+                        if prompt_input:
+                            return True
+                    return False
+                except:
+                    return False
+            
+            while elapsed < max_wait and not browser_closed:
+                try:
+                    # Check if page is still valid
+                    if page.is_closed():
+                        browser_closed = True
+                        break
+                    
+                    current_url = page.url
+                    
+                    # Provider-specific login checks
+                    if provider == "chatgpt":
+                        if "chatgpt.com" in current_url:
+                            if await is_chatgpt_logged_in(page):
+                                # Wait a bit more for session to stabilize
+                                await asyncio.sleep(2)
+                                logged_in = True
+                                break
+                    elif provider == "ai_studio":
+                        if await is_ai_studio_logged_in(page):
                             await asyncio.sleep(2)
                             logged_in = True
                             break
-                elif provider == "ai_studio":
-                    if await is_ai_studio_logged_in(page):
-                        await asyncio.sleep(2)
-                        logged_in = True
-                        break
-                
-                await asyncio.sleep(check_interval)
-                elapsed += check_interval
-                
-            except Exception as e:
-                # Page might be closed/disconnected
-                print(f"Error checking login state: {e}")
-                browser_closed = True
-                break
-        
-        if browser_closed:
-            return {"success": False, "message": "Browser was closed. Login cancelled."}
-        
-        if elapsed >= max_wait:
-            return {"success": False, "message": "Login timed out. Please try again."}
-        
-        if logged_in:
-            return {"success": True, "message": f"Successfully logged in to {provider}"}
-        
-        return {"success": False, "message": "Login was not completed."}
+                    
+                    await asyncio.sleep(check_interval)
+                    elapsed += check_interval
+                    
+                except Exception as e:
+                    # Page might be closed/disconnected
+                    print(f"Error checking login state: {e}")
+                    browser_closed = True
+                    break
+            
+            if browser_closed:
+                return {"success": False, "message": "Browser was closed. Login cancelled."}
+            
+            if elapsed >= max_wait:
+                return {"success": False, "message": "Login timed out. Please try again."}
+            
+            if logged_in:
+                return {"success": True, "message": f"Successfully logged in to {provider}"}
+            
+            return {"success": False, "message": "Login was not completed."}
         
     except Exception as e:
         return {"success": False, "message": f"Login failed: {str(e)}"}
@@ -618,41 +627,42 @@ async def run_ai_studio_automation(prompt: str, model: str = "Gemini 2.5 Flash")
     # Use the same python interpreter as the current process
     args = [sys.executable, str(script_path), prompt, "--model", model]
     
-    try:
-        print(f"Executing automation: {model}")
-        # Run subprocess and capture output
-        process = await asyncio.create_subprocess_exec(
-            *args,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
-        
-        stdout, stderr = await process.communicate()
-        
-        if process.returncode != 0:
-            error_msg = stderr.decode().strip()
-            print(f"Automation Error (Code {process.returncode}): {error_msg}")
-            return f"Error: Automation script failed. {error_msg}"
+    async with AI_STUDIO_LOCK:
+        try:
+            print(f"Executing automation: {model}")
+            # Run subprocess and capture output
+            process = await asyncio.create_subprocess_exec(
+                *args,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
             
-        output = stdout.decode().strip()
-        # Print full output for debugging
-        print("-" * 20 + " Automation Output " + "-" * 20)
-        print(output)
-        print("-" * 59)
-        
-        # The script prints various DEBUG info, the final response is after "Response:"
-        if "Response:" in output:
-            response = output.split("Response:")[-1].strip()
-            # Clean up exit logs if any
-            if "Exit code:" in response:
-                response = response.split("Exit code:")[0].strip()
-            return response
+            stdout, stderr = await process.communicate()
             
-        return output
+            if process.returncode != 0:
+                error_msg = stderr.decode().strip()
+                print(f"Automation Error (Code {process.returncode}): {error_msg}")
+                return f"Error: Automation script failed. {error_msg}"
+                
+            output = stdout.decode().strip()
+            # Print full output for debugging
+            print("-" * 20 + " Automation Output " + "-" * 20)
+            print(output)
+            print("-" * 59)
+            
+            # The script prints various DEBUG info, the final response is after "Response:"
+            if "Response:" in output:
+                response = output.split("Response:")[-1].strip()
+                # Clean up exit logs if any
+                if "Exit code:" in response:
+                    response = response.split("Exit code:")[0].strip()
+                return response
+                
+            return output
 
-    except Exception as e:
-        print(f"Subprocess Exception: {e}")
-        return f"Error running automation: {str(e)}"
+        except Exception as e:
+            print(f"Subprocess Exception: {e}")
+            return f"Error running automation: {str(e)}"
 
 
 def sort_gemini_models(models: List[Dict[str, str]]) -> List[Dict[str, str]]:
@@ -725,35 +735,36 @@ async def get_ai_studio_models() -> List[Dict[str, str]]:
     script_path = Path(__file__).parent.parent / "browser_automation" / "ai_studio_automation.py"
     args = [sys.executable, str(script_path), "--list-models"]
     
-    try:
-        process = await asyncio.create_subprocess_exec(
-            *args,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
+    async with AI_STUDIO_LOCK:
+        try:
+            process = await asyncio.create_subprocess_exec(
+                *args,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
         
-        stdout, stderr = await process.communicate()
-        
-        if process.returncode != 0:
-            return []
+            stdout, stderr = await process.communicate()
             
-        output = stdout.decode().strip()
-        models = []
-        
-        if "MODELS_BEGIN" in output and "MODELS_END" in output:
-            model_section = output.split("MODELS_BEGIN")[1].split("MODELS_END")[0].strip()
-            for line in model_section.split("\n"):
-                if "|" in line:
-                    name, model_id = line.split("|", 1)
-                    models.append({"name": name.strip(), "id": model_id.strip()})
-        
-        # Sort models based on user criteria
-        sorted_models = sort_gemini_models(models)
-        
-        return sorted_models
-    except Exception as e:
-        print(f"Error getting AI Studio models: {e}")
-        return []
+            if process.returncode != 0:
+                return []
+                
+            output = stdout.decode().strip()
+            models = []
+            
+            if "MODELS_BEGIN" in output and "MODELS_END" in output:
+                model_section = output.split("MODELS_BEGIN")[1].split("MODELS_END")[0].strip()
+                for line in model_section.split("\n"):
+                    if "|" in line:
+                        name, model_id = line.split("|", 1)
+                        models.append({"name": name.strip(), "id": model_id.strip()})
+            
+            # Sort models based on user criteria
+            sorted_models = sort_gemini_models(models)
+            
+            return sorted_models
+        except Exception as e:
+            print(f"Error getting AI Studio models: {e}")
+            return []
 
 
 async def run_chatgpt_automation(prompt: str, model: str = "auto") -> str:
@@ -765,40 +776,41 @@ async def run_chatgpt_automation(prompt: str, model: str = "auto") -> str:
     # Use the same python interpreter as the current process
     args = [sys.executable, str(script_path), prompt, "--model", model]
     
-    try:
-        print(f"Executing ChatGPT automation...")
-        # Run subprocess and capture output
-        process = await asyncio.create_subprocess_exec(
-            *args,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
-        )
+    async with CHATGPT_LOCK:
+        try:
+            print(f"Executing ChatGPT automation...")
+            # Run subprocess and capture output
+            process = await asyncio.create_subprocess_exec(
+                *args,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
         
-        stdout, stderr = await process.communicate()
-        
-        if process.returncode != 0:
-            error_msg = stderr.decode().strip()
-            print(f"ChatGPT Automation Error (Code {process.returncode}): {error_msg}")
-            return f"Error: ChatGPT automation script failed. {error_msg}"
+            stdout, stderr = await process.communicate()
             
-        output = stdout.decode().strip()
-        # Print full output for debugging
-        print("-" * 20 + " ChatGPT Automation Output " + "-" * 20)
-        print(output)
-        print("-" * 67)
-        
-        # The script prints various DEBUG info, the final response is after "Response:"
-        if "Response:" in output:
-            response = output.split("Response:")[-1].strip()
-            # Clean up exit logs if any
-            if "Exit code:" in response:
-                response = response.split("Exit code:")[0].strip()
-            return response
+            if process.returncode != 0:
+                error_msg = stderr.decode().strip()
+                print(f"ChatGPT Automation Error (Code {process.returncode}): {error_msg}")
+                return f"Error: ChatGPT automation script failed. {error_msg}"
+                
+            output = stdout.decode().strip()
+            # Print full output for debugging
+            print("-" * 20 + " ChatGPT Automation Output " + "-" * 20)
+            print(output)
+            print("-" * 67)
             
-        return output
-    except Exception as e:
-        print(f"Subprocess Exception: {e}")
-        return f"Error running ChatGPT automation: {str(e)}"
+            # The script prints various DEBUG info, the final response is after "Response:"
+            if "Response:" in output:
+                response = output.split("Response:")[-1].strip()
+                # Clean up exit logs if any
+                if "Exit code:" in response:
+                    response = response.split("Exit code:")[0].strip()
+                return response
+                
+            return output
+        except Exception as e:
+            print(f"Subprocess Exception: {e}")
+            return f"Error running automation: {str(e)}"
 
 
 
