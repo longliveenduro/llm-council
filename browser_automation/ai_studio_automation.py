@@ -312,32 +312,68 @@ async def extract_response(page: Page) -> str:
 
     # Fallback to AI Studio specific selectors based on HTML analysis
     print("DEBUG: Falling back to visual extraction...")
+    
+    try:
+        # 1. Try to find the last chat turn and get all text chunks within it
+        last_turn = await page.query_selector('ms-chat-turn:last-of-type')
+        if last_turn:
+            # Check if this turn is from the model (not the user)
+            # User turns usually have DIFFERENT classes or attributes, but usually we just sent a prompt, 
+            # so the last turn SHOULD be the model's response if it finished.
+            
+            chunks = await last_turn.query_selector_all('ms-text-chunk')
+            if chunks:
+                texts = []
+                for chunk in chunks:
+                    chunk_text = await chunk.inner_text()
+                    if chunk_text.strip():
+                        texts.append(chunk_text.strip())
+                
+                if texts:
+                    full_text = "\n".join(texts)
+                    print(f"DEBUG: Found {len(texts)} chunks in last turn. Joined length: {len(full_text)}")
+                    
+                    # Filter out obvious UI noise
+                    if not full_text.startswith(('thumb_', 'more_vert', 'edit', 'menu')):
+                        return full_text
+    except Exception as e:
+        print(f"DEBUG: Error extracting from last_turn: {e}")
+
+    # Broader fallbacks if the above fails
     response_selectors = [
-        # Precise selector for the text content (ignoring thoughts)
-        'ms-chat-turn:last-of-type ms-text-chunk',
-        'ms-chat-turn:last-of-type .model-prompt-container ms-text-chunk', 
         '.model-prompt-container ms-text-chunk',
-        
-        # Fallbacks
         '[data-message-author="model"] ms-text-chunk',
         '.model-turn ms-text-chunk',
         'ms-text-chunk',
     ]
     
-    print("DEBUG: Attempting to extract response...")
+    print("DEBUG: Attempting to extract response via broader selectors...")
     
     for selector in response_selectors:
         try:
             elements = await page.query_selector_all(selector)
             if elements:
-                # Get the last (most recent) response
+                # If we are using a broad selector, we still only want the "latest" set of elements.
+                # Usually these elements are siblings in the same container.
+                # It's hard to know which ones belong to the last turn without scoping.
+                # However, if we found NOTHING via the scoped selector, we might as well try joining the last few.
+                
+                # Heuristic: if they have the same parent as the last one, they are probably part of the same message
                 last_element = elements[-1]
-                text = await last_element.inner_text()
-                text = text.strip()
+                parent = await last_element.evaluate_handle('el => el.parentElement')
                 
-                print(f"DEBUG: Found candidate with selector '{selector}': '{text[:50]}...'")
+                related_elements = await parent.query_selector_all('ms-text-chunk')
+                if not related_elements: related_elements = [last_element]
                 
-                # Filter out obvious UI noise
+                texts = []
+                for el in related_elements:
+                    txt = await el.inner_text()
+                    if txt.strip(): texts.append(txt.strip())
+                
+                text = "\n".join(texts)
+                
+                print(f"DEBUG: Found candidate via '{selector}': '{text[:50]}...'")
+                
                 if text and not text.startswith(('thumb_', 'more_vert', 'edit', 'menu')):
                     return text
         except Exception as e:

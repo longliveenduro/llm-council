@@ -268,15 +268,36 @@ async def extract_response(page: Page) -> str:
         try:
             elements = await page.query_selector_all(selector)
             if elements:
-                # Get the last one
-                last_element = elements[-1]
-                text = await last_element.inner_text()
-                if text:
-                    return text.strip()
+                # If we use the assistant role container, we only want the LAST message
+                if selector == '[data-message-author-role="assistant"]' or selector == '.agent-turn':
+                    last_element = elements[-1]
+                    text = await last_element.inner_text()
+                    if text:
+                        return text.strip()
+                else:
+                    # For broad selectors like .markdown, multiple might exist within a single message
+                    # Try to find the last assistant message first
+                    last_assistant = await page.query_selector('[data-message-author-role="assistant"]:last-of-type')
+                    if last_assistant:
+                        sub_elements = await last_assistant.query_selector_all(selector)
+                        if sub_elements:
+                            texts = []
+                            for el in sub_elements:
+                                txt = await el.inner_text()
+                                if txt.strip():
+                                    texts.append(txt.strip())
+                            if texts:
+                                return "\n\n".join(texts)
+                    
+                    # Fallback to just the last matching element if we can't scope it
+                    last_element = elements[-1]
+                    text = await last_element.inner_text()
+                    if text:
+                        return text.strip()
         except Exception as e:
             print(f"Extraction error with {selector}: {e}")
             continue
-            
+    
     return "Error: Could not extract response."
 
 
