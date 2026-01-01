@@ -194,7 +194,14 @@ Title:`;
     const addStage1Response = () => {
         if (currentModel && currentText) {
             setStage1Responses([...stage1Responses, { model: currentModel, response: currentText }]);
-            setCurrentModel('');
+
+            // Advance to next model in council
+            const currentIndex = llmNames.indexOf(currentModel);
+            if (currentIndex !== -1 && currentIndex < llmNames.length - 1) {
+                setCurrentModel(llmNames[currentIndex + 1]);
+            } else {
+                setCurrentModel('');
+            }
             setCurrentText('');
         }
     };
@@ -202,7 +209,18 @@ Title:`;
     const addStage2Response = () => {
         if (currentModel && currentText) {
             setStage2Responses([...stage2Responses, { model: currentModel, ranking: currentText }]);
-            setCurrentModel('');
+
+            // Determine possible reviewer models (same list as in the dropdown)
+            const stage1Models = stage1Responses.map(r => r.model);
+            const otherModels = llmNames.filter(name => !stage1Models.includes(name));
+            const allReviewerModels = [...stage1Models, ...otherModels];
+
+            const currentIndex = allReviewerModels.indexOf(currentModel);
+            if (currentIndex !== -1 && currentIndex < allReviewerModels.length - 1) {
+                setCurrentModel(allReviewerModels[currentIndex + 1]);
+            } else {
+                setCurrentModel('');
+            }
             setCurrentText('');
         }
     };
