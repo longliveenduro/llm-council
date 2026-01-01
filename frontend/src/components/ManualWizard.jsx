@@ -772,11 +772,13 @@ Title:`;
 
     return (
         <div className="manual-wizard">
-            {isGeneratingTitle && (
+            {(isGeneratingTitle || isAutomating) && (
                 <div className="modal-overlay">
                     <div className="modal-content">
                         <div className="modal-spinner"></div>
-                        <div className="modal-text">Generating conversation title...</div>
+                        <div className="modal-text">
+                            {isGeneratingTitle ? 'Generating conversation title...' : 'Running automation...'}
+                        </div>
                     </div>
                 </div>
             )}
