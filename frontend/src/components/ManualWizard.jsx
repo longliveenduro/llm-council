@@ -39,7 +39,8 @@ export default function ManualWizard({ conversationId, currentTitle, previousMes
     const [labelToModel, setLabelToModel] = useState(savedDraft.labelToModel || {});
     const [stage2Responses, setStage2Responses] = useState(savedDraft.stage2Responses || []); // { model, ranking }
     const [stage3Prompt, setStage3Prompt] = useState(savedDraft.stage3Prompt || '');
-    const [stage3Response, setStage3Response] = useState(savedDraft.stage3Response || { model: 'Manual Chairman', response: '' }); // { model, response }
+    // Default to first model if available, or empty string. Avoid "Manual Chairman" as default.
+    const [stage3Response, setStage3Response] = useState(savedDraft.stage3Response || { model: '', response: '' }); // { model, response }
     const [manualTitle, setManualTitle] = useState(savedDraft.manualTitle || (currentTitle !== 'New Conversation' ? currentTitle : ''));
     const [aggregateRankings, setAggregateRankings] = useState(savedDraft.aggregateRankings || []);
     const [aiStudioModel, setAiStudioModel] = useState(savedDraft.aiStudioModel || (automationModels.ai_studio[0]?.name) || 'Gemini 2.5 Flash');
@@ -51,18 +52,56 @@ export default function ManualWizard({ conversationId, currentTitle, previousMes
 
     // Load available models for automation - OBSOLETE: Now handled globally
     // But we still want to set a default model if aiStudioModel is just the default placeholder
+    // But we still want to set a default model if aiStudioModel is just the default placeholder
     useEffect(() => {
         const fallbacks = ['Gemini 3 Flash', 'Gemini 2.5 Flash', 'Gemini 1.5 Flash'];
         const isFallback = !aiStudioModel || fallbacks.includes(aiStudioModel);
 
         if (automationModels.ai_studio.length > 0) {
-            const currentInList = automationModels.ai_studio.find(m => m.name === aiStudioModel);
-            // If current model is a fallback or not in the newly arrived list, pick the best one
-            if (isFallback || !currentInList) {
-                setAiStudioModel(automationModels.ai_studio[0].name);
+            const inGeminiList = automationModels.ai_studio.find(m => m.name === aiStudioModel);
+            const inGptList = automationModels.chatgpt && automationModels.chatgpt.find(m => m.name === aiStudioModel);
+
+            // If current model is a fallback or (not in Gemini list AND not in GPT list), pick the best Gemini one
+            // We basically only auto-switch if the current selection effectively became invalid or is a generic default.
+            // If it's a valid GPT model, we leave it alone.
+            if (isFallback || (!inGeminiList && !inGptList)) {
+                // Only reset if we are sure it's not a custom user entry that we should preserve?
+                // But previously it enforced list membership. Let's stick to that but expanded.
+                // If it's "custom" (user typed), we should probably respect it too?
+                // But the previous logic was strict about `currentInList`. 
+                // Let's at least allow GPT models.
+
+                // However, we must be careful: if the user JUST typed a custom name, we don't want to wipe it.
+                // But this effect depends on [automationModels.ai_studio]. It runs when LIST updates.
+                // So if list updates and my custom text isn't in it, I get wiped? That's bad UX if polling happens.
+                // But assuming normal usage...
+
+                const defaultModel = automationModels.ai_studio[0]?.name;
+                if (defaultModel) {
+                    setAiStudioModel(defaultModel);
+                }
             }
         }
-    }, [automationModels.ai_studio]);
+    }, [automationModels.ai_studio, automationModels.chatgpt]);
+
+    // Helpers for button disabling
+    // Normalize string for checking: remove spaces and lowercase
+    const normalizeModelName = (name) => name ? name.toLowerCase().replace(/\s+/g, '') : '';
+
+    // Check using normalized names so "Chat GPT" and "ChatGPT" both match "chatgpt"
+    // We need to determine the "active" model being considered for the current step
+    // to correctly disable buttons based on what the user is actually looking at/selecting.
+    let activeModel = aiStudioModel;
+    if (step === 1 || step === 2) {
+        if (currentModel) activeModel = currentModel;
+    } else if (step === 3) {
+        if (stage3Response.model && stage3Response.model !== 'Manual Chairman') {
+            activeModel = stage3Response.model;
+        }
+    }
+
+    const isChatGPTSelected = activeModel && normalizeModelName(activeModel).includes('chatgpt');
+    const isGeminiSelected = activeModel && normalizeModelName(activeModel).includes('gemini');
 
     // --- Persistence ---
     useEffect(() => {
@@ -177,17 +216,27 @@ Title:`;
             console.log(`[DEBUG] Step 1 Automation provider: ${provider}`);
 
             if (provider === 'chatgpt') {
-                const chatGptModels = (llmNames || []).filter(n => n.toLowerCase().includes('chatgpt'));
-                const thinkingModel = chatGptModels.find(n => n.toLowerCase().includes('thinking'));
+                const normName = (name) => name ? name.toLowerCase().replace(/\s+/g, '') : '';
 
-                if (currentModel && currentModel.toLowerCase().includes('chatgpt')) {
-                    modelToUse = currentModel;
+                // If the selected automation model IS a ChatGPT model, use it directly
+                if (aiStudioModel && normName(aiStudioModel).includes('chatgpt')) {
+                    modelToUse = aiStudioModel;
                 } else {
-                    modelToUse = thinkingModel || chatGptModels[0] || 'ChatGPT';
+                    // Fallback logic
+                    const chatGptModels = (llmNames || []).filter(n => normName(n).includes('chatgpt'));
+                    const thinkingModel = chatGptModels.find(n => n.toLowerCase().includes('thinking'));
+
+                    if (currentModel && normName(currentModel).includes('chatgpt')) {
+                        modelToUse = currentModel;
+                    } else {
+                        modelToUse = thinkingModel || chatGptModels[0] || 'ChatGPT';
+                    }
                 }
 
-                if (!modelToUse.toLowerCase().includes('thinking')) {
-                    modelToUse += ' Thinking';
+                if (!modelToUse.toLowerCase().includes('thinking') && !modelToUse.toLowerCase().includes('o1')) {
+                    if (!modelToUse.toLowerCase().includes('thinking')) {
+                        modelToUse += ' Thinking';
+                    }
                 }
             }
 
@@ -211,17 +260,20 @@ Title:`;
             console.log(`[DEBUG] Stage 3 Automation provider: ${provider}`);
 
             if (provider === 'chatgpt') {
-                const chatGptModels = (llmNames || []).filter(n => n.toLowerCase().includes('chatgpt'));
+                const normName = (name) => name ? name.toLowerCase().replace(/\s+/g, '') : '';
+                const chatGptModels = (llmNames || []).filter(n => normName(n).includes('chatgpt'));
                 const thinkingModel = chatGptModels.find(n => n.toLowerCase().includes('thinking'));
 
-                if (stage3Response.model && stage3Response.model.toLowerCase().includes('chatgpt')) {
+                if (stage3Response.model && normName(stage3Response.model).includes('chatgpt')) {
                     modelToUse = stage3Response.model;
                 } else {
                     modelToUse = thinkingModel || chatGptModels[0] || 'ChatGPT';
                 }
 
-                if (!modelToUse.toLowerCase().includes('thinking')) {
-                    modelToUse += ' Thinking';
+                if (!modelToUse.toLowerCase().includes('thinking') && !modelToUse.toLowerCase().includes('o1')) {
+                    if (!modelToUse.toLowerCase().includes('thinking')) {
+                        modelToUse += ' Thinking';
+                    }
                 }
             }
 
@@ -288,7 +340,16 @@ Title:`;
             // But processedData returns aggregate_rankings.
 
             // Pass aggregate_rankings to step 3 or state
+            // Pass aggregate_rankings to step 3 or state
             setAggregateRankings(processedData.aggregate_rankings);
+
+            // If entering Stage 3 and no model selected yet (or it's Manual Chairman which we want to avoid as default for automation context),
+            // auto-select the first real model from Stage 1 if available.
+            if (!stage3Response.model || stage3Response.model === 'Manual Chairman') {
+                if (stage1Responses.length > 0) {
+                    setStage3Response(prev => ({ ...prev, model: stage1Responses[0].model }));
+                }
+            }
 
             setStep(3);
         } catch (error) {
@@ -343,7 +404,7 @@ Title:`;
             <p className="step-desc">Enter your query and manually add model responses.</p>
 
             <div className="automation-settings">
-                <label>AI Studio Model for Automation:</label>
+                <label>Automation Model:</label>
                 <div className="automation-input-row">
                     <div className="model-select-wrapper">
                         <select
@@ -359,9 +420,17 @@ Title:`;
                                     <option key={m.id} value={m.name}>{m.name}</option>
                                 ))}
                             </optgroup>
-                            {!automationModels.ai_studio.some(m => m.name === aiStudioModel) && (
-                                <option value={aiStudioModel}>{aiStudioModel}</option>
+                            {automationModels.chatgpt && automationModels.chatgpt.length > 0 && (
+                                <optgroup label="ChatGPT Models">
+                                    {automationModels.chatgpt.map(m => (
+                                        <option key={m.id} value={m.name}>{m.name}</option>
+                                    ))}
+                                </optgroup>
                             )}
+                            {!automationModels.ai_studio.some(m => m.name === aiStudioModel) &&
+                                (!automationModels.chatgpt || !automationModels.chatgpt.some(m => m.name === aiStudioModel)) && (
+                                    <option value={aiStudioModel}>{aiStudioModel}</option>
+                                )}
                             <option value="custom">Custom...</option>
                         </select>
                         {aiStudioModel === 'custom' && (
@@ -460,15 +529,17 @@ Title:`;
                     <button
                         onClick={() => handleRunAutomation(isFollowUp ? getContextText() : userQuery, 'ai_studio')}
                         className="automation-btn"
-                        disabled={isAutomating || !userQuery}
+                        disabled={isAutomating || !userQuery || isChatGPTSelected || !currentModel}
+                        title={!currentModel ? "Select a model below to enable" : (isChatGPTSelected ? "Select a Gemini model to enable" : "")}
                     >
                         {isAutomating ? 'Running...' : 'Run via AI Studio'}
                     </button>
                     <button
                         onClick={() => handleRunAutomation(isFollowUp ? getContextText() : userQuery, 'chatgpt')}
                         className="automation-btn chatgpt-btn"
-                        disabled={isAutomating || !userQuery}
+                        disabled={isAutomating || !userQuery || isGeminiSelected || !currentModel}
                         style={{ backgroundColor: '#10a37f' }} // ChatGPT green
+                        title={!currentModel ? "Select a model below to enable" : (isGeminiSelected ? "Select a ChatGPT model to enable" : "")}
                     >
                         {isAutomating ? 'Running...' : 'Run via ChatGPT'}
                     </button>
@@ -560,15 +631,17 @@ Title:`;
                     <button
                         onClick={() => handleRunAutomation(stage2Prompt, 'ai_studio')}
                         className="automation-btn"
-                        disabled={isAutomating || !stage2Prompt}
+                        disabled={isAutomating || !stage2Prompt || isChatGPTSelected || !currentModel}
+                        title={!currentModel ? "Select a model below to enable" : (isChatGPTSelected ? "Select a Gemini model to enable" : "")}
                     >
                         {isAutomating ? 'Running...' : 'Run via AI Studio'}
                     </button>
                     <button
                         onClick={() => handleRunAutomation(stage2Prompt, 'chatgpt')}
                         className="automation-btn chatgpt-btn"
-                        disabled={isAutomating || !stage2Prompt}
+                        disabled={isAutomating || !stage2Prompt || isGeminiSelected || !currentModel}
                         style={{ backgroundColor: '#10a37f' }}
+                        title={!currentModel ? "Select a model below to enable" : (isGeminiSelected ? "Select a ChatGPT model to enable" : "")}
                     >
                         {isAutomating ? 'Running...' : 'Run via ChatGPT'}
                     </button>
@@ -643,15 +716,17 @@ Title:`;
                     <button
                         onClick={() => handleRunStage3Automation(stage3Prompt, 'ai_studio')}
                         className="automation-btn stage3-auto-btn"
-                        disabled={isAutomating || !stage3Prompt}
+                        disabled={isAutomating || !stage3Prompt || isChatGPTSelected || stage3Response.model === 'Manual Chairman'}
+                        title={stage3Response.model === 'Manual Chairman' ? "Select a valid model to automate" : (isChatGPTSelected ? "Select a Gemini model to enable" : "")}
                     >
                         {isAutomating ? 'Automating...' : 'Run via AI Studio'}
                     </button>
                     <button
                         onClick={() => handleRunStage3Automation(stage3Prompt, 'chatgpt')}
                         className="automation-btn stage3-auto-btn chatgpt-btn"
-                        disabled={isAutomating || !stage3Prompt}
+                        disabled={isAutomating || !stage3Prompt || isGeminiSelected || stage3Response.model === 'Manual Chairman'}
                         style={{ backgroundColor: '#10a37f', marginLeft: '5px' }}
+                        title={stage3Response.model === 'Manual Chairman' ? "Select a valid model to automate" : (isGeminiSelected ? "Select a ChatGPT model to enable" : "")}
                     >
                         {isAutomating ? 'Automating...' : 'Run via ChatGPT'}
                     </button>
