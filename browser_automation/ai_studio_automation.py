@@ -337,27 +337,63 @@ async def extract_response(page: Page) -> str:
     print("DEBUG: Falling back to visual extraction...")
     
     try:
-        # 1. Try to find the last chat turn and get all text chunks within it
         last_turn = await page.query_selector('ms-chat-turn:last-of-type')
         if last_turn:
-            # Check if this turn is from the model (not the user)
-            # User turns usually have DIFFERENT classes or attributes, but usually we just sent a prompt, 
-            # so the last turn SHOULD be the model's response if it finished.
+            # 1. Try to find all text-bearing elements within the turn
+            # Using a broader selector to avoid missing content in non-standard chunks
+            content_selectors = [
+                'ms-text-chunk',
+                'ms-markdown-block',
+                '.text-content',
+                'p',
+                'pre',
+                'code',
+                'div[class*="content"]'
+            ]
             
-            chunks = await last_turn.query_selector_all('ms-text-chunk')
-            if chunks:
+            elements = []
+            for selector in content_selectors:
+                found = await last_turn.query_selector_all(selector)
+                elements.extend(found)
+            
+            if elements:
                 texts = []
-                for chunk in chunks:
-                    chunk_text = await chunk.inner_text()
-                    if chunk_text.strip():
-                        texts.append(chunk_text.strip())
+                for el in elements:
+                    try:
+                        # Only take elements that are NOT buttons or labels
+                        # In tests, el might be a mock without evaluate
+                        tag = ""
+                        try:
+                            tag = (await el.evaluate('el => el.tagName')).lower()
+                        except:
+                            # Fallback if evaluate fails or is not mocked
+                            pass
+                        
+                        if tag == 'button': continue
+                        
+                        txt = await el.inner_text()
+                        txt = txt.strip()
+                        
+                        # Filter out tiny UI snippets often found in the turn
+                        if txt and not txt.startswith(('thumb_', 'more_vert', 'edit', 'menu', 'Copy', 'Share', 'keyboard_arrow')):
+                            texts.append(txt)
+                    except:
+                        continue
                 
                 if texts:
-                    full_text = "\n".join(texts)
-                    print(f"DEBUG: Found {len(texts)} chunks in last turn. Joined length: {len(full_text)}")
+                    # Use a set to deduplicate in case selectors overlap (e.g. div and p)
+                    # But we want to maintain order. A simple way:
+                    unique_texts = []
+                    seen = set()
+                    for t in texts:
+                        if t not in seen:
+                            unique_texts.append(t)
+                            seen.add(t)
                     
-                    # Filter out obvious UI noise
-                    if not full_text.startswith(('thumb_', 'more_vert', 'edit', 'menu')):
+                    full_text = "\n".join(unique_texts)
+                    print(f"DEBUG: Found {len(unique_texts)} content elements in last turn. Joined length: {len(full_text)}")
+                    
+                    if full_text:
                         return full_text
     except Exception as e:
         print(f"DEBUG: Error extracting from last_turn: {e}")

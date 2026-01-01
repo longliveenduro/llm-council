@@ -33,8 +33,10 @@ async def test_ai_studio_truncation_repro_split_chunks():
     # Current implementation: chunks = await last_turn.query_selector_all('ms-text-chunk')
     # Let's say chunk1 is ms-text-chunk, but chunk2 is just a div inside the turn.
     async def mock_query_selector_all_scoped(selector):
-        if selector == 'ms-text-chunk':
+        if 'ms-text-chunk' in selector:
             return [mock_chunk1]
+        if 'p' in selector or 'div' in selector:
+            return [mock_missing_chunk]
         return []
 
     mock_last_turn.query_selector_all = AsyncMock(side_effect=mock_query_selector_all_scoped)
@@ -85,8 +87,8 @@ async def test_ai_studio_truncation_repro_nested_chunks():
     mock_other_element.inner_text = AsyncMock(return_value="Text in a div.")
     
     async def mock_query_selector_all_scoped(selector):
-        if selector == 'ms-text-chunk':
-            return [] # No standard chunks
+        if 'div' in selector:
+            return [mock_other_element]
         return []
 
     mock_last_turn.query_selector_all = AsyncMock(side_effect=mock_query_selector_all_scoped)
