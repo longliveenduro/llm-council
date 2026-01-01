@@ -650,7 +650,12 @@ async def run_ai_studio_automation(prompt: str, model: str = "Gemini 2.5 Flash")
             print(output)
             print("-" * 59)
             
-            # The script prints various DEBUG info, the final response is after "Response:"
+            # Use unique delimiters to extract the real response
+            if "RESULT_START" in output and "RESULT_END" in output:
+                response = output.split("RESULT_START")[1].split("RESULT_END")[0].strip()
+                return response
+                
+            # Fallback for older script versions or unexpected output
             if "Response:" in output:
                 response = output.split("Response:")[-1].strip()
                 # Clean up exit logs if any
@@ -799,12 +804,14 @@ async def run_chatgpt_automation(prompt: str, model: str = "auto") -> str:
             print(output)
             print("-" * 67)
             
-            # The script prints various DEBUG info, the final response is after "Response:"
+            # Use unique delimiters to extract the real response
+            if "RESULT_START" in output and "RESULT_END" in output:
+                response = output.split("RESULT_START")[1].split("RESULT_END")[0].strip()
+                return response
+                
+            # Fallback
             if "Response:" in output:
                 response = output.split("Response:")[-1].strip()
-                # Clean up exit logs if any
-                if "Exit code:" in response:
-                    response = response.split("Exit code:")[0].strip()
                 return response
                 
             return output

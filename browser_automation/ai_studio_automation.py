@@ -200,26 +200,49 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None) -> st
         
         # Now find WHICH one appeared and wait for it to disappear
         # This is more efficient than sequential waiting
-        active_selector = None
-        for selector in loading_selectors:
-            if await page.query_selector(selector):
-                active_selector = selector
-                break
         
-        if active_selector:
-            print(f"DEBUG: Indicator '{active_selector}' detected. Waiting for it to disappear (max 10 mins)...")
-            await page.wait_for_selector(active_selector, state="hidden", timeout=600000)
-            print("Response generation completed")
-        else:
-            print("DEBUG: Loading indicator appeared but could not be identified precisely.")
-            # Fallback: wait a bit and hope
-            await asyncio.sleep(5)
+        # NOTE: We loop once to wait for indicators. For Thinking models, 
+        # there might be TWO phases: 1. Thinking (indicator appears), 2. Generating (stop button appears).
+        # We should wait for ANY to appear, then wait for ALL to disappear.
+        
+        print("DEBUG: Waiting for all loading indicators to disappear...")
+        while True:
+            # Check if any indicator is currently visible
+            any_visible = False
+            for selector in loading_selectors:
+                elements = await page.query_selector_all(selector)
+                for el in elements:
+                    if await el.is_visible():
+                        any_visible = True
+                        break
+                if any_visible: break
+            
+            if not any_visible:
+                # If nothing visible, wait a bit and check again to be sure it didn't just switch phases
+                await asyncio.sleep(2)
+                
+                # Double check
+                still_none = True
+                for selector in loading_selectors:
+                    elements = await page.query_selector_all(selector)
+                    for el in elements:
+                        if await el.is_visible():
+                            still_none = False
+                            break
+                    if not still_none: break
+                
+                if still_none:
+                    break
+            
+            await asyncio.sleep(1)
+            
+        print("Response generation completed")
 
     except Exception as e:
-        print(f"DEBUG: No loading indicator appeared within timeout ({e}). It might have finished instantly or failed to start.")
+        print(f"DEBUG: Wait for loading indicators finished or failed: {e}")
     
     # Additional wait for response to fully render
-    await asyncio.sleep(2)
+    await asyncio.sleep(1)
     
     # Extract the response
     response = await extract_response(page)
@@ -606,7 +629,9 @@ async def main():
             await interactive_mode(page)
         else:
             response = await send_prompt(page, args.prompt)
-            print(f"\nResponse:\n{response}")
+            print("\nRESULT_START")
+            print(response)
+            print("RESULT_END")
         
     except Exception as e:
         print(f"Error: {e}")

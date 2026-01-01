@@ -508,10 +508,12 @@ async def main():
         if args.interactive:
             await interactive_mode(page)
         else:
-            # Store model in page object for send_prompt to use
+            # Store model in page object
             page.target_model = args.model
             response = await send_prompt(page, args.prompt)
-            print(f"\nResponse:\n{response}")
+            print("\nRESULT_START")
+            print(response)
+            print("RESULT_END")
             
     except Exception as e:
         print(f"Error: {e}")
