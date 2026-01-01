@@ -2,21 +2,20 @@
 
 ![llmcouncil](header.png)
 
-The idea of this repo is that instead of asking a question to your favorite LLM provider (e.g. OpenAI GPT 5.1, Google Gemini 3.0 Pro, Anthropic Claude Sonnet 4.5, xAI Grok 4, eg.c), you can group them into your "LLM Council". This repo is a simple, local web app that essentially looks like ChatGPT except it uses OpenRouter to send your query to multiple LLMs, it then asks them to review and rank each other's work, and finally a Chairman LLM produces the final response.
+LLM Council is a local web app that lets you query multiple LLMs simultaneously, have them peer-review and rank each other's responses, and then have a "Chairman" LLM synthesize a final answer. 
 
-A manual mode was added, so that you can use free plans for the LLMs, but currently you have to copy & paste the prompts to the respective LLMs UI.
+It supports both a fully automated mode via **OpenRouter** and a semi-automated **Manual Mode** using browser automation to leverage free plans.
 
-In a bit more detail, here is what happens when you submit a query:
+## Key Features
 
-1. **Stage 1: First opinions**. The user query is given to all LLMs individually, and the responses are collected. The individual responses are shown in a "tab view", so that the user can inspect them all one by one.
-2. **Stage 2: Review**. Each individual LLM is given the responses of the other LLMs. Under the hood, the LLM identities are anonymized so that the LLM can't play favorites when judging their outputs. The LLM is asked to rank them in accuracy and insight.
-3. **Stage 3: Final response**. The designated Chairman of the LLM Council takes all of the model's responses and compiles them into a single final answer that is presented to the user.
-
-## Vibe Code Alert
-
-This project was 99% vibe coded as a fun Saturday hack because I wanted to explore and evaluate a number of LLMs side by side in the process of [reading books together with LLMs](https://x.com/karpathy/status/1990577951671509438). It's nice and useful to see multiple responses side by side, and also the cross-opinions of all LLMs on each other's outputs. I'm not going to support it in any way, it's provided here as is for other people's inspiration and I don't intend to improve it. Code is ephemeral now and libraries are over, ask your LLM to change it in whatever way you like.
-
-I (Chris) forked from Karpathys repo and added a manual mode and other things. I did this with Antigravity with Gemini 3 Pro Preview, Flash and Claude Sonnet 4.5 on free plans.
+- **3-Stage Deliberation**: 
+    1. **First Opinions**: Parallel queries to all models.
+    2. **Peer Review**: Anonymized cross-evaluation where models rank each other.
+    3. **Synthesis**: A Chairman LLM compiles the final result.
+- **Manual Mode with Browser Automation**: Use Free Google AI Studio and ChatGPT accounts via Playwright without needing API keys.
+- **Dark Mode Support**: Sleek, modern interface with light and dark themes.
+- **Flexible Council**: Add/Remove models dynamically in the UI.
+- **Test Suite**: Integrated testing framework for backend and frontend.
 
 ## Setup
 
@@ -36,67 +35,69 @@ npm install
 cd ..
 ```
 
-### 2. Configure API Key
+**Browser Automation (Optional):**
+To use the manual mode automation, install Playwright:
+```bash
+playwright install chromium
+```
 
-Create a `.env` file in the project root:
+### 2. Configure API Key (Optional)
+
+If using OpenRouter for fully automated council, create a `.env` file:
 
 ```bash
 OPENROUTER_API_KEY=sk-or-v1-...
 ```
 
-Get your API key at [openrouter.ai](https://openrouter.ai/). Make sure to purchase the credits you need, or sign up for automatic top up.
+Get your API key at [openrouter.ai](https://openrouter.ai/).
 
-### 3. Configure Models (Optional)
+### 3. Configure Models
 
-Edit `backend/config.py` to customize the council:
+Edit `backend/config.py` to customize your default council:
 
 ```python
 COUNCIL_MODELS = [
-    "openai/gpt-5.1",
-    "google/gemini-3-pro-preview",
-    "anthropic/claude-sonnet-4.5",
-    "x-ai/grok-4",
+    "openai/gpt-5-o1",
+    "google/gemini-2.0-pro-exp-02-05",
+    "anthropic/claude-3-7-sonnet-20250219",
 ]
 
-CHAIRMAN_MODEL = "google/gemini-3-pro-preview"
+CHAIRMAN_MODEL = "google/gemini-2.0-pro-exp-02-05"
 ```
 
 ## Running the Application
 
-**Option 1: Use the start script**
+**Using the start script:**
 ```bash
 ./start.sh
 ```
 
-**Option 2: Run manually**
-
-Terminal 1 (Backend):
-```bash
-uv run python -m backend.main
-```
-
-Terminal 2 (Frontend):
-```bash
-cd frontend
-npm run dev
-```
-
 Then open http://localhost:5173 in your browser.
 
-## Manual Copy & Paste Mode
+## Manual Mode & Browser Automation
 
-If you don't have an API key or prefer to use other LLM interfaces (like ChatGPT web UI, Claude web UI, etc.) directly, you can use the **Full Manual Mode**.
+LLM Council features a powerful **Manual Mode** that allows you to use LLMs without API credits by automating your own browser sessions.
 
-1. Toggle **Full Manual Mode** at the bottom of the chat interface.
-2. **Step 1: Initial Opinions**. Enter your question, then manually query your LLMs and paste their responses into the app.
-3. **Step 2: Peer Review**. The app will generate a prompt containing all the responses. Copy this prompt to your LLMs so they can rank each other, then paste their rankings back into the app.
-4. **Step 3: Synthesis**. The app will generate a final prompt for the Chairman. Copy this to your Chairman LLM and paste the final synthesized answer.
-5. The conversation will be saved to your local history and appear in the sidebar just like an automated one.
+1. **Automation Login**: Use the "Automations" section in the sidebar to log in to **AI Studio** or **ChatGPT**. This launches a headful browser for you to sign in once; sessions are persisted locally.
+2. **Model Sync**: Click the Sync icon to fetch the list of available models from your accounts.
+3. **Running**: In the Chat interface, toggling **Full Manual Mode** gives you step-by-step control. You can use the "Run via AI Studio" or "Run via ChatGPT" buttons to automate the prompt submission and response extraction.
+4. **Interactive**: You can still fallback to copy-pasting if automation fails for a specific model.
 
+## Testing
+
+Run the full test suite (Backend Pytest + Frontend Vitest):
+
+```bash
+./run_tests.sh
+```
 
 ## Tech Stack
 
-- **Backend:** FastAPI (Python 3.10+), async httpx, OpenRouter API
-- **Frontend:** React + Vite, react-markdown for rendering
+- **Backend:** FastAPI (Python 3.10+), Playwright (for browser automation), Pytest
+- **Frontend:** React + Vite, Vitest, Vanilla CSS (with Dark Mode support)
 - **Storage:** JSON files in `data/conversations/`
-- **Package Management:** uv for Python, npm for JavaScript
+- **Package Management:** [uv](https://docs.astral.sh/uv/) for Python, npm for JavaScript
+
+---
+
+*This project was inspired by Andrej Karpathy's experiments in peer-reviewing LLMs.*
