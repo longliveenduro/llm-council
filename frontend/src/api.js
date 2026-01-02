@@ -303,4 +303,15 @@ export const api = {
     }
     return response.json();
   },
+
+  /**
+   * Get model highscores.
+   */
+  async getModelScores() {
+    const response = await fetch(`${API_BASE}/api/scores`);
+    if (!response.ok) {
+      throw new Error('Failed to get scores');
+    }
+    return response.json();
+  },
 };

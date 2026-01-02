@@ -21,6 +21,7 @@ from .council import (
 )
 
 from .storage import get_cached_models, save_cached_models
+from .scores import get_scores, update_scores
 
 app = FastAPI(title="LLM Council API")
 
@@ -106,6 +107,13 @@ async def root():
 async def list_conversations():
     """List all conversations (metadata only)."""
     return storage.list_conversations()
+
+
+@app.get("/api/scores")
+async def get_model_scores():
+    """Get persistent model highscores."""
+    return get_scores()
+
 
 
 @app.post("/api/conversations", response_model=Conversation)
@@ -325,6 +333,9 @@ async def manual_process_rankings(request: ManualRankingProcessRequest):
         })
         
     aggregate_rankings = calculate_aggregate_rankings(processed_results, request.label_to_model)
+    
+    # Update persistent scores
+    update_scores(processed_results, request.label_to_model)
     
     return {
         "stage2_results": processed_results,

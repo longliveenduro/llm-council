@@ -4,6 +4,7 @@ import Stage1 from './Stage1';
 import Stage2 from './Stage2';
 import Stage3 from './Stage3';
 import ManualWizard from './ManualWizard';
+import Highscores from './Highscores';
 import './ChatInterface.css';
 
 export default function ChatInterface({
@@ -101,6 +102,7 @@ export default function ChatInterface({
           <button className="new-conv-empty-btn" onClick={onNewConversation}>
             Create a new conversation to get started
           </button>
+          <Highscores />
         </div>
       </div>
     );

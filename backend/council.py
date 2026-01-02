@@ -3,6 +3,7 @@
 from typing import List, Dict, Any, Tuple
 from .openrouter import query_models_parallel, query_model
 from .config import COUNCIL_MODELS, CHAIRMAN_MODEL
+from .scores import update_scores
 import subprocess
 import os
 import sys
@@ -914,28 +915,25 @@ async def run_full_council(
 
     # If no models responded successfully, return error
     if not stage1_results:
-        return [], [], {
-            "model": "error",
-            "response": "All models failed to respond. Please try again."
-        }, {}
+        return [], [], {"model": CHAIRMAN_MODEL, "response": "Error: No models available."}, {}
 
     # Stage 2: Collect rankings
     stage2_results, label_to_model = await stage2_collect_rankings(user_query, stage1_results)
-
-    # Calculate aggregate rankings
+    
+    # Calculate aggregate rankings for metadata
     aggregate_rankings = calculate_aggregate_rankings(stage2_results, label_to_model)
+    
+    # Update persistent scores
+    update_scores(stage2_results, label_to_model)
 
     # Stage 3: Synthesize final answer
-    stage3_result = await stage3_synthesize_final(
-        user_query,
-        stage1_results,
-        stage2_results
-    )
+    stage3_result = await stage3_synthesize_final(user_query, stage1_results, stage2_results)
 
-    # Prepare metadata
     metadata = {
         "label_to_model": label_to_model,
         "aggregate_rankings": aggregate_rankings
     }
 
     return stage1_results, stage2_results, stage3_result, metadata
+
+

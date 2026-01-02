@@ -1,0 +1,86 @@
+.highscores-container {
+    margin-top: 40px;
+    padding: 24px;
+    background: rgba(30, 41, 59, 0.4);
+    border-radius: 16px;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(8px);
+    width: 100%;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.highscores-title {
+    text-align: center;
+    margin-bottom: 24px;
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #fff;
+    text-shadow: 0 0 20px rgba(139, 92, 246, 0.3);
+}
+
+.highscores-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.highscore-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 12px;
+    transition: transform 0.2s, background 0.2s;
+}
+
+.highscore-item:hover {
+    background: rgba(255, 255, 255, 0.07);
+    transform: translateX(4px);
+}
+
+.highscore-rank {
+    font-size: 1.1rem;
+    font-weight: 700;
+    width: 30px;
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.highscore-model {
+    flex: 1;
+    font-weight: 500;
+    color: #e2e8f0;
+}
+
+.highscore-score {
+    font-weight: 700;
+    color: #8b5cf6;
+    background: rgba(139, 92, 246, 0.1);
+    padding: 4px 12px;
+    border-radius: 20px;
+}
+
+/* Gold, Silver, Bronze styling */
+/* Ranking Colors */
+.unique-winner .highscore-rank,
+.unique-winner .highscore-model {
+    color: #fbbf24;
+    text-shadow: 0 0 10px rgba(251, 191, 36, 0.3);
+}
+
+/* Rank 2 (Silver) - applied to any item with rank 2 */
+.rank-2 .highscore-rank {
+    color: #94a3b8;
+}
+
+/* Rank 3 (Bronze) - applied to any item with rank 3 */
+.rank-3 .highscore-rank {
+    color: #b45309;
+}
+
+.highscores-loading {
+    text-align: center;
+    padding: 24px;
+    color: rgba(255, 255, 255, 0.5);
+}
