@@ -141,3 +141,31 @@ async def test_ai_studio_extraction_content_grows_until_stabilized():
     assert "Part 2" in response
     assert "Part 3" in response
 
+
+@pytest.mark.asyncio
+async def test_extract_response_removes_thinking_structure_mock():
+    """Test that extract_response logic (mocked js) removes the specific thinking structure."""
+    
+    # Mock the page object
+    mock_page = MagicMock()
+    
+    # Mock evaluate to return a dummy string that is long enough (>30 chars) so it satisfies the check
+    # and returns early, preventing the fallback logic from running and overwriting the call_args.
+    mock_page.evaluate = AsyncMock(return_value="This is a sufficiently long response text that exceeds 30 characters." * 2)
+    
+    # Call the function
+    await extract_claude(mock_page)
+    
+    # Get the script passed to evaluate
+    # evaluate is called with (script)
+    call_args = mock_page.evaluate.call_args
+    assert call_args is not None
+    script = call_args[0][0]
+    
+    # Check for the specific selector we added
+    assert '.border-border-300.rounded-lg' in script
+    assert 'details' in script
+    # Check for nesting filter
+    assert 'closest' in script
+    # Check for new strategy
+    assert '.standard-markdown' in script

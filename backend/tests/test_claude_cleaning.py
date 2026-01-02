@@ -58,11 +58,11 @@ def test_clean_claude_text_removes_thinking_duration():
     assert "Actual response text." in cleaned
 
 def test_clean_claude_text_removes_empty_prompt_preamble():
-    text = "The user prompt is empty, so I cannot provide a summary in the user's language. However, based on the thinking block provided, here is a summary: Weighed formatting compliance against philosophical comprehensiveness.\n\n26s\n\nLet me evaluate each response carefully."
+    text = "The user prompt is empty, so I cannot provide a summary in the user's language. However, based on the thinking block provided, here is a summary: Weighed formatting compliance against philosophical comprehensiveness.\n\n26s\n\n# Response A Analysis\n\nThis response provides a comprehensive overview."
     cleaned = clean_claude_text(text)
     assert "The user prompt is empty" not in cleaned
     assert "26s" not in cleaned
-    assert "Let me evaluate" in cleaned
+    assert "Response A Analysis" in cleaned
 
 def test_clean_claude_text_removes_short_thinking_summary():
     # Example 1 from user
@@ -85,3 +85,29 @@ def test_clean_claude_text_removes_elaborate_thinking_summary():
     assert "The user is asking" not in cleaned
     assert "Acknowledge the profundity" not in cleaned
     assert "Actual response starts here." in cleaned
+
+def test_clean_claude_text_removes_pasted_clutter():
+    """Test that PASTED text (from browser paste action) is removed."""
+    text = "You are evaluating different responses to the following question.\n\nPASTED\n\nI need to evaluate three responses to the question."
+    cleaned = clean_claude_text(text)
+    assert "PASTED" not in cleaned
+    assert "You are evaluating" in cleaned
+    assert "I need to evaluate" not in cleaned  # This is a thinking preamble
+
+def test_clean_claude_text_removes_meta_task_preamble():
+    """Test that meta-task thinking preambles are removed."""
+    text = "This is an interesting meta-task. I'm being asked to act as a 'Chairman of an LLM Council' and synthesize multiple AI responses.\n\nLet me analyze what I have:\n\nThree responses (A, B, C) to the philosophical question.\n\nHere is my actual synthesis response."
+    cleaned = clean_claude_text(text)
+    assert "This is an interesting meta-task" not in cleaned
+    assert "I'm being asked" not in cleaned
+    assert "Let me analyze what I have" not in cleaned
+    assert "Three responses (A, B, C)" not in cleaned
+    assert "Here is my actual synthesis response." in cleaned
+
+def test_clean_claude_text_removes_analysis_preamble():
+    """Test that I need to evaluate/analyze preambles are removed."""
+    text = "I need to evaluate three responses to the question 'Why is there something instead of nothing?' Let me analyze each one carefully.\n\nActual evaluation starts here."
+    cleaned = clean_claude_text(text)
+    assert "I need to evaluate" not in cleaned
+    assert "Let me analyze each one carefully" not in cleaned
+    assert "Actual evaluation starts here." in cleaned

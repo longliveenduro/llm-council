@@ -266,7 +266,7 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None, model
 
 
 async def extract_response(page: Page, prompt: str = None, model: str = "auto") -> str:
-    """Extract the latest response from the chat."""
+    """Extract the latest response from the chat, excluding thinking sections."""
     
     # Wait a bit for initial content
     await asyncio.sleep(1)
@@ -309,7 +309,71 @@ async def extract_response(page: Page, prompt: str = None, model: str = "auto") 
     if elapsed >= max_stabilization_wait:
         print(f"DEBUG: Stabilization timeout reached, proceeding with extraction (length: {prev_len})")
     
-    # Selectors for Claude messages - ordered by preference
+    # Use JavaScript to extract text while excluding thinking sections
+    # Claude's Extended Thinking is typically in a <details> element or similar collapsible container
+    try:
+        text = await page.evaluate('''() => {
+            // Find potential message containers
+            const candidates = Array.from(document.querySelectorAll('.font-claude-message, .font-claude-response'));
+            if (candidates.length === 0) return null;
+            
+            // Filter to keep only top-level containers (exclude nested ones)
+            // This handles cases where .font-claude-response is used both for the outer wrapper 
+            // AND for inner content (like thinking blocks), ensuring we grab the outer one.
+            const topLevelMessages = candidates.filter(el => 
+                !el.parentElement.closest('.font-claude-message, .font-claude-response')
+            );
+            
+            if (topLevelMessages.length === 0) return null;
+            
+            const lastMessage = topLevelMessages[topLevelMessages.length - 1];
+            
+            // Clone the element so we can modify it without affecting the page
+            const clone = lastMessage.cloneNode(true);
+            
+            // Strategy 1: Look for the standard markdown container which holds the response prose.
+            // There may be multiple .standard-markdown elements (e.g. inside thinking blocks),
+            // but the actual response is typically the last one.
+            const allMarkdown = clone.querySelectorAll('.standard-markdown');
+            if (allMarkdown.length > 0) {
+                const lastMarkdown = allMarkdown[allMarkdown.length - 1];
+                return lastMarkdown.innerText.trim();
+            }
+
+            // Strategy 2: Remove thinking sections and return clean text (fallback)
+            const thinkingSelectors = [
+                'details',                          // Collapsible thinking sections
+                '[class*="thinking"]',              // Any element with "thinking" class
+                '[class*="Thinking"]',              // Case variations
+                '[data-testid*="thinking"]',        // Test IDs with thinking
+                'summary',                          // Summary elements (part of details)
+                '.border-border-300.rounded-lg', // The specific card structure for thinking (relative to message container)
+            ];
+            
+            for (const selector of thinkingSelectors) {
+                const elements = clone.querySelectorAll(selector);
+                elements.forEach(el => el.remove());
+            }
+            
+            // Find the prose content within the cleaned clone
+            const prose = clone.querySelector('.prose');
+            if (prose) {
+                return prose.innerText.trim();
+            }
+            
+            // Fallback to the entire cleaned message
+            return clone.innerText.trim();
+        }''')
+        
+        if text and len(text.strip()) > 30:
+            # Check if this looks like a response vs UI
+            if "New chat" not in text[:50] and "Chats" not in text[:50]:
+                print("SUCCESS: Extracted response using JS with thinking exclusion")
+                return clean_claude_text(text, prompt, model)
+    except Exception as e:
+        print(f"DEBUG: JS extraction with thinking exclusion failed: {e}")
+    
+    # Fallback: Use original selector-based approach
     response_selectors = [
         'div.font-claude-message .prose', # Specific Claude message prose
         '.font-claude-message',
@@ -386,6 +450,8 @@ async def extract_response(page: Page, prompt: str = None, model: str = "auto") 
     return "Error: Could not extract response."
 
 
+
+
 def clean_claude_text(text: str, prompt: str = None, model: str = "auto") -> str:
     """Clean UI noise, disclaimers, and redundant prompt text."""
     import re
@@ -415,6 +481,7 @@ def clean_claude_text(text: str, prompt: str = None, model: str = "auto") -> str
     # Specific line-by-line garbage to remove if it's EXACTLY this
     exact_garbage_lines = [
         "Notify",
+        "PASTED",
     ]
     
     lines = text.split('\n')
@@ -470,7 +537,9 @@ def clean_claude_text(text: str, prompt: str = None, model: str = "auto") -> str
                 "Compare", "Revised", "Simplified", "Drafted", "Identified",
                 "Synthesized", "Categorized", "Delved", "Balanced",
                 "Let me think", "Let's think", "I will approach",
-                "This is one of the", "This is a fundamental", "The question of"
+                "This is one of the", "This is a fundamental", "The question of",
+                "This is an interesting", "I need to evaluate", "I need to analyze",
+                "Let me analyze", "Let me evaluate", "I'm being asked",
             ]
             
             # Check for specific preamble patterns
@@ -480,6 +549,10 @@ def clean_claude_text(text: str, prompt: str = None, model: str = "auto") -> str
                 r"Here is a summary",
                 r"Let me think about how to approach",
                 r"I should:",
+                r"I'm being asked to act as",
+                r"Three responses \(A, B, C\)",
+                r"I need to evaluate.*responses",
+                r"Let me analyze.*carefully",
             ]
             
             is_summary = False
