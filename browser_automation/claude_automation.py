@@ -159,7 +159,7 @@ async def wait_for_chat_interface(page: Page, timeout: int = 30000):
     raise Exception("Could not find chat input element")
 
 
-async def send_prompt(page: Page, prompt: str, input_selector: str = None) -> str:
+async def send_prompt(page: Page, prompt: str, input_selector: str = None, model: str = "auto") -> str:
     """
     Send a prompt to Claude and wait for the response.
     """
@@ -175,6 +175,10 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None) -> st
     # Find the input element if not specified
     if not input_selector:
         input_selector = await wait_for_chat_interface(page)
+    
+    # Handle Extended Thinking
+    if model and "thinking" in model.lower():
+        await select_thinking_mode(page, wants_thinking=True)
     
     # Click on the input to focus it
     await page.click(input_selector, timeout=10000)
@@ -258,10 +262,10 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None) -> st
         print(f"Did not detect completion via stop button ({e}), waiting for stability...")
         await asyncio.sleep(10) # Fallback wait
 
-    return await extract_response(page, prompt)
+    return await extract_response(page, prompt, model)
 
 
-async def extract_response(page: Page, prompt: str = None) -> str:
+async def extract_response(page: Page, prompt: str = None, model: str = "auto") -> str:
     """Extract the latest response from the chat."""
     
     # Wait a bit for final render
@@ -293,7 +297,7 @@ async def extract_response(page: Page, prompt: str = None) -> str:
                             continue
                             
                         print(f"SUCCESS: Extracted response using selector: {selector}")
-                        return clean_claude_text(text, prompt)
+                        return clean_claude_text(text, prompt, model)
         except Exception:
             continue
     
@@ -339,12 +343,12 @@ async def extract_response(page: Page, prompt: str = None) -> str:
         text = None
 
     if text:
-        return clean_claude_text(text, prompt)
+        return clean_claude_text(text, prompt, model)
         
     return "Error: Could not extract response."
 
 
-def clean_claude_text(text: str, prompt: str = None) -> str:
+def clean_claude_text(text: str, prompt: str = None, model: str = "auto") -> str:
     """Clean UI noise, disclaimers, and redundant prompt text."""
     import re
     
@@ -390,6 +394,12 @@ def clean_claude_text(text: str, prompt: str = None) -> str:
     
     # Rejoin and strip leading/trailing whitespace
     text = '\n'.join(clean_lines).strip()
+
+    # Append Ext Thinking if requested and it looks like a Claude response
+    if model and "thinking" in model.lower() and text and not text.startswith("Error:"):
+        # Only append if not already there (though logic should handle it)
+        if "Ext. Thinking" not in text:
+            text = f"[Ext. Thinking]\n\n{text}"
     
     # Remove large chunks of empty lines
     text = re.sub(r'\n{3,}', '\n\n', text)
@@ -398,13 +408,53 @@ def clean_claude_text(text: str, prompt: str = None) -> str:
     return text
 
 
-async def select_model(page: Page, model_name: str):
+async def select_thinking_mode(page: Page, wants_thinking: bool = True):
     """
-    Select specific model if possible. 
-    Claude's UI for model selection is often behind a menu.
+    Find and click the "stop clock" symbol to toggle Extended Thinking.
     """
-    # Not implemented yet as it varys a lot by UI version
-    pass
+    print(f"Setting Extended Thinking to: {wants_thinking}")
+    
+    # Selectors for the "stop clock" / "timer" button
+    thinking_button_selectors = [
+        'button:has(svg path[d*="M12 20"])', # Possible path for the clock/timer
+        'button:has(svg[class*="timer"])',
+        'button:has(svg[class*="clock"])',
+        'button[aria-label*="thinking" i]',
+        'button:has-text("Thinking")',
+        'svg[class*="timer"]', # Sometimes the SVG itself is the target
+        'svg[class*="clock"]',
+    ]
+    
+    # Check current state if possible
+    # This is tricky without knowing the exact DOM, but we can look for "Thinking" text or active class
+    
+    for selector in thinking_button_selectors:
+        try:
+            button = await page.query_selector(selector)
+            if button and await button.is_visible():
+                print(f"Found thinking toggle with selector: {selector}")
+                
+                # Check if already active
+                is_active = await page.evaluate('''(el) => {
+                    // Check for active classes or parent state
+                    const btn = el.closest('button') || el;
+                    return btn.getAttribute('aria-pressed') === 'true' || 
+                           btn.classList.contains('active') ||
+                           document.body.innerText.includes('Extended thinking is on');
+                }''', button)
+                
+                if is_active == wants_thinking:
+                    print(f"Extended Thinking is already in state: {wants_thinking}")
+                    return
+                
+                await button.click()
+                print("Clicked thinking toggle.")
+                await asyncio.sleep(1)
+                return
+        except Exception as e:
+            continue
+            
+    print("Warning: Could not find Extended Thinking toggle.")
 
 
 async def main():
@@ -440,10 +490,10 @@ async def main():
                     lines.append(line)
                 prompt = "\n".join(lines)
                 if prompt:
-                    response = await send_prompt(page, prompt)
+                    response = await send_prompt(page, prompt, model=args.model)
                     print(f"\nClaude: {response}\n")
         else:
-            response = await send_prompt(page, args.prompt)
+            response = await send_prompt(page, args.prompt, model=args.model)
             print("\nRESULT_START")
             print(response)
             print("RESULT_END")

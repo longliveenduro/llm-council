@@ -190,11 +190,13 @@ Title:`;
             } else if (provider === 'claude') {
                 if (aiStudioModel && norm(aiStudioModel).includes('claude')) {
                     modelToUse = aiStudioModel;
-                } else if (currentModel && norm(currentModel).includes('claude')) {
-                    modelToUse = currentModel;
-                } else {
                     const claudes = (llmNames || []).filter(n => norm(n).includes('claude'));
-                    modelToUse = claudes[0] || 'Claude 3.5 Sonnet';
+                    modelToUse = (currentModel && norm(currentModel).includes('claude'))
+                        ? currentModel
+                        : (claudes[0] || 'Claude 3.5 Sonnet');
+                }
+                if (!modelToUse.toLowerCase().includes('thinking')) {
+                    modelToUse += ' (Ext. Thinking)';
                 }
             }
 
@@ -228,6 +230,9 @@ Title:`;
                 modelToUse = (stage3Response.model && norm(stage3Response.model).includes('claude'))
                     ? stage3Response.model
                     : (claudes[0] || 'Claude 3.5 Sonnet');
+                if (!modelToUse.toLowerCase().includes('thinking')) {
+                    modelToUse += ' (Ext. Thinking)';
+                }
             }
 
             const data = await api.runAutomation(prompt, modelToUse, provider);
