@@ -194,12 +194,16 @@ Title:`;
                     : (claudes.length > 0 ? claudes[0] : 'Claude 3.5 Sonnet');
 
                 if (!modelToUse.toLowerCase().includes('thinking')) {
-                    modelToUse += ' (Ext. Thinking)';
+                    modelToUse += ' [Ext. Thinking]';
                 }
             }
 
             const data = await api.runAutomation(prompt, modelToUse, provider);
             setCurrentText(data.response);
+            // Update currentModel to match the actual model used (especially for thinking suffix)
+            if (provider === 'claude' || provider === 'chatgpt') {
+                setCurrentModel(modelToUse);
+            }
         } catch (error) {
             alert(`Automation failed: ${error.message}`);
         } finally {
@@ -229,12 +233,12 @@ Title:`;
                     ? stage3Response.model
                     : (claudes[0] || 'Claude 3.5 Sonnet');
                 if (!modelToUse.toLowerCase().includes('thinking')) {
-                    modelToUse += ' (Ext. Thinking)';
+                    modelToUse += ' [Ext. Thinking]';
                 }
             }
 
             const data = await api.runAutomation(prompt, modelToUse, provider);
-            setStage3Response(prev => ({ ...prev, response: data.response }));
+            setStage3Response(prev => ({ ...prev, model: modelToUse, response: data.response }));
         } catch (error) {
             alert(`Automation failed: ${error.message}`);
         } finally {
@@ -335,7 +339,16 @@ Title:`;
                 <textarea id="user-query" value={userQuery} onChange={(e) => setUserQuery(e.target.value)} rows={4} />
             </div>
             <div className="responses-list">
-                {stage1Responses.map((r, i) => <div key={i} className="response-item"><ModelBadge model={r.model} />: {r.response.substring(0, 50)}...</div>)}
+                {stage1Responses.map((r, i) => (
+                    <div key={i} className="response-item">
+                        <div className="response-header">
+                            <ModelBadge model={r.model} />:
+                        </div>
+                        <div className="response-preview">
+                            {r.response.substring(0, 50)}...
+                        </div>
+                    </div>
+                ))}
             </div>
             <div className="add-response-form">
                 <div className="model-input-group">
@@ -375,7 +388,16 @@ Title:`;
                 <button onClick={() => copyToClipboard(stage2Prompt)} className="copy-btn">Copy Prompt</button>
             </div>
             <div className="responses-list">
-                {stage2Responses.map((r, i) => <div key={i} className="response-item"><ModelBadge model={r.model} />: {r.ranking.substring(0, 50)}...</div>)}
+                {stage2Responses.map((r, i) => (
+                    <div key={i} className="response-item">
+                        <div className="response-header">
+                            <ModelBadge model={r.model} />:
+                        </div>
+                        <div className="response-preview">
+                            {r.ranking.substring(0, 50)}...
+                        </div>
+                    </div>
+                ))}
             </div>
             <div className="add-response-form">
                 <select value={currentModel} onChange={(e) => setCurrentModel(e.target.value)} className="model-select">

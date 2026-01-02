@@ -68,7 +68,7 @@ describe('ManualWizard Claude Integration', () => {
         await waitFor(() => {
             expect(api.runAutomation).toHaveBeenCalledWith(
                 expect.stringContaining('How are you?'),
-                'Claude 3.5 Sonnet (Ext. Thinking)',
+                'Claude 3.5 Sonnet [Ext. Thinking]',
                 'claude'
             );
         });
@@ -98,7 +98,7 @@ describe('ManualWizard Claude Integration', () => {
         await waitFor(() => {
             expect(api.runAutomation).toHaveBeenCalledWith(
                 expect.any(String),
-                'Claude 3.5 Sonnet (Ext. Thinking)',
+                'Claude 3.5 Sonnet [Ext. Thinking]',
                 'claude'
             );
         });
@@ -110,13 +110,13 @@ describe('ManualWizard Claude Integration', () => {
         // Add a thinking model to lllmNames for this test
         const propsWithThinking = {
             ...defaultProps,
-            llmNames: ['Claude 3.5 Sonnet (Ext. Thinking)', ...defaultProps.llmNames]
+            llmNames: ['Claude 3.5 Sonnet [Ext. Thinking]', ...defaultProps.llmNames]
         };
         render(<ManualWizard {...propsWithThinking} />);
 
         // Select a model that already has "Thinking" in the name
         const modelSelect = screen.getByLabelText('Current Model');
-        fireEvent.change(modelSelect, { target: { value: 'Claude 3.5 Sonnet (Ext. Thinking)' } });
+        fireEvent.change(modelSelect, { target: { value: 'Claude 3.5 Sonnet [Ext. Thinking]' } });
 
         // Type a question
         const questionArea = screen.getByLabelText(/Your Question:/i);
@@ -129,7 +129,7 @@ describe('ManualWizard Claude Integration', () => {
         await waitFor(() => {
             expect(api.runAutomation).toHaveBeenCalledWith(
                 expect.any(String),
-                'Claude 3.5 Sonnet (Ext. Thinking)',
+                'Claude 3.5 Sonnet [Ext. Thinking]',
                 'claude'
             );
         });

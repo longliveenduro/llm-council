@@ -476,12 +476,6 @@ def clean_claude_text(text: str, prompt: str = None, model: str = "auto") -> str
     # Rejoin and strip leading/trailing whitespace
     text = '\n'.join(clean_lines).strip()
 
-    # Append Ext Thinking if requested and it looks like a Claude response
-    if model and "thinking" in model.lower() and text and not text.startswith("Error:"):
-        # Only append if not already there (though logic should handle it)
-        if "[Ext. Thinking]" not in text:
-            text = f"[Ext. Thinking]\n\n{text}"
-    
     # Remove large chunks of empty lines
     text = re.sub(r'\n{3,}', '\n\n', text)
     
