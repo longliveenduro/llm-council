@@ -306,7 +306,7 @@ Title:`;
                 <label>Automation Model:</label>
                 <div className="automation-input-row">
                     <div className="model-select-wrapper">
-                        <select value={aiStudioModel} onChange={(e) => setAiStudioModel(e.target.value)} className="automation-model-select">
+                        <select id="automation-model-select" value={aiStudioModel} onChange={(e) => setAiStudioModel(e.target.value)} className="automation-model-select" aria-label="Automation Model">
                             <optgroup label="AI Studio">
                                 {automationModels.ai_studio.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
                             </optgroup>
@@ -328,15 +328,15 @@ Title:`;
                 </div>
             </div>
             <div className="form-group">
-                <label>Your Question:</label>
-                <textarea value={userQuery} onChange={(e) => setUserQuery(e.target.value)} rows={4} />
+                <label htmlFor="user-query">Your Question:</label>
+                <textarea id="user-query" value={userQuery} onChange={(e) => setUserQuery(e.target.value)} rows={4} />
             </div>
             <div className="responses-list">
                 {stage1Responses.map((r, i) => <div key={i} className="response-item"><ModelBadge model={r.model} />: {r.response.substring(0, 50)}...</div>)}
             </div>
             <div className="add-response-form">
                 <div className="model-input-group">
-                    <select value={llmNames.includes(currentModel) ? currentModel : 'custom'} onChange={(e) => setCurrentModel(e.target.value === 'custom' ? '' : e.target.value)} className="model-select">
+                    <select id="current-model-select" value={llmNames.includes(currentModel) ? currentModel : 'custom'} onChange={(e) => setCurrentModel(e.target.value === 'custom' ? '' : e.target.value)} className="model-select" aria-label="Current Model">
                         {llmNames.map(name => <option key={name} value={name}>{name}</option>)}
                         <option value="custom">Custom...</option>
                     </select>

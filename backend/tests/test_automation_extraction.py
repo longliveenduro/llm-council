@@ -3,6 +3,7 @@ import asyncio
 from unittest.mock import AsyncMock, MagicMock
 from browser_automation.ai_studio_automation import extract_response as extract_ai_studio
 from browser_automation.chatgpt_automation import extract_response as extract_chatgpt
+from browser_automation.claude_automation import extract_response as extract_claude
 
 @pytest.mark.asyncio
 async def test_ai_studio_extraction_multiple_chunks():
@@ -61,3 +62,25 @@ async def test_chatgpt_extraction_multiple_markdown_blocks():
     
     response = await extract_chatgpt(mock_page)
     assert response == "Block 1\n\nBlock 2"
+
+@pytest.mark.asyncio
+async def test_claude_extraction():
+    """Test that Claude extraction finds the correct prose block."""
+    mock_page = MagicMock()
+    
+    # Mock assistant message prose
+    mock_prose = MagicMock()
+    mock_prose.inner_text = AsyncMock(return_value="This is a Claude response.")
+    
+    async def mock_query_selector_all(selector):
+        if selector == 'div.font-claude-message .prose':
+            return [mock_prose]
+        return []
+
+    mock_page.query_selector_all = AsyncMock(side_effect=mock_query_selector_all)
+    
+    # Also mock evaluate as a fallback
+    mock_page.evaluate = AsyncMock(return_value="This is a Claude response.")
+    
+    response = await extract_claude(mock_page)
+    assert "This is a Claude response." in response
