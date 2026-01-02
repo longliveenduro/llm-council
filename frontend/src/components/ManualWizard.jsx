@@ -188,13 +188,11 @@ Title:`;
                     modelToUse += ' Thinking';
                 }
             } else if (provider === 'claude') {
-                if (aiStudioModel && norm(aiStudioModel).includes('claude')) {
-                    modelToUse = aiStudioModel;
-                    const claudes = (llmNames || []).filter(n => norm(n).includes('claude'));
-                    modelToUse = (currentModel && norm(currentModel).includes('claude'))
-                        ? currentModel
-                        : (claudes[0] || 'Claude 3.5 Sonnet');
-                }
+                const claudes = (llmNames || []).filter(n => norm(n).includes('claude'));
+                modelToUse = (currentModel && norm(currentModel).includes('claude'))
+                    ? currentModel
+                    : (claudes.length > 0 ? claudes[0] : 'Claude 3.5 Sonnet');
+
                 if (!modelToUse.toLowerCase().includes('thinking')) {
                     modelToUse += ' (Ext. Thinking)';
                 }
