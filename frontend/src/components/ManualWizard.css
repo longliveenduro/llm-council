@@ -362,6 +362,13 @@
     display: flex;
     gap: 8px;
     margin-top: 8px;
+    flex-wrap: wrap; /* Allow wrapping if too many buttons */
+}
+
+.automation-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
 }
 
 .automation-btn {
@@ -377,6 +384,8 @@
     align-items: center;
     gap: 6px;
     transition: filter 0.2s;
+    flex-shrink: 0; /* Prevent squeezing */
+    white-space: nowrap;
 }
 
 .automation-btn:hover:not(:disabled) {

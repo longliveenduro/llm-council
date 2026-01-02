@@ -222,6 +222,35 @@ export default function Sidebar({
               {automationStatus?.loading?.sync?.chatgpt ? '⌛' : '🔄'}
             </button>
           </div>
+          <div className="automation-item">
+            <span className={`status-dot ${automationStatus?.claude ? 'online' : 'offline'}`} />
+            <span className="automation-name">Claude</span>
+            {automationStatus?.loading?.claude ? (
+              <span className="automation-loading">...</span>
+            ) : automationStatus?.claude ? (
+              <button
+                className="automation-btn logout"
+                onClick={() => onAutomationLogout('claude')}
+              >
+                Logout
+              </button>
+            ) : (
+              <button
+                className="automation-btn login"
+                onClick={() => onAutomationLogin('claude')}
+              >
+                Login
+              </button>
+            )}
+            <button
+              className={`sync-btn ${automationStatus?.loading?.sync?.claude ? 'syncing' : ''}`}
+              onClick={() => onSyncModels('claude')}
+              title="Sync Model Names"
+              disabled={automationStatus?.loading?.sync?.claude}
+            >
+              {automationStatus?.loading?.sync?.claude ? '⌛' : '🔄'}
+            </button>
+          </div>
         </div>
       </div>
 

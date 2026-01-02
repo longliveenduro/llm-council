@@ -15,9 +15,9 @@ from .council import (
     run_full_council, generate_conversation_title, stage1_collect_responses,
     stage2_collect_rankings, stage3_synthesize_final, calculate_aggregate_rankings,
     build_ranking_prompt, build_chairman_prompt, parse_ranking_from_text,
-    run_ai_studio_automation, run_chatgpt_automation,
+    run_ai_studio_automation, run_chatgpt_automation, run_claude_automation,
     check_automation_session, clear_automation_session, run_interactive_login,
-    get_ai_studio_models
+    get_ai_studio_models, get_claude_models
 )
 
 from .storage import get_cached_models, save_cached_models
@@ -274,6 +274,8 @@ async def manual_run_automation(request: AutomationRequest):
     try:
         if request.provider == "chatgpt":
             response = await run_chatgpt_automation(request.prompt, request.model)
+        elif request.provider == "claude":
+            response = await run_claude_automation(request.prompt, request.model)
         else:
             # Default to AI Studio
             response = await run_ai_studio_automation(request.prompt, request.model)
@@ -393,15 +395,16 @@ async def get_automation_status():
     """Get login status for all automation providers."""
     return {
         "ai_studio": check_automation_session("ai_studio"),
-        "chatgpt": check_automation_session("chatgpt")
+        "chatgpt": check_automation_session("chatgpt"),
+        "claude": check_automation_session("claude")
     }
 
 
 @app.post("/api/automation/login/{provider}")
 async def login_automation(provider: str):
     """Launch interactive login for a provider."""
-    if provider not in ["ai_studio", "chatgpt"]:
-        raise HTTPException(status_code=400, detail="Invalid provider. Use 'ai_studio' or 'chatgpt'.")
+    if provider not in ["ai_studio", "chatgpt", "claude"]:
+        raise HTTPException(status_code=400, detail="Invalid provider. Use 'ai_studio', 'chatgpt', or 'claude'.")
     
     result = await run_interactive_login(provider)
     
@@ -414,8 +417,8 @@ async def login_automation(provider: str):
 @app.post("/api/automation/logout/{provider}")
 async def logout_automation(provider: str):
     """Clear session data for a provider."""
-    if provider not in ["ai_studio", "chatgpt"]:
-        raise HTTPException(status_code=400, detail="Invalid provider. Use 'ai_studio' or 'chatgpt'.")
+    if provider not in ["ai_studio", "chatgpt", "claude"]:
+        raise HTTPException(status_code=400, detail="Invalid provider. Use 'ai_studio', 'chatgpt', or 'claude'.")
     
     success = clear_automation_session(provider)
     return {"success": success, "provider": provider}
@@ -436,6 +439,8 @@ async def get_automation_models(provider: str):
             {"name": "ChatGPT o1", "id": "o1"},
             {"name": "ChatGPT o1 thinking", "id": "o1-preview"},
         ]
+    elif provider == "claude":
+        return await get_claude_models()
     else:
         raise HTTPException(status_code=400, detail="Invalid provider")
 
@@ -456,6 +461,10 @@ async def sync_automation_models(provider: str):
             {"name": "ChatGPT o1", "id": "o1"},
             {"name": "ChatGPT o1 thinking", "id": "o1-preview"},
         ]}
+    elif provider == "claude":
+        # No sync implemented for Claude yet
+        models = await get_claude_models()
+        return {"success": True, "models": models}
     else:
         raise HTTPException(status_code=400, detail="Invalid provider")
 

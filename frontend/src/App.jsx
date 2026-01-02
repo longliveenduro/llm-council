@@ -21,9 +21,10 @@ function App() {
   const [automationStatus, setAutomationStatus] = useState({
     ai_studio: false,
     chatgpt: false,
-    loading: { ai_studio: false, chatgpt: false, sync: { ai_studio: false, chatgpt: false } }
+    claude: false,
+    loading: { ai_studio: false, chatgpt: false, claude: false, sync: { ai_studio: false, chatgpt: false, claude: false } }
   });
-  const [automationModels, setAutomationModels] = useState({ ai_studio: [], chatgpt: [] });
+  const [automationModels, setAutomationModels] = useState({ ai_studio: [], chatgpt: [], claude: [] });
 
   // Load conversations on mount
   useEffect(() => {
@@ -78,7 +79,8 @@ function App() {
       setAutomationStatus(prev => ({
         ...prev,
         ai_studio: status.ai_studio,
-        chatgpt: status.chatgpt
+        chatgpt: status.chatgpt,
+        claude: status.claude
       }));
     } catch (error) {
       console.error('Failed to load automation status:', error);
@@ -89,9 +91,11 @@ function App() {
     try {
       const aiStudioModels = await api.getAutomationModels('ai_studio');
       const chatgptModels = await api.getAutomationModels('chatgpt');
+      const claudeModels = await api.getAutomationModels('claude');
       setAutomationModels({
         ai_studio: aiStudioModels,
-        chatgpt: chatgptModels
+        chatgpt: chatgptModels,
+        claude: claudeModels
       });
     } catch (error) {
       console.error('Failed to load automation models:', error);

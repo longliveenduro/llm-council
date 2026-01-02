@@ -26,3 +26,4 @@ frontend/.vite/
 # Browser Automation
 browser_automation/.ai_studio_browser_data/
 browser_automation/.chatgpt_browser_data/
+browser_automation/.claude_browser_data/

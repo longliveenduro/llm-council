@@ -115,7 +115,7 @@ export const api = {
 
   /**
    * Run automation for a prompt.
-   * provider: "ai_studio" or "chatgpt"
+   * provider: "ai_studio", "chatgpt", or "claude"
    */
   async runAutomation(prompt, model, provider = "ai_studio") {
     const response = await fetch(`${API_BASE}/api/manual/run-automation`, {
@@ -251,7 +251,7 @@ export const api = {
 
   /**
    * Initiate interactive login for a provider.
-   * @param {string} provider - "ai_studio" or "chatgpt"
+   * @param {string} provider - "ai_studio", "chatgpt", or "claude"
    */
   async loginAutomation(provider) {
     const response = await fetch(`${API_BASE}/api/automation/login/${provider}`, {
@@ -266,7 +266,7 @@ export const api = {
 
   /**
    * Logout (clear session) for a provider.
-   * @param {string} provider - "ai_studio" or "chatgpt"
+   * @param {string} provider - "ai_studio", "chatgpt", or "claude"
    */
   async logoutAutomation(provider) {
     const response = await fetch(`${API_BASE}/api/automation/logout/${provider}`, {
@@ -280,7 +280,7 @@ export const api = {
 
   /**
    * Get available models for a provider.
-   * @param {string} provider - "ai_studio" or "chatgpt"
+   * @param {string} provider - "ai_studio", "chatgpt", or "claude"
    */
   async getAutomationModels(provider) {
     const response = await fetch(`${API_BASE}/api/automation/models/${provider}`);
@@ -292,7 +292,7 @@ export const api = {
 
   /**
    * Force a sync of automation models for a provider.
-   * @param {string} provider - "ai_studio" or "chatgpt"
+   * @param {string} provider - "ai_studio", "chatgpt", or "claude"
    */
   async syncAutomationModels(provider) {
     const response = await fetch(`${API_BASE}/api/automation/models/${provider}/sync`, {

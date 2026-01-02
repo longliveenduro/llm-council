@@ -13,18 +13,21 @@ import shutil
 
 # Browser data directories for automation sessions
 AI_STUDIO_BROWSER_DATA = Path(__file__).parent.parent / "browser_automation" / ".ai_studio_browser_data"
-AI_STUDIO_BROWSER_DATA = Path(__file__).parent.parent / "browser_automation" / ".ai_studio_browser_data"
 CHATGPT_BROWSER_DATA = Path(__file__).parent.parent / "browser_automation" / ".chatgpt_browser_data"
+CLAUDE_BROWSER_DATA = Path(__file__).parent.parent / "browser_automation" / ".claude_browser_data"
 
 # Global locks to prevent concurrent browser sessions for the same provider
 AI_STUDIO_LOCK = asyncio.Lock()
 CHATGPT_LOCK = asyncio.Lock()
+CLAUDE_LOCK = asyncio.Lock()
 
 
 def get_browser_data_dir(provider: str) -> Path:
     """Get the browser data directory for a provider."""
     if provider == "chatgpt":
         return CHATGPT_BROWSER_DATA
+    if provider == "claude":
+        return CLAUDE_BROWSER_DATA
     return AI_STUDIO_BROWSER_DATA
 
 
@@ -83,10 +86,10 @@ async def run_interactive_login(provider: str) -> dict:
     
     if provider == "chatgpt":
         url = "https://chatgpt.com/"
-        excepted_domain = "chatgpt.com"
+    elif provider == "claude":
+        url = "https://claude.ai/"
     else:
         url = "https://aistudio.google.com/prompts/new_chat"
-        excepted_domain = "aistudio.google.com"
     
     playwright = None
     context = None
@@ -98,8 +101,13 @@ async def run_interactive_login(provider: str) -> dict:
         print(f"Browser was closed by user for {provider}")
     
     try:
-        lock = AI_STUDIO_LOCK if provider == "ai_studio" else CHATGPT_LOCK
-        
+        if provider == "ai_studio":
+            lock = AI_STUDIO_LOCK 
+        elif provider == "chatgpt":
+            lock = CHATGPT_LOCK
+        else:
+            lock = CLAUDE_LOCK
+            
         # Acquire lock to ensure no other automation is running
         async with lock:
             playwright = await async_playwright().start()
@@ -120,13 +128,6 @@ async def run_interactive_login(provider: str) -> dict:
             # Navigate to the login page
             await page.goto(url)
             
-            # Wait for page to load
-            try:
-                await page.wait_for_load_state("networkidle", timeout=30000)
-            except:
-                pass  # Continue anyway
-            
-            # Wait for the user to complete login
             print(f"Waiting for user to complete login on {provider}...")
             print("Please complete the login in the browser window.")
             
@@ -179,6 +180,19 @@ async def run_interactive_login(provider: str) -> dict:
                     return False
                 except:
                     return False
+
+            async def is_claude_logged_in(page) -> bool:
+                """Check if Claude is logged in."""
+                try:
+                    current_url = page.url
+                    if "claude.ai" in current_url and "login" not in current_url:
+                        # Check for message input
+                        chat_input = await page.query_selector('[contenteditable="true"]')
+                        if chat_input:
+                            return True
+                    return False
+                except:
+                    return False
             
             while elapsed < max_wait and not browser_closed:
                 try:
@@ -191,14 +205,18 @@ async def run_interactive_login(provider: str) -> dict:
                     
                     # Provider-specific login checks
                     if provider == "chatgpt":
-                        if "chatgpt.com" in current_url:
-                            if await is_chatgpt_logged_in(page):
-                                # Wait a bit more for session to stabilize
-                                await asyncio.sleep(2)
-                                logged_in = True
-                                break
+                        if await is_chatgpt_logged_in(page):
+                            # Wait a bit more for session to stabilize
+                            await asyncio.sleep(2)
+                            logged_in = True
+                            break
                     elif provider == "ai_studio":
                         if await is_ai_studio_logged_in(page):
+                            await asyncio.sleep(2)
+                            logged_in = True
+                            break
+                    elif provider == "claude":
+                        if await is_claude_logged_in(page):
                             await asyncio.sleep(2)
                             logged_in = True
                             break
@@ -818,6 +836,62 @@ async def run_chatgpt_automation(prompt: str, model: str = "auto") -> str:
         except Exception as e:
             print(f"Subprocess Exception: {e}")
             return f"Error running automation: {str(e)}"
+
+
+
+async def run_claude_automation(prompt: str, model: str = "auto") -> str:
+    """
+    Run the Claude automation script via subprocess.
+    """
+    script_path = Path(__file__).parent.parent / "browser_automation" / "claude_automation.py"
+    
+    # Use the same python interpreter as the current process
+    args = [sys.executable, str(script_path), prompt, "--model", model]
+    
+    async with CLAUDE_LOCK:
+        try:
+            print(f"Executing Claude automation...")
+            # Run subprocess and capture output
+            process = await asyncio.create_subprocess_exec(
+                *args,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
+            )
+        
+            stdout, stderr = await process.communicate()
+            
+            if process.returncode != 0:
+                error_msg = stderr.decode().strip()
+                print(f"Claude Automation Error (Code {process.returncode}): {error_msg}")
+                return f"Error: Claude automation script failed. {error_msg}"
+                
+            output = stdout.decode().strip()
+            # Print full output for debugging
+            print("-" * 20 + " Claude Automation Output " + "-" * 20)
+            print(output)
+            print("-" * 67)
+            
+            # Use unique delimiters to extract the real response
+            if "RESULT_START" in output and "RESULT_END" in output:
+                response = output.split("RESULT_START")[1].split("RESULT_END")[0].strip()
+                return response
+                
+            return output
+        except Exception as e:
+            print(f"Subprocess Exception: {e}")
+            return f"Error running automation: {str(e)}"
+
+
+async def get_claude_models() -> List[Dict[str, str]]:
+    """
+    Get the list of available models for Claude.
+    Currently hardcoded as Claude doesn't easily expose model lists via simple automation.
+    """
+    return [
+        {"name": "Claude 3.5 Sonnet", "id": "claude-3-5-sonnet"},
+        {"name": "Claude 3 Opus", "id": "claude-3-opus"},
+        {"name": "Claude 3 Haiku", "id": "claude-3-haiku"}
+    ]
 
 
 
