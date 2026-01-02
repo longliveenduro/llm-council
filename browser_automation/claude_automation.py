@@ -268,8 +268,46 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None, model
 async def extract_response(page: Page, prompt: str = None, model: str = "auto") -> str:
     """Extract the latest response from the chat."""
     
-    # Wait a bit for final render
-    await asyncio.sleep(3)
+    # Wait a bit for initial content
+    await asyncio.sleep(1)
+    
+    # Helper function to get current text length from the last Claude message
+    async def get_current_text_length() -> int:
+        try:
+            elements = await page.query_selector_all('div.font-claude-message .prose')
+            if elements:
+                text = await elements[-1].inner_text()
+                return len(text) if text else 0
+        except:
+            pass
+        return 0
+
+    # Content stabilization: wait until text length stops growing
+    print("DEBUG: Waiting for content to stabilize...")
+    prev_len = 0
+    stable_count = 0
+    max_stabilization_wait = 5  # seconds (reduced from 10)
+    stabilization_interval = 0.5  # seconds
+    elapsed = 0
+    
+    while elapsed < max_stabilization_wait:
+        current_len = await get_current_text_length()
+        
+        if current_len > 0 and current_len == prev_len:
+            stable_count += 1
+            # Content is stable if length hasn't changed for 2 consecutive checks (1.0s)
+            if stable_count >= 2:
+                print(f"DEBUG: Content stabilized at {current_len} characters after {elapsed:.1f}s")
+                break
+        else:
+            stable_count = 0
+            
+        prev_len = current_len
+        await asyncio.sleep(stabilization_interval)
+        elapsed += stabilization_interval
+    
+    if elapsed >= max_stabilization_wait:
+        print(f"DEBUG: Stabilization timeout reached, proceeding with extraction (length: {prev_len})")
     
     # Selectors for Claude messages - ordered by preference
     response_selectors = [

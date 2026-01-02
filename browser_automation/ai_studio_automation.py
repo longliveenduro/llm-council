@@ -253,8 +253,8 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None) -> st
 async def extract_response(page: Page) -> str:
     """Extract the latest response from the chat."""
     
-    # Wait a bit more for content to stabilize
-    await asyncio.sleep(2)
+    # Wait a bit for initial content to appear
+    await asyncio.sleep(1)
     
     # Check for error toasts/snackbars first
     try:
@@ -286,52 +286,117 @@ async def extract_response(page: Page) -> str:
          except:
              pass
 
-    # Try Clipboard Extraction first (High Fidelity for formatted text)
-    try:
-        # Grant permissions if possible
+    # Helper function to get current text length from the last turn
+    async def get_current_text_length() -> int:
         try:
-            await context.grant_permissions(['clipboard-read', 'clipboard-write'])
+            turn = await page.query_selector('ms-chat-turn:last-of-type')
+            if turn:
+                text = await turn.inner_text()
+                return len(text) if text else 0
         except:
-             pass
+            pass
+        return 0
 
-        turn_selector = 'ms-chat-turn:last-of-type'
-        turn = await page.query_selector(turn_selector)
+    # Content stabilization: wait until text length stops growing
+    # This prevents extracting partial/streaming content
+    print("DEBUG: Waiting for content to stabilize...")
+    prev_len = 0
+    stable_count = 0
+    max_stabilization_wait = 5  # seconds (reduced from 10)
+    stabilization_interval = 0.5  # seconds
+    elapsed = 0
+    
+    while elapsed < max_stabilization_wait:
+        current_len = await get_current_text_length()
         
-        if turn:
-            # Hover to potentially reveal buttons
-            await turn.hover()
+        if current_len > 0 and current_len == prev_len:
+            stable_count += 1
+            # Content is stable if length hasn't changed for 2 consecutive checks (1.0s)
+            if stable_count >= 2:
+                print(f"DEBUG: Content stabilized at {current_len} characters after {elapsed:.1f}s")
+                break
+        else:
+            stable_count = 0
             
-            # 1. Try direct copy button
-            copy_btn = await turn.query_selector('button[aria-label*="copy" i]')
-            
-            # 2. Try 'more_vert' menu if direct button missing
-            if not copy_btn:
-                menu_btn = await turn.query_selector('button[aria-label="Open options"]')
-                if menu_btn:
-                    await menu_btn.click()
-                    # Wait/Find menu
-                    try:
-                        await page.wait_for_selector('div[role="menu"]', timeout=2000)
-                        menu_items = await page.query_selector_all('div[role="menu"] button')
-                        for item in menu_items:
-                            txt = await item.text_content()
-                            if "copy" in txt.lower():
-                                copy_btn = item
-                                break
-                    except:
-                        pass
-            
-            if copy_btn:
-                await copy_btn.click()
-                # Short wait for clipboard write
-                await asyncio.sleep(0.5)
-                clipboard_text = await page.evaluate("navigator.clipboard.readText()")
-                if clipboard_text and len(clipboard_text) > 5:
-                    print("DEBUG: Extracted response via Clipboard")
-                    return clipboard_text
+        prev_len = current_len
+        await asyncio.sleep(stabilization_interval)
+        elapsed += stabilization_interval
+    
+    if elapsed >= max_stabilization_wait:
+        print(f"DEBUG: Stabilization timeout reached, proceeding with extraction (length: {prev_len})")
 
-    except Exception as e:
-        print(f"DEBUG: Clipboard extraction failed: {e}")
+    # Try Clipboard Extraction first (High Fidelity for formatted text)
+    # Retry up to 3 times if content looks truncated
+    MAX_CLIPBOARD_RETRIES = 3
+    
+    for attempt in range(MAX_CLIPBOARD_RETRIES):
+        try:
+            # Grant permissions if possible
+            try:
+                await page.context.grant_permissions(['clipboard-read', 'clipboard-write'])
+            except:
+                pass
+
+            turn_selector = 'ms-chat-turn:last-of-type'
+            turn = await page.query_selector(turn_selector)
+            
+            if turn:
+                # Hover to potentially reveal buttons
+                await turn.hover()
+                
+                # 1. Try direct copy button
+                copy_btn = await turn.query_selector('button[aria-label*="copy" i]')
+                
+                # 2. Try 'more_vert' menu if direct button missing
+                if not copy_btn:
+                    menu_btn = await turn.query_selector('button[aria-label="Open options"]')
+                    if menu_btn:
+                        await menu_btn.click()
+                        # Wait/Find menu
+                        try:
+                            await page.wait_for_selector('div[role="menu"]', timeout=2000)
+                            menu_items = await page.query_selector_all('div[role="menu"] button')
+                            for item in menu_items:
+                                txt = await item.text_content()
+                                if "copy" in txt.lower():
+                                    copy_btn = item
+                                    break
+                        except:
+                            pass
+                
+                if copy_btn:
+                    await copy_btn.click()
+                    # Wait for clipboard write
+                    await asyncio.sleep(0.8)
+                    clipboard_text = await page.evaluate("navigator.clipboard.readText()")
+                    
+                    if clipboard_text and len(clipboard_text) > 5:
+                        # Check if text looks truncated (ends mid-word/sentence without proper ending)
+                        text_stripped = clipboard_text.strip()
+                        
+                        # Heuristic: Check if text ends with a proper sentence ending or natural break
+                        proper_endings = ('.', '!', '?', ':', '"', "'", ')', ']', '}', '\n', '```')
+                        looks_complete = any(text_stripped.endswith(e) for e in proper_endings)
+                        
+                        # Also check that it's not ending with an incomplete word (letter followed by nothing)
+                        if not looks_complete and len(text_stripped) > 20:
+                            # The text might be streaming - wait and retry
+                            if attempt < MAX_CLIPBOARD_RETRIES - 1:
+                                print(f"DEBUG: Clipboard text may be truncated (attempt {attempt + 1}), retrying...")
+                                await asyncio.sleep(1.5)
+                                continue
+                        
+                        print(f"DEBUG: Extracted response via Clipboard (attempt {attempt + 1}, {len(clipboard_text)} chars)")
+                        return clipboard_text
+                else:
+                    # No copy button found, break out of retry loop
+                    break
+
+        except Exception as e:
+            print(f"DEBUG: Clipboard extraction failed (attempt {attempt + 1}): {e}")
+            if attempt < MAX_CLIPBOARD_RETRIES - 1:
+                await asyncio.sleep(1)
+
 
     # Fallback to AI Studio specific selectors based on HTML analysis
     print("DEBUG: Falling back to visual extraction...")
