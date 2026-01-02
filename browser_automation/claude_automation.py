@@ -364,6 +364,19 @@ def clean_claude_text(text: str, prompt: str = None, model: str = "auto") -> str
         "Subscribe to Pro",
         "Copy to clipboard",
         "Share",
+        "Want to be notified when Claude responds? Notify",
+        "Want to be notified when Claude responds?",
+        "The user prompt is empty, so I cannot provide a summary in the user's language.",
+        "The user is asking about",
+        "Acknowledge the profundity",
+        "Present different philosophical",
+        "Be honest about the limits",
+        "Avoid being overly didactic",
+    ]
+    
+    # Specific line-by-line garbage to remove if it's EXACTLY this
+    exact_garbage_lines = [
+        "Notify",
     ]
     
     lines = text.split('\n')
@@ -372,12 +385,25 @@ def clean_claude_text(text: str, prompt: str = None, model: str = "auto") -> str
     # Redundant prompt check
     normalized_prompt = prompt.strip().lower() if prompt else ""
     
-    for line in lines:
+    # Identify thinking summary and duration
+    # Often: [Thinking Summary] -> [Duration] -> [Response]
+    # We want to skip the summary and duration if possible
+    
+    skip_next_lines = 0
+    for i, line in enumerate(lines):
+        if skip_next_lines > 0:
+            skip_next_lines -= 1
+            continue
+            
         stripped_line = line.strip()
         if not stripped_line:
             clean_lines.append("")
             continue
             
+        # Skip exact garbage lines
+        if stripped_line in exact_garbage_lines:
+            continue
+
         # Skip garbage strings
         if any(g in stripped_line for g in garbage_strings):
             continue
@@ -386,10 +412,65 @@ def clean_claude_text(text: str, prompt: str = None, model: str = "auto") -> str
         if re.match(r'^\d{1,2}:\d{2}\s+(AM|PM)$', stripped_line, re.IGNORECASE):
             continue
             
+        # Skip durations like "26s", "2.1m", "1.5h"
+        if re.match(r'^\d+(\.\d+)?[smh]$', stripped_line):
+            continue
+            
         # Skip redundant prompt lines
         if normalized_prompt and stripped_line.lower() == normalized_prompt:
             continue
             
+        # Heuristic for thinking summary: 
+        # If this is one of the first few non-empty lines, doesn't look like a header,
+        # and it's followed by a duration or is very short and followed by a blank line then the response.
+        # Claude's thinking summaries are usually single sentences.
+        if i < 15 and len(stripped_line) > 10 and len(stripped_line) < 500:
+            # Check if it starts with common thinking verbs/phrases
+            thinking_starters = [
+                "Weighed", "Evaluated", "Analyzed", "Explored", "Considered", 
+                "Reflected", "Pondered", "Examined", "Thought", "Researched", 
+                "Compare", "Revised", "Simplified", "Drafted", "Identified",
+                "Synthesized", "Categorized", "Delved", "Balanced",
+                "Let me think", "Let's think", "I will approach",
+                "This is one of the", "This is a fundamental", "The question of"
+            ]
+            
+            # Check for specific preamble patterns
+            preamble_patterns = [
+                r"The user prompt is empty",
+                r"Based on the thinking block",
+                r"Here is a summary",
+                r"Let me think about how to approach",
+                r"I should:",
+            ]
+            
+            is_summary = False
+            
+            # Pattern 1: Starts with thinking verb/phrase
+            if any(stripped_line.lower().startswith(s.lower()) for s in thinking_starters):
+                # Extra check: if it ends with a question, it might be the start of the response
+                if not stripped_line.endswith("?"):
+                    is_summary = True
+            
+            # Pattern 2: Matches preamble patterns
+            if any(re.search(pat, stripped_line, re.I) for pat in preamble_patterns):
+                is_summary = True
+                
+            # Pattern 3: Followed by a duration line
+            if not is_summary:
+                next_non_empty = ""
+                for j in range(i + 1, min(i + 5, len(lines))):
+                    if lines[j].strip():
+                        next_non_empty = lines[j].strip()
+                        break
+                if next_non_empty and re.match(r'^\d+(\.\d+)?[smh]$', next_non_empty):
+                    is_summary = True
+            
+            if is_summary:
+                # One more check: make sure it's not a list item or header
+                if not stripped_line.startswith(('-', '*', '#', '1.')):
+                    continue
+
         clean_lines.append(line)
     
     # Rejoin and strip leading/trailing whitespace
@@ -398,7 +479,7 @@ def clean_claude_text(text: str, prompt: str = None, model: str = "auto") -> str
     # Append Ext Thinking if requested and it looks like a Claude response
     if model and "thinking" in model.lower() and text and not text.startswith("Error:"):
         # Only append if not already there (though logic should handle it)
-        if "Ext. Thinking" not in text:
+        if "[Ext. Thinking]" not in text:
             text = f"[Ext. Thinking]\n\n{text}"
     
     # Remove large chunks of empty lines
