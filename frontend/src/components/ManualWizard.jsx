@@ -7,7 +7,7 @@ import './ManualWizard.css';
 const ModelBadge = ({ model }) => {
     const iconUrl = getModelIcon(model);
     return (
-        <span className="model-badge">
+        <span className="model-badge" title={model}>
             {iconUrl && (
                 <img
                     src={iconUrl}
@@ -19,6 +19,22 @@ const ModelBadge = ({ model }) => {
             )}
             <span className="model-badge-name">{model}</span>
         </span>
+    );
+};
+
+const MappingBox = ({ labelToModel }) => {
+    if (!labelToModel || Object.keys(labelToModel).length === 0) return null;
+    return (
+        <div className="mapping-box">
+            <label>Mapping:</label>
+            <div className="mapping-list">
+                {Object.entries(labelToModel).map(([l, m]) => (
+                    <div key={l} className="mapping-item">
+                        <strong>{l}</strong> = <ModelBadge model={m} />
+                    </div>
+                ))}
+            </div>
+        </div>
     );
 };
 
@@ -148,7 +164,17 @@ Title:`;
 
     const addStage1Response = () => {
         if (currentModel && currentText) {
-            setStage1Responses([...stage1Responses, { model: currentModel, response: currentText }]);
+            const newResponses = [...stage1Responses, { model: currentModel, response: currentText }];
+            setStage1Responses(newResponses);
+
+            // Immediately update mapping so it's visible in Stage 1
+            const newMapping = {};
+            newResponses.forEach((r, i) => {
+                const label = String.fromCharCode(65 + i);
+                newMapping[`Response ${label}`] = r.model;
+            });
+            setLabelToModel(newMapping);
+
             const nextIdx = llmNames.indexOf(currentModel) + 1;
             setCurrentModel(nextIdx > 0 && nextIdx < llmNames.length ? llmNames[nextIdx] : '');
             setCurrentText('');
@@ -338,17 +364,21 @@ Title:`;
                 <label htmlFor="user-query">Your Question:</label>
                 <textarea id="user-query" value={userQuery} onChange={(e) => setUserQuery(e.target.value)} rows={4} />
             </div>
-            <div className="responses-list">
-                {stage1Responses.map((r, i) => (
-                    <div key={i} className="response-item">
-                        <div className="response-header">
-                            <ModelBadge model={r.model} />:
+            <div className={stage1Responses.length > 0 ? "prompt-col-layout" : ""}>
+                <div className="responses-list" style={stage1Responses.length > 0 ? { flex: 2, marginBottom: 0 } : {}}>
+                    {stage1Responses.length === 0 && <div className="no-responses-hint" style={{ color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic', textAlign: 'center', padding: '12px' }}>No responses added yet.</div>}
+                    {stage1Responses.map((r, i) => (
+                        <div key={i} className="response-item">
+                            <div className="response-header">
+                                <ModelBadge model={r.model} />:
+                            </div>
+                            <div className="response-preview">
+                                {r.response.substring(0, 50)}...
+                            </div>
                         </div>
-                        <div className="response-preview">
-                            {r.response.substring(0, 50)}...
-                        </div>
-                    </div>
-                ))}
+                    ))}
+                </div>
+                {stage1Responses.length > 0 && <MappingBox labelToModel={labelToModel} />}
             </div>
             <div className="add-response-form">
                 <div className="model-input-group">
@@ -382,10 +412,13 @@ Title:`;
         <div className="wizard-step">
             <h3>Step 2: Peer Review</h3>
             <div className="wizard-title-display"><strong>Title:</strong> {manualTitle || 'Generating...'}</div>
-            <div className="prompt-box">
-                <label>Stage 2 Prompt:</label>
-                <div className="prompt-preview">{stage2Prompt}</div>
-                <button onClick={() => copyToClipboard(stage2Prompt)} className="copy-btn">Copy Prompt</button>
+            <div className="prompt-col-layout">
+                <div className="prompt-box">
+                    <label>Stage 2 Prompt:</label>
+                    <div className="prompt-preview">{stage2Prompt}</div>
+                    <button onClick={() => copyToClipboard(stage2Prompt)} className="copy-btn">Copy Prompt</button>
+                </div>
+                <MappingBox labelToModel={labelToModel} />
             </div>
             <div className="responses-list">
                 {stage2Responses.map((r, i) => (
@@ -434,10 +467,7 @@ Title:`;
                     <div className="prompt-preview">{stage3Prompt}</div>
                     <button onClick={() => copyToClipboard(stage3Prompt)} className="copy-btn">Copy Prompt</button>
                 </div>
-                <div className="mapping-box">
-                    <label>Mapping:</label>
-                    <div className="mapping-list">{Object.entries(labelToModel).map(([l, m]) => <div key={l} className="mapping-item"><strong>{l}</strong> = <ModelBadge model={m} /></div>)}</div>
-                </div>
+                <MappingBox labelToModel={labelToModel} />
             </div>
             <div className="form-group">
                 <label>Final Synthesis:</label>
