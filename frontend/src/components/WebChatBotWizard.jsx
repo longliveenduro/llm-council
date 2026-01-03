@@ -95,9 +95,14 @@ export default function WebChatBotWizard({ conversationId, currentTitle, previou
         }
     }
 
-    const isChatGPTSelected = activeModel && normalizeName(activeModel).includes('chatgpt');
-    const isGeminiSelected = activeModel && normalizeName(activeModel).includes('gemini');
-    const isClaudeSelected = activeModel && normalizeName(activeModel).includes('claude');
+    const getProviderInfo = (model) => {
+        const n = normalizeName(model);
+        if (n.includes('chatgpt')) return { label: 'ChatGPT', key: 'chatgpt', color: '#10a37f' };
+        if (n.includes('claude')) return { label: 'Claude', key: 'claude', color: '#d97757' };
+        return { label: 'AI Studio', key: 'ai_studio', color: '' };
+    };
+
+    const providerInfo = getProviderInfo(activeModel);
 
     // --- Persistence ---
     useEffect(() => {
@@ -422,9 +427,14 @@ Title:`;
                 <div className="add-response-actions">
                     <button onClick={addStage1Response} disabled={!currentModel || !currentText}>Add Response</button>
                     <div className="automation-row">
-                        <button onClick={() => handleRunAutomation(isFollowUp ? getContextText() : userQuery, 'ai_studio')} className="automation-btn ai-studio-btn" disabled={isAutomating || !userQuery || isChatGPTSelected || isClaudeSelected || !currentModel}>Run via AI Studio</button>
-                        <button onClick={() => handleRunAutomation(isFollowUp ? getContextText() : userQuery, 'chatgpt')} className="automation-btn chatgpt-btn" disabled={isAutomating || !userQuery || isGeminiSelected || isClaudeSelected || !currentModel} style={{ backgroundColor: '#10a37f' }}>Run via ChatGPT</button>
-                        <button onClick={() => handleRunAutomation(isFollowUp ? getContextText() : userQuery, 'claude')} className="automation-btn claude-btn" disabled={isAutomating || !userQuery || isGeminiSelected || isChatGPTSelected || !currentModel} style={{ backgroundColor: '#d97757' }}>Run via Claude</button>
+                        <button
+                            onClick={() => handleRunAutomation(isFollowUp ? getContextText() : userQuery, providerInfo.key)}
+                            className={`automation-btn ${providerInfo.key}-btn`}
+                            disabled={isAutomating || !userQuery || !currentModel}
+                            style={providerInfo.color ? { backgroundColor: providerInfo.color } : {}}
+                        >
+                            Run via {providerInfo.label}
+                        </button>
                     </div>
                 </div>
                 <div className="wizard-actions">
@@ -472,9 +482,14 @@ Title:`;
                 <div className="add-response-actions">
                     <button onClick={addStage2Response} disabled={!currentModel || !currentText}>Add Ranking</button>
                     <div className="automation-row">
-                        <button onClick={() => handleRunAutomation(stage2Prompt, 'ai_studio')} className="automation-btn ai-studio-btn" disabled={isAutomating || !stage2Prompt || isChatGPTSelected || isClaudeSelected || !currentModel}>Run via AI Studio</button>
-                        <button onClick={() => handleRunAutomation(stage2Prompt, 'chatgpt')} className="automation-btn chatgpt-btn" disabled={isAutomating || !stage2Prompt || isGeminiSelected || isClaudeSelected || !currentModel} style={{ backgroundColor: '#10a37f' }}>Run via ChatGPT</button>
-                        <button onClick={() => handleRunAutomation(stage2Prompt, 'claude')} className="automation-btn claude-btn" disabled={isAutomating || !stage2Prompt || isGeminiSelected || isChatGPTSelected || !currentModel} style={{ backgroundColor: '#d97757' }}>Run via Claude</button>
+                        <button
+                            onClick={() => handleRunAutomation(stage2Prompt, providerInfo.key)}
+                            className={`automation-btn ${providerInfo.key}-btn`}
+                            disabled={isAutomating || !stage2Prompt || !currentModel}
+                            style={providerInfo.color ? { backgroundColor: providerInfo.color } : {}}
+                        >
+                            Run via {providerInfo.label}
+                        </button>
                     </div>
                 </div>
                 <div className="wizard-actions">
@@ -508,9 +523,14 @@ Title:`;
                             {stage1Responses.map((r, i) => <option key={i} value={r.model}>{r.model}</option>)}
                         </select>
                         <div className="automation-row">
-                            <button onClick={() => handleRunStage3Automation(stage3Prompt, 'ai_studio')} className="automation-btn stage3-auto-btn ai-studio-btn" disabled={isAutomating || !stage3Prompt || isChatGPTSelected || isClaudeSelected || stage3Response.model === 'Web ChatBot Chairman'}>AI Studio</button>
-                            <button onClick={() => handleRunStage3Automation(stage3Prompt, 'chatgpt')} className="automation-btn stage3-auto-btn chatgpt-btn" disabled={isAutomating || !stage3Prompt || isGeminiSelected || isClaudeSelected || stage3Response.model === 'Web ChatBot Chairman'} style={{ backgroundColor: '#10a37f' }}>ChatGPT</button>
-                            <button onClick={() => handleRunStage3Automation(stage3Prompt, 'claude')} className="automation-btn stage3-auto-btn claude-btn" disabled={isAutomating || !stage3Prompt || isGeminiSelected || isChatGPTSelected || stage3Response.model === 'Web ChatBot Chairman'} style={{ backgroundColor: '#d97757' }}>Claude</button>
+                            <button
+                                onClick={() => handleRunStage3Automation(stage3Prompt, providerInfo.key)}
+                                className={`automation-btn stage3-auto-btn ${providerInfo.key}-btn`}
+                                disabled={isAutomating || !stage3Prompt || stage3Response.model === 'Web ChatBot Chairman'}
+                                style={providerInfo.color ? { backgroundColor: providerInfo.color } : {}}
+                            >
+                                Run via {providerInfo.label}
+                            </button>
                         </div>
                     </div>
                     <textarea value={stage3Response.response || ''} onChange={(e) => setStage3Response({ ...stage3Response, response: e.target.value })} rows={12} placeholder="Final answer..." />

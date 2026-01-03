@@ -29,24 +29,27 @@ describe('WebChatBotWizard Claude Integration', () => {
         // Mock default behavior for automation status
     });
 
-    it('enables the Claude button and disables others when Claude model is selected', () => {
+    it('shows and enables the correct button when a model is selected', () => {
         render(<WebChatBotWizard {...defaultProps} />);
 
         // Type a question
         const questionArea = screen.getByLabelText(/Your Question:/i);
         fireEvent.change(questionArea, { target: { value: 'Test query' } });
 
-        // Select Claude 3.5 Sonnet from current model dropdown
+        // Select Claude 3.5 Sonnet
         const modelSelect = screen.getByLabelText('Current Model');
         fireEvent.change(modelSelect, { target: { value: 'Claude 3.5 Sonnet' } });
 
         const claudeBtn = screen.getByText('Run via Claude');
-        const aiStudioBtn = screen.getByText('Run via AI Studio');
-        const chatgptBtn = screen.getByText('Run via ChatGPT');
-
         expect(claudeBtn).not.toBeDisabled();
-        expect(aiStudioBtn).toBeDisabled();
-        expect(chatgptBtn).toBeDisabled();
+        expect(screen.queryByText('Run via AI Studio')).not.toBeInTheDocument();
+        expect(screen.queryByText('Run via ChatGPT')).not.toBeInTheDocument();
+
+        // Select Gemini 2.5 Flash (default automation model if currentModel is cleared, but here we test explicit selection)
+        fireEvent.change(modelSelect, { target: { value: 'Gemini 3 Pro' } });
+        const aiStudioBtn = screen.getByText('Run via AI Studio');
+        expect(aiStudioBtn).not.toBeDisabled();
+        expect(screen.queryByText('Run via Claude')).not.toBeInTheDocument();
     });
 
     it('calls api.runAutomation with "claude" provider when clicking Run via Claude', async () => {
