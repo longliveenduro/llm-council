@@ -56,7 +56,7 @@ const Highscores = () => {
                         <div className={`highscore-model`}>
                             {item.model}
                         </div>
-                        <div className="highscore-score">{item.score} pts</div>
+                        <div className="highscore-score">{Number(item.score).toFixed(1)} pts</div>
                     </div>
                 ))}
             </div>

@@ -10,6 +10,11 @@ from .config import DATA_DIR
 
 
 # Points for rankings (0-indexed: 1st, 2nd, 3rd...)
+
+# Exponential Moving Average weight (0.2 = valid for last ~5 runs)
+EMA_ALPHA = 0.2
+
+# Points for rankings (0-indexed: 1st, 2nd, 3rd...)
 RANKING_POINTS = {
     0: 25,  # 1st place
     1: 12,  # 2nd place
@@ -22,12 +27,12 @@ RANKING_POINTS = {
 
 SCORES_FILE = os.path.join(str(Path(DATA_DIR).parent), "model_scores.json")
 
-def get_scores() -> Dict[str, int]:
+def get_scores() -> Dict[str, float]:
     """
     Retrieve current model scores.
     
     Returns:
-        Dict mapping model names to their total score.
+        Dict mapping model names to their score (float).
     """
     if not os.path.exists(SCORES_FILE):
         return {}
@@ -40,12 +45,12 @@ def get_scores() -> Dict[str, int]:
         return {}
 
 
-def save_scores(scores: Dict[str, int]):
+def save_scores(scores: Dict[str, float]):
     """
     Save scores to disk.
     
     Args:
-        scores: Dict mapping model names to their total score.
+        scores: Dict mapping model names to their score.
     """
     try:
         with open(SCORES_FILE, 'w') as f:
@@ -56,7 +61,7 @@ def save_scores(scores: Dict[str, int]):
 
 def update_scores(stage2_results: List[Dict[str, Any]], label_to_model: Dict[str, str]):
     """
-    Update scores based on Stage 2 rankings.
+    Update scores based on Stage 2 rankings using Exponential Moving Average.
     
     Args:
         stage2_results: List of dicts containing 'model' (reviewer) and 'ranking' (text).
@@ -65,25 +70,53 @@ def update_scores(stage2_results: List[Dict[str, Any]], label_to_model: Dict[str
     from .council import parse_ranking_from_text
     current_scores = get_scores()
     
-    # Ensure all participating models are tracked, even if they get 0 points
-    for model_name in label_to_model.values():
-        if model_name not in current_scores:
-            current_scores[model_name] = 0
-            
+    # 1. Detect and reset legacy scores (accumulated integers) if found
+    # Since max points per round is 25, any score significantly higher is legacy.
+    for model, score in list(current_scores.items()):
+        if score > 25:
+            print(f"Resetting legacy score for {model}: {score} -> 0")
+            current_scores[model] = 0.0
+
+    # 2. Calculate raw points for THIS round for all models
+    # We track total points and number of reviews for this specific round
+    round_stats = {model: {'points': 0, 'reviews': 0} for model in label_to_model.values()}
+
     for result in stage2_results:
         reviewer_model = result.get('model')
         ranking_text = result.get('ranking') or ""
         
         # Parse the ranking
-        # This returns a list of labels like ['Response A', 'Response C', ...]
         ranked_labels = parse_ranking_from_text(ranking_text)
         
-        # Calculate points for this review
-        points_awarded = _calculate_points_for_review(ranked_labels, reviewer_model, label_to_model)
+        # Calculate points for this single review
+        points_map = _calculate_points_for_review(ranked_labels, reviewer_model, label_to_model)
         
-        # Apply points
-        for model_name, points in points_awarded.items():
-            current_scores[model_name] = current_scores.get(model_name, 0) + points
+        # Aggregate stats for the round
+        for model, points in points_map.items():
+            if model in round_stats:
+                round_stats[model]['points'] += points
+                round_stats[model]['reviews'] += 1
+                
+    # 3. Apply EMA updates
+    for model, stats in round_stats.items():
+        if stats['reviews'] == 0:
+            continue
+            
+        # The score for this specific round is the average of points received
+        # (e.g. if Model A got 25 pts from one reviewer and 12 from another, round_score is 18.5)
+        round_avg_score = stats['points'] / stats['reviews']
+        
+        prev_score = current_scores.get(model)
+        
+        if prev_score is None or prev_score == 0:
+            # New model or first run: initialize with this round's score directly
+            # This gives new models a "fast start" to their actual performance level
+            current_scores[model] = round_avg_score
+        else:
+            # Existing model: Apply EMA decay
+            # New Score = (Previous * (1 - Alpha)) + (Round * Alpha)
+            new_score = (prev_score * (1 - EMA_ALPHA)) + (round_avg_score * EMA_ALPHA)
+            current_scores[model] = round(new_score, 2)
             
     save_scores(current_scores)
 
@@ -111,7 +144,8 @@ def _calculate_points_for_review(
     
     for label in ranked_labels:
         model_name = label_to_model.get(label)
-        if model_name and model_name != reviewer_model:
+        if model_name: 
+            # We treat self-ranked models as VALID votes (since they are anonymized)
             clean_ranking_models.append(model_name)
             
     # Award points based on position in clean list
