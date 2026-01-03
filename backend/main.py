@@ -61,25 +61,25 @@ class Conversation(BaseModel):
     messages: List[Dict[str, Any]]
 
 
-class ManualStage2Request(BaseModel):
+class WebChatBotStage2Request(BaseModel):
     user_query: str
     stage1_results: List[Dict[str, Any]]
     previous_messages: List[Dict[str, Any]] = []
 
 
-class ManualRankingProcessRequest(BaseModel):
+class WebChatBotRankingProcessRequest(BaseModel):
     stage2_results: List[Dict[str, Any]]
     label_to_model: Dict[str, str]
 
 
-class ManualStage3Request(BaseModel):
+class WebChatBotStage3Request(BaseModel):
     user_query: str
     stage1_results: List[Dict[str, Any]]
     stage2_results: List[Dict[str, Any]]
     previous_messages: List[Dict[str, Any]] = []
 
 
-class SaveManualMessageRequest(BaseModel):
+class SaveWebChatBotMessageRequest(BaseModel):
     stage1: List[Dict[str, Any]]
     stage2: List[Dict[str, Any]]
     stage3: Dict[str, Any]
@@ -274,10 +274,10 @@ async def send_message_stream(conversation_id: str, request: SendMessageRequest)
     )
 
 
-# --- Manual Mode Helper Endpoints ---
+# --- Web ChatBot Helper Endpoints ---
 
-@app.post("/api/manual/run-automation")
-async def manual_run_automation(request: AutomationRequest):
+@app.post("/api/web-chatbot/run-automation")
+async def web_chatbot_run_automation(request: AutomationRequest):
     """Run automation for a prompt using specified provider."""
     try:
         if request.provider == "chatgpt":
@@ -293,8 +293,8 @@ async def manual_run_automation(request: AutomationRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/api/manual/stage2-prompt")
-async def manual_stage2_prompt(request: ManualStage2Request):
+@app.post("/api/web-chatbot/stage2-prompt")
+async def web_chatbot_stage2_prompt(request: WebChatBotStage2Request):
     """Generate the Stage 2 prompt and label mapping."""
     # Create anonymized labels
     labels = [chr(65 + i) for i in range(len(request.stage1_results))]
@@ -318,8 +318,8 @@ async def manual_stage2_prompt(request: ManualStage2Request):
     }
 
 
-@app.post("/api/manual/process-rankings")
-async def manual_process_rankings(request: ManualRankingProcessRequest):
+@app.post("/api/web-chatbot/process-rankings")
+async def web_chatbot_process_rankings(request: WebChatBotRankingProcessRequest):
     """Parse manual rankings and calculate aggregate."""
     processed_results = []
     
@@ -343,8 +343,8 @@ async def manual_process_rankings(request: ManualRankingProcessRequest):
     }
 
 
-@app.post("/api/manual/stage3-prompt")
-async def manual_stage3_prompt(request: ManualStage3Request):
+@app.post("/api/web-chatbot/stage3-prompt")
+async def web_chatbot_stage3_prompt(request: WebChatBotStage3Request):
     """Generate the Stage 3 prompt."""
     prompt = build_chairman_prompt(
         request.user_query, 
@@ -355,9 +355,9 @@ async def manual_stage3_prompt(request: ManualStage3Request):
     return {"prompt": prompt}
 
 
-@app.post("/api/conversations/{conversation_id}/message/manual")
-async def save_manual_message(conversation_id: str, request: SaveManualMessageRequest):
-    """Save a fully constructed manual message."""
+@app.post("/api/conversations/{conversation_id}/message/web-chatbot")
+async def save_web_chatbot_message(conversation_id: str, request: SaveWebChatBotMessageRequest):
+    """Save a fully constructed Web ChatBot message."""
     # Check if conversation exists
     conversation = storage.get_conversation(conversation_id)
     if conversation is None:

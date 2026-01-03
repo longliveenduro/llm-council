@@ -1,4 +1,4 @@
-.manual-wizard {
+.web-chatbot-wizard {
     background: var(--bg-primary);
     border-top: 1px solid var(--border-color);
     padding: 16px;
@@ -6,7 +6,7 @@
     flex-direction: column;
 }
 
-.manual-wizard h3 {
+.web-chatbot-wizard h3 {
     margin: 0 0 8px 0;
     font-size: 18px;
     color: var(--text-primary);
@@ -299,7 +299,7 @@
     border-color: var(--accent-color);
 }
 
-.manual-wizard-loading {
+.web-chatbot-wizard-loading {
     padding: 40px;
     text-align: center;
     color: var(--text-secondary);

@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { api } from '../api';
 import { getModelIcon } from '../utils/modelIcons';
-import './ManualWizard.css';
+import './WebChatBotWizard.css';
 
 const ModelBadge = ({ model }) => {
     const iconUrl = getModelIcon(model);
@@ -38,8 +38,8 @@ const MappingBox = ({ labelToModel }) => {
     );
 };
 
-export default function ManualWizard({ conversationId, currentTitle, previousMessages = [], llmNames = [], onAddLlmName, onComplete, onCancel, automationModels = { ai_studio: [], chatgpt: [], claude: [] }, onTitleUpdate, initialQuestion = '' }) {
-    const draftKey = `manual_draft_${conversationId}`;
+export default function WebChatBotWizard({ conversationId, currentTitle, previousMessages = [], llmNames = [], onAddLlmName, onComplete, onCancel, automationModels = { ai_studio: [], chatgpt: [], claude: [] }, onTitleUpdate, initialQuestion = '' }) {
+    const draftKey = `web_chatbot_draft_${conversationId}`;
     const savedDraft = JSON.parse(localStorage.getItem(draftKey) || '{}');
 
     const [step, setStep] = useState(savedDraft.step || 1); // 1: Opinions, 2: Review, 3: Synthesis
@@ -90,7 +90,7 @@ export default function ManualWizard({ conversationId, currentTitle, previousMes
     if (step === 1 || step === 2) {
         if (currentModel) activeModel = currentModel;
     } else if (step === 3) {
-        if (stage3Response.model && stage3Response.model !== 'Manual Chairman') {
+        if (stage3Response.model && stage3Response.model !== 'Web ChatBot Chairman') {
             activeModel = stage3Response.model;
         }
     }
@@ -327,7 +327,7 @@ Title:`;
             setStage3Prompt(promptData.prompt);
             setStage2Responses(processed.stage2_results);
             setAggregateRankings(processed.aggregate_rankings);
-            if (!stage3Response.model || stage3Response.model === 'Manual Chairman') {
+            if (!stage3Response.model || stage3Response.model === 'Web ChatBot Chairman') {
                 if (stage1Responses.length > 0) setStage3Response(prev => ({ ...prev, model: stage1Responses[0].model }));
             }
             setStep(3);
@@ -350,7 +350,7 @@ Title:`;
                 metadata: { label_to_model: labelToModel, aggregate_rankings: aggregateRankings },
                 title: manualTitle
             };
-            await api.saveManualMessage(conversationId, messageData);
+            await api.saveWebChatBotMessage(conversationId, messageData);
             alert('Conversation saved!');
             localStorage.removeItem(draftKey);
             onComplete();
@@ -504,13 +504,13 @@ Title:`;
                 <div className="chairman-input-row" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                         <select value={stage3Response.model} onChange={(e) => setStage3Response({ ...stage3Response, model: e.target.value })} className="model-select">
-                            <option value="Manual Chairman">Manual Chairman</option>
+                            <option value="Web ChatBot Chairman">Web ChatBot Chairman</option>
                             {stage1Responses.map((r, i) => <option key={i} value={r.model}>{r.model}</option>)}
                         </select>
                         <div className="automation-row">
-                            <button onClick={() => handleRunStage3Automation(stage3Prompt, 'ai_studio')} className="automation-btn stage3-auto-btn ai-studio-btn" disabled={isAutomating || !stage3Prompt || isChatGPTSelected || isClaudeSelected || stage3Response.model === 'Manual Chairman'}>AI Studio</button>
-                            <button onClick={() => handleRunStage3Automation(stage3Prompt, 'chatgpt')} className="automation-btn stage3-auto-btn chatgpt-btn" disabled={isAutomating || !stage3Prompt || isGeminiSelected || isClaudeSelected || stage3Response.model === 'Manual Chairman'} style={{ backgroundColor: '#10a37f' }}>ChatGPT</button>
-                            <button onClick={() => handleRunStage3Automation(stage3Prompt, 'claude')} className="automation-btn stage3-auto-btn claude-btn" disabled={isAutomating || !stage3Prompt || isGeminiSelected || isChatGPTSelected || stage3Response.model === 'Manual Chairman'} style={{ backgroundColor: '#d97757' }}>Claude</button>
+                            <button onClick={() => handleRunStage3Automation(stage3Prompt, 'ai_studio')} className="automation-btn stage3-auto-btn ai-studio-btn" disabled={isAutomating || !stage3Prompt || isChatGPTSelected || isClaudeSelected || stage3Response.model === 'Web ChatBot Chairman'}>AI Studio</button>
+                            <button onClick={() => handleRunStage3Automation(stage3Prompt, 'chatgpt')} className="automation-btn stage3-auto-btn chatgpt-btn" disabled={isAutomating || !stage3Prompt || isGeminiSelected || isClaudeSelected || stage3Response.model === 'Web ChatBot Chairman'} style={{ backgroundColor: '#10a37f' }}>ChatGPT</button>
+                            <button onClick={() => handleRunStage3Automation(stage3Prompt, 'claude')} className="automation-btn stage3-auto-btn claude-btn" disabled={isAutomating || !stage3Prompt || isGeminiSelected || isChatGPTSelected || stage3Response.model === 'Web ChatBot Chairman'} style={{ backgroundColor: '#d97757' }}>Claude</button>
                         </div>
                     </div>
                     <textarea value={stage3Response.response || ''} onChange={(e) => setStage3Response({ ...stage3Response, response: e.target.value })} rows={12} placeholder="Final answer..." />
@@ -526,10 +526,10 @@ Title:`;
         </div>
     );
 
-    if (isLoading) return <div className="manual-wizard-loading">Processing...</div>;
+    if (isLoading) return <div className="web-chatbot-wizard-loading">Processing...</div>;
 
     return (
-        <div className="manual-wizard">
+        <div className="web-chatbot-wizard">
             {(isGeneratingTitle || isAutomating) && (
                 <div className="modal-overlay">
                     <div className="modal-content">

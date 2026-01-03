@@ -1,6 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import ManualWizard from './ManualWizard';
+import WebChatBotWizard from './WebChatBotWizard';
 import { api } from '../api';
 
 // Mock API
@@ -12,7 +12,7 @@ vi.mock('../api', () => ({
     },
 }));
 
-describe('ManualWizard Claude Integration', () => {
+describe('WebChatBotWizard Claude Integration', () => {
     const defaultProps = {
         conversationId: 'conv-123',
         currentTitle: 'New Conversation',
@@ -30,7 +30,7 @@ describe('ManualWizard Claude Integration', () => {
     });
 
     it('enables the Claude button and disables others when Claude model is selected', () => {
-        render(<ManualWizard {...defaultProps} />);
+        render(<WebChatBotWizard {...defaultProps} />);
 
         // Type a question
         const questionArea = screen.getByLabelText(/Your Question:/i);
@@ -51,7 +51,7 @@ describe('ManualWizard Claude Integration', () => {
 
     it('calls api.runAutomation with "claude" provider when clicking Run via Claude', async () => {
         api.runAutomation.mockResolvedValue({ response: 'Claude says hello' });
-        render(<ManualWizard {...defaultProps} />);
+        render(<WebChatBotWizard {...defaultProps} />);
 
         // Type a question
         const questionArea = screen.getByLabelText(/Your Question:/i);
@@ -81,7 +81,7 @@ describe('ManualWizard Claude Integration', () => {
 
     it('calls api.runAutomation with thinking model name when Claude is selected', async () => {
         api.runAutomation.mockResolvedValue({ response: 'Thinking results' });
-        render(<ManualWizard {...defaultProps} />);
+        render(<WebChatBotWizard {...defaultProps} />);
 
         // Type a question
         const questionArea = screen.getByLabelText(/Your Question:/i);
@@ -112,7 +112,7 @@ describe('ManualWizard Claude Integration', () => {
             ...defaultProps,
             llmNames: ['Claude 3.5 Sonnet [Ext. Thinking]', ...defaultProps.llmNames]
         };
-        render(<ManualWizard {...propsWithThinking} />);
+        render(<WebChatBotWizard {...propsWithThinking} />);
 
         // Select a model that already has "Thinking" in the name
         const modelSelect = screen.getByLabelText('Current Model');

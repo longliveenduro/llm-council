@@ -118,7 +118,7 @@ export const api = {
    * provider: "ai_studio", "chatgpt", or "claude"
    */
   async runAutomation(prompt, model, provider = "ai_studio") {
-    const response = await fetch(`${API_BASE}/api/manual/run-automation`, {
+    const response = await fetch(`${API_BASE}/api/web-chatbot/run-automation`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -133,10 +133,10 @@ export const api = {
   },
 
   /**
-   * Get Stage 2 prompt (Manual Mode).
+   * Get Stage 2 prompt (Web ChatBot).
    */
   async getStage2Prompt(query, stage1Responses, previousMessages = []) {
-    const response = await fetch(`${API_BASE}/api/manual/stage2-prompt`, {
+    const response = await fetch(`${API_BASE}/api/web-chatbot/stage2-prompt`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -154,10 +154,10 @@ export const api = {
   },
 
   /**
-   * Process rankings (Manual Mode).
+   * Process rankings (Web ChatBot).
    */
   async processRankings(stage2Results, labelToModel) {
-    const response = await fetch(`${API_BASE}/api/manual/process-rankings`, {
+    const response = await fetch(`${API_BASE}/api/web-chatbot/process-rankings`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -174,10 +174,10 @@ export const api = {
   },
 
   /**
-   * Get Stage 3 prompt (Manual Mode).
+   * Get Stage 3 prompt (Web ChatBot).
    */
   async getStage3Prompt(query, stage1Results, stage2Results, previousMessages = []) {
-    const response = await fetch(`${API_BASE}/api/manual/stage3-prompt`, {
+    const response = await fetch(`${API_BASE}/api/web-chatbot/stage3-prompt`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -196,10 +196,10 @@ export const api = {
   },
 
   /**
-   * Save a fully constructed manual message.
+   * Save a fully constructed web-chatbot message.
    */
-  async saveManualMessage(conversationId, messageData) {
-    const response = await fetch(`${API_BASE}/api/conversations/${conversationId}/message/manual`, {
+  async saveWebChatBotMessage(conversationId, messageData) {
+    const response = await fetch(`${API_BASE}/api/conversations/${conversationId}/message/web-chatbot`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -207,7 +207,7 @@ export const api = {
       body: JSON.stringify(messageData),
     });
     if (!response.ok) {
-      throw new Error('Failed to save manual message');
+      throw new Error('Failed to save web-chatbot message');
     }
     return response.json();
   },

@@ -3,7 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import Stage1 from './Stage1';
 import Stage2 from './Stage2';
 import Stage3 from './Stage3';
-import ManualWizard from './ManualWizard';
+import WebChatBotWizard from './WebChatBotWizard';
 import Highscores from './Highscores';
 import './ChatInterface.css';
 
@@ -22,8 +22,8 @@ export default function ChatInterface({
   const [input, setInput] = useState('');
 
 
-  // Full Manual Mode State
-  const [isFullManualMode, setIsFullManualMode] = useState(false);
+  // Web ChatBot Mode State
+  const [isWebChatBotMode, setIsWebChatBotMode] = useState(false);
   const [isContinuing, setIsContinuing] = useState(false);
 
   const messagesEndRef = useRef(null);
@@ -43,15 +43,15 @@ export default function ChatInterface({
   useEffect(() => {
     setIsContinuing(false);
     setInput(''); // Clear input when switching conversations
-    const hasDraft = localStorage.getItem(`manual_draft_${conversation?.id}`);
-    setIsFullManualMode(!!hasDraft);
+    const hasDraft = localStorage.getItem(`web_chatbot_draft_${conversation?.id}`);
+    setIsWebChatBotMode(!!hasDraft);
 
     // Update ref after side effects
     prevConversationIdRef.current = conversation?.id;
   }, [conversation?.id]);
 
   // If conversation changed (render ID != ref ID), force input to empty to prevent leakage
-  // into the ManualWizard before the useEffect can clear the state.
+  // into the WebChatBotWizard before the useEffect can clear the state.
   const effectiveInput = conversation?.id === prevConversationIdRef.current ? input : '';
 
   const handleSubmit = (e) => {
@@ -78,8 +78,8 @@ export default function ChatInterface({
     }
   };
 
-  const handleManualWizardComplete = () => {
-    setIsFullManualMode(false);
+  const handleWebChatBotWizardComplete = () => {
+    setIsWebChatBotMode(false);
     if (onReload) onReload();
     // Also scroll bottom
     setTimeout(scrollToBottom, 100);
@@ -113,29 +113,29 @@ export default function ChatInterface({
 
   return (
     <div className="chat-interface">
-      {showInput && isFullManualMode ? (
-        <div className="manual-wizard-fullscreen">
+      {showInput && isWebChatBotMode ? (
+        <div className="web-chatbot-wizard-fullscreen">
           <div className="mode-toggle">
             <label className="switch">
               <input
                 type="checkbox"
-                checked={isFullManualMode}
-                onChange={() => setIsFullManualMode(!isFullManualMode)}
+                checked={isWebChatBotMode}
+                onChange={() => setIsWebChatBotMode(!isWebChatBotMode)}
                 disabled={isLoading}
               />
               <span className="slider round"></span>
             </label>
-            <span className="mode-label">Full Manual Mode</span>
+            <span className="mode-label">Web ChatBot</span>
           </div>
-          <ManualWizard
+          <WebChatBotWizard
             key={conversation.id}
             conversationId={conversation.id}
             currentTitle={conversation.title}
             previousMessages={conversation.messages}
             llmNames={llmNames}
             onAddLlmName={onAddLlmName}
-            onComplete={handleManualWizardComplete}
-            onCancel={() => setIsFullManualMode(false)}
+            onComplete={handleWebChatBotWizardComplete}
+            onCancel={() => setIsWebChatBotMode(false)}
             automationModels={automationModels}
             onTitleUpdate={onTitleUpdate}
             initialQuestion={effectiveInput}
@@ -144,7 +144,7 @@ export default function ChatInterface({
       ) : (
         <>
           <div className="messages-container">
-            {conversation.messages.length === 0 && !isFullManualMode ? (
+            {conversation.messages.length === 0 && !isWebChatBotMode ? (
               <div className="empty-state">
                 <div className="council-image-container">
                   <img
@@ -236,13 +236,13 @@ export default function ChatInterface({
                 <label className="switch">
                   <input
                     type="checkbox"
-                    checked={isFullManualMode}
-                    onChange={() => setIsFullManualMode(!isFullManualMode)}
+                    checked={isWebChatBotMode}
+                    onChange={() => setIsWebChatBotMode(!isWebChatBotMode)}
                     disabled={isLoading}
                   />
                   <span className="slider round"></span>
                 </label>
-                <span className="mode-label">Full Manual Mode</span>
+                <span className="mode-label">Web ChatBot</span>
               </div>
 
               <form className="input-form" onSubmit={handleSubmit}>

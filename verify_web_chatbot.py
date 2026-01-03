@@ -2,7 +2,7 @@ import asyncio
 from fastapi.testclient import TestClient
 from backend.main import app
 
-def test_manual_mode_flow():
+def test_web_chatbot_flow():
     client = TestClient(app)
     
     # 1. Test Stage 2 Prompt Generation
@@ -14,7 +14,7 @@ def test_manual_mode_flow():
     ]
     
     response = client.post(
-        "/api/manual/stage2-prompt",
+        "/api/web-chatbot/stage2-prompt",
         json={"user_query": query, "stage1_results": stage1_results}
     )
     assert response.status_code == 200
@@ -35,7 +35,7 @@ def test_manual_mode_flow():
     ]
     
     response = client.post(
-        "/api/manual/process-rankings",
+        "/api/web-chatbot/process-rankings",
         json={"stage2_results": stage2_results, "label_to_model": label_to_model}
     )
     assert response.status_code == 200
@@ -53,7 +53,7 @@ def test_manual_mode_flow():
     # 3. Test Stage 3 Prompt Generation
     print("\n--- Testing Stage 3 Prompt Generation ---")
     response = client.post(
-        "/api/manual/stage3-prompt",
+        "/api/web-chatbot/stage3-prompt",
         json={
             "user_query": query,
             "stage1_results": stage1_results,
@@ -66,8 +66,8 @@ def test_manual_mode_flow():
     assert "STAGE 1" in data["prompt"]
     assert "STAGE 2" in data["prompt"]
 
-    # 4. Test Saving Manual Message with Title
-    print("\n--- Testing Save Manual Message ---")
+    # 4. Test Saving Web ChatBot Message with Title
+    print("\n--- Testing Save Web ChatBot Message ---")
     # First create a conversation
     resp = client.post("/api/conversations", json={})
     conv_id = resp.json()["id"]
@@ -83,7 +83,7 @@ def test_manual_mode_flow():
     }
     
     response = client.post(
-        f"/api/conversations/{conv_id}/message/manual",
+        f"/api/conversations/{conv_id}/message/web-chatbot",
         json=manual_message_data
     )
     assert response.status_code == 200
@@ -100,7 +100,7 @@ def test_manual_mode_flow():
     assert conv_data["title"] == manual_title
     print("Verified message content and manual title in storage.")
 
-    print("\n✓ All Manual Mode backend tests passed!")
+    print("\n✓ All Web ChatBot backend tests passed!")
 
 if __name__ == "__main__":
-    test_manual_mode_flow()
+    test_web_chatbot_flow()

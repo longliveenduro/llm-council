@@ -26,7 +26,7 @@ LLM Council is a 3-stage deliberation system where multiple LLMs collaboratively
 - `stage3_synthesize_final()`: Chairman synthesis from all responses + rankings
 - Includes helper methods for automation login/logout and model syncing
 
-**Browser Automation (`browser_automation/`)** - Manual Mode Engine
+**Browser Automation (`browser_automation/`)** - Web ChatBot Engine
 - `ai_studio_automation.py`: Playwright script for Google AI Studio
 - `chatgpt_automation.py`: Playwright script for ChatGPT
 - Uses persistent context in `.ai_studio_browser_data` and `.chatgpt_browser_data`
@@ -38,7 +38,7 @@ LLM Council is a 3-stage deliberation system where multiple LLMs collaboratively
 - Main orchestration: manages conversations and automation status
 - Handles theme persistence (light/dark)
 
-**`components/ManualWizard.jsx`**
+**`components/WebChatBotWizard.jsx`**
 - Orchestrates the semi-automated 3-stage process
 - Interfaces with backend automation endpoints
 
