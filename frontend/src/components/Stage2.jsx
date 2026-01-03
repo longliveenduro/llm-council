@@ -45,7 +45,9 @@ export default function Stage2({ rankings, labelToModel, aggregateRankings }) {
         {rankings.map((rank, index) => {
           const iconUrl = getModelIcon(rank.model);
           const label = getModelLabel(rank.model, labelToModel);
-          const modelDisplayName = rank.model.split('/')[1] || rank.model;
+          const modelDisplayName = (rank.model.split('/')[1] || rank.model)
+            .replace('Chat GPT', 'ChatGPT')
+            .replace(' [Ext. Thinking]', '');
           const fullLabel = label ? `Model ${label}: ${modelDisplayName}` : modelDisplayName;
 
           return (

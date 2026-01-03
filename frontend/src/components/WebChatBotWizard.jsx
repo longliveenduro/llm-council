@@ -115,7 +115,7 @@ const MappingBox = ({ labelToModel, scores = {} }) => {
                     return (
                         <div key={l} className="mapping-item">
                             <div className="mapping-item-main">
-                                <strong>{l}</strong> = <ModelBadge model={m} />
+                                <strong>{l.replace('Response ', 'Model ')}</strong> = <ModelBadge model={m} />
                             </div>
                             {score && score.count !== 0 && (
                                 <div className="mapping-item-score" title={`Average Rank: ${score.avgRank}`}>
@@ -517,7 +517,7 @@ Title:`;
                     {stage1Responses.map((r, i) => (
                         <div key={i} className="response-item">
                             <div className="response-header">
-                                <ModelBadge model={r.model} />:
+                                <span className="response-model-label">Model {String.fromCharCode(65 + i)}:</span> <ModelBadge model={r.model} />:
                             </div>
                             <div className="response-preview">
                                 {r.response.substring(0, 50)}...
@@ -573,16 +573,19 @@ Title:`;
                 <MappingBox labelToModel={labelToModel} scores={currentScores} />
             </div>
             <div className="responses-list">
-                {stage2Responses.map((r, i) => (
-                    <div key={i} className="response-item">
-                        <div className="response-header">
-                            <ModelBadge model={r.model} />:
+                {stage2Responses.map((r, i) => {
+                    const label = Object.entries(labelToModel).find(([_, m]) => m === r.model)?.[0]?.replace('Response ', '') || '?';
+                    return (
+                        <div key={i} className="response-item">
+                            <div className="response-header">
+                                <span className="response-model-label">Model {label}:</span> <ModelBadge model={r.model} />:
+                            </div>
+                            <div className="response-preview">
+                                {r.ranking.substring(0, 50)}...
+                            </div>
                         </div>
-                        <div className="response-preview">
-                            {r.ranking.substring(0, 50)}...
-                        </div>
-                    </div>
-                ))}
+                    );
+                })}
             </div>
             <div className="add-response-form">
                 <select value={currentModel} onChange={(e) => setCurrentModel(e.target.value)} className="model-select">

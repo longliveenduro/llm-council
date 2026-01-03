@@ -16,7 +16,12 @@ export default function Stage1({ responses }) {
 
       <div className="tabs">
         {responses.map((resp, index) => {
-          const modelDisplayName = resp.model.split('/')[1] || resp.model;
+          let modelDisplayName = resp.model.split('/')[1] || resp.model;
+          // Normalize names
+          modelDisplayName = modelDisplayName
+            .replace('Chat GPT', 'ChatGPT')
+            .replace(' [Ext. Thinking]', '');
+
           const iconUrl = getModelIcon(resp.model);
           return (
             <button

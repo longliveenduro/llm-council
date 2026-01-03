@@ -188,7 +188,8 @@ async def send_message(conversation_id: str, request: SendMessageRequest):
         conversation_id,
         stage1_results,
         stage2_results,
-        stage3_result
+        stage3_result,
+        metadata
     )
 
     # Return the complete response with metadata
@@ -254,7 +255,8 @@ async def send_message_stream(conversation_id: str, request: SendMessageRequest)
                 conversation_id,
                 stage1_results,
                 stage2_results,
-                stage3_result
+                stage3_result,
+                {"label_to_model": label_to_model, "aggregate_rankings": aggregate_rankings}
             )
 
             # Send completion event
@@ -384,7 +386,8 @@ async def save_web_chatbot_message(conversation_id: str, request: SaveWebChatBot
         conversation_id,
         request.stage1,
         request.stage2,
-        request.stage3
+        request.stage3,
+        request.metadata
     )
 
     return {"status": "success"}

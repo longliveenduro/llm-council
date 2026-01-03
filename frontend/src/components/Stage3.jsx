@@ -17,7 +17,9 @@ export default function Stage3({ finalResponse, labelToModel }) {
   }
 
   const label = getModelLabel(finalResponse.model, labelToModel);
-  const modelDisplayName = finalResponse.model.split('/')[1] || finalResponse.model;
+  const modelDisplayName = (finalResponse.model.split('/')[1] || finalResponse.model)
+    .replace('Chat GPT', 'ChatGPT')
+    .replace(' [Ext. Thinking]', '');
   const chairmanLabel = label ? `Model ${label}: ${modelDisplayName}` : modelDisplayName;
 
   return (
