@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { api } from '../api';
 import { getModelIcon } from '../utils/modelIcons';
@@ -22,17 +22,110 @@ const ModelBadge = ({ model }) => {
     );
 };
 
-const MappingBox = ({ labelToModel }) => {
+const parseRankingFromText = (rankingText) => {
+    if (!rankingText) return [];
+
+    // Look for "FINAL RANKING:" section
+    if (rankingText.includes("FINAL RANKING:")) {
+        const parts = rankingText.split("FINAL RANKING:");
+        if (parts.length >= 2) {
+            const rankingSection = parts[1];
+            // Try to extract numbered list format (e.g., "1. Response A")
+            const numberedMatches = rankingSection.match(/\d+\.\s*Response [A-Z]/g);
+            if (numberedMatches) {
+                return numberedMatches.map(m => m.match(/Response [A-Z]/)[0]);
+            }
+
+            // Fallback: Extract all "Response X" patterns in order
+            const matches = rankingSection.match(/Response [A-Z]/g);
+            return matches || [];
+        }
+    }
+
+    // Fallback: try to find any "Response X" patterns in order in the whole text
+    const matches = rankingText.match(/Response [A-Z]/g);
+    return matches || [];
+};
+
+const calculateCurrentScores = (stage2Responses, labelToModel) => {
+    if (!stage2Responses || stage2Responses.length === 0) return {};
+
+    const modelPositions = {}; // modelName -> list of positions
+    const labelToModelMap = labelToModel || {};
+
+    stage2Responses.forEach(r => {
+        const rankingText = r.ranking || "";
+        const parsedRanking = parseRankingFromText(rankingText);
+
+        parsedRanking.forEach((label, index) => {
+            const modelName = labelToModelMap[label];
+            if (modelName) {
+                if (!modelPositions[modelName]) modelPositions[modelName] = [];
+                modelPositions[modelName].push(index + 1);
+            }
+        });
+    });
+
+    const aggregate = [];
+    Object.entries(modelPositions).forEach(([model, positions]) => {
+        if (positions.length > 0) {
+            const avgRank = positions.reduce((a, b) => a + b, 0) / positions.length;
+            aggregate.push({
+                model,
+                avgRank: Math.round(avgRank * 10) / 10,
+                count: positions.length
+            });
+        }
+    });
+
+    // Sort by avgRank (lower is better)
+    aggregate.sort((a, b) => a.avgRank - b.avgRank);
+
+    // Assign medals based on rank
+    const scores = {};
+    let currentRankIndex = 0;
+    aggregate.forEach((item, i) => {
+        if (i > 0 && item.avgRank > aggregate[i - 1].avgRank) {
+            currentRankIndex = i;
+        }
+
+        let medal = null;
+        if (currentRankIndex === 0) medal = '🥇';
+        else if (currentRankIndex === 1) medal = '🥈';
+        else if (currentRankIndex === 2) medal = '🥉';
+
+        scores[item.model] = {
+            avgRank: item.avgRank,
+            medal: medal,
+            rankIndex: currentRankIndex
+        };
+    });
+
+    return scores;
+};
+
+const MappingBox = ({ labelToModel, scores = {} }) => {
     if (!labelToModel || Object.keys(labelToModel).length === 0) return null;
     return (
         <div className="mapping-box">
             <label>Mapping:</label>
             <div className="mapping-list">
-                {Object.entries(labelToModel).map(([l, m]) => (
-                    <div key={l} className="mapping-item">
-                        <strong>{l}</strong> = <ModelBadge model={m} />
-                    </div>
-                ))}
+                {Object.entries(labelToModel).map(([l, m]) => {
+                    const score = scores[m];
+                    return (
+                        <div key={l} className="mapping-item">
+                            <div className="mapping-item-main">
+                                <strong>{l}</strong> = <ModelBadge model={m} />
+                            </div>
+                            {score && score.count !== 0 && (
+                                <div className="mapping-item-score" title={`Average Rank: ${score.avgRank}`}>
+                                    {score.medal && <span className="score-medal">{score.medal}</span>}
+                                    <span className="score-rank">{score.avgRank}</span>
+                                </div>
+                            )}
+                        </div>
+                    );
+                })}
             </div>
         </div>
     );
@@ -63,6 +156,10 @@ export default function WebChatBotWizard({ conversationId, currentTitle, previou
     // Input State for current item
     const [currentModel, setCurrentModel] = useState(savedDraft.currentModel || llmNames[0] || '');
     const [currentText, setCurrentText] = useState(savedDraft.currentText || '');
+
+    const currentScores = useMemo(() => {
+        return calculateCurrentScores(stage2Responses, labelToModel);
+    }, [stage2Responses, labelToModel]);
 
     // Sync aiStudioModel with available models
     useEffect(() => {
@@ -413,7 +510,7 @@ Title:`;
                         </div>
                     ))}
                 </div>
-                {stage1Responses.length > 0 && <MappingBox labelToModel={labelToModel} />}
+                {stage1Responses.length > 0 && <MappingBox labelToModel={labelToModel} scores={currentScores} />}
             </div>
             <div className="add-response-form">
                 <div className="model-input-group">
@@ -458,7 +555,7 @@ Title:`;
                     <div className="prompt-preview">{stage2Prompt}</div>
                     <button onClick={() => copyToClipboard(stage2Prompt)} className="copy-btn">Copy Prompt</button>
                 </div>
-                <MappingBox labelToModel={labelToModel} />
+                <MappingBox labelToModel={labelToModel} scores={currentScores} />
             </div>
             <div className="responses-list">
                 {stage2Responses.map((r, i) => (
@@ -512,7 +609,7 @@ Title:`;
                     <div className="prompt-preview">{stage3Prompt}</div>
                     <button onClick={() => copyToClipboard(stage3Prompt)} className="copy-btn">Copy Prompt</button>
                 </div>
-                <MappingBox labelToModel={labelToModel} />
+                <MappingBox labelToModel={labelToModel} scores={currentScores} />
             </div>
             <div className="form-group">
                 <label>Final Synthesis:</label>
