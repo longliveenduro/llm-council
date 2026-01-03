@@ -164,7 +164,19 @@ Title:`;
 
     const addStage1Response = () => {
         if (currentModel && currentText) {
-            const newResponses = [...stage1Responses, { model: currentModel, response: currentText }];
+            const existingIdx = stage1Responses.findIndex(r => r.model === currentModel);
+            let newResponses;
+
+            if (existingIdx !== -1) {
+                if (!window.confirm(`A response from "${currentModel}" has already been added. Do you want to overwrite the old response with the new one?`)) {
+                    return;
+                }
+                newResponses = [...stage1Responses];
+                newResponses[existingIdx] = { model: currentModel, response: currentText };
+            } else {
+                newResponses = [...stage1Responses, { model: currentModel, response: currentText }];
+            }
+
             setStage1Responses(newResponses);
 
             // Immediately update mapping so it's visible in Stage 1
@@ -175,20 +187,38 @@ Title:`;
             });
             setLabelToModel(newMapping);
 
-            const nextIdx = llmNames.indexOf(currentModel) + 1;
-            setCurrentModel(nextIdx > 0 && nextIdx < llmNames.length ? llmNames[nextIdx] : '');
+            if (existingIdx === -1) {
+                const nextIdx = llmNames.indexOf(currentModel) + 1;
+                setCurrentModel(nextIdx > 0 && nextIdx < llmNames.length ? llmNames[nextIdx] : '');
+            }
             setCurrentText('');
         }
     };
 
     const addStage2Response = () => {
         if (currentModel && currentText) {
-            setStage2Responses([...stage2Responses, { model: currentModel, ranking: currentText }]);
-            const stage1Models = stage1Responses.map(r => r.model);
-            const otherModels = llmNames.filter(name => !stage1Models.includes(name));
-            const allReviewerModels = [...stage1Models, ...otherModels];
-            const nextIdx = allReviewerModels.indexOf(currentModel) + 1;
-            setCurrentModel(nextIdx > 0 && nextIdx < allReviewerModels.length ? allReviewerModels[nextIdx] : '');
+            const existingIdx = stage2Responses.findIndex(r => r.model === currentModel);
+            let newResponses;
+
+            if (existingIdx !== -1) {
+                if (!window.confirm(`A response from "${currentModel}" has already been added. Do you want to overwrite the old response with the new one?`)) {
+                    return;
+                }
+                newResponses = [...stage2Responses];
+                newResponses[existingIdx] = { model: currentModel, ranking: currentText };
+            } else {
+                newResponses = [...stage2Responses, { model: currentModel, ranking: currentText }];
+            }
+
+            setStage2Responses(newResponses);
+
+            if (existingIdx === -1) {
+                const stage1Models = stage1Responses.map(r => r.model);
+                const otherModels = llmNames.filter(name => !stage1Models.includes(name));
+                const allReviewerModels = [...stage1Models, ...otherModels];
+                const nextIdx = allReviewerModels.indexOf(currentModel) + 1;
+                setCurrentModel(nextIdx > 0 && nextIdx < allReviewerModels.length ? allReviewerModels[nextIdx] : '');
+            }
             setCurrentText('');
         }
     };
