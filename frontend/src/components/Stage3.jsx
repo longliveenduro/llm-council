@@ -2,10 +2,23 @@ import ReactMarkdown from 'react-markdown';
 import { getModelIcon } from '../utils/modelIcons';
 import './Stage3.css';
 
-export default function Stage3({ finalResponse }) {
+function getModelLabel(modelName, labelToModel) {
+  if (!labelToModel) return null;
+  const entry = Object.entries(labelToModel).find(([_, model]) => model === modelName);
+  if (entry) {
+    return entry[0].replace('Response ', '');
+  }
+  return null;
+}
+
+export default function Stage3({ finalResponse, labelToModel }) {
   if (!finalResponse) {
     return null;
   }
+
+  const label = getModelLabel(finalResponse.model, labelToModel);
+  const modelDisplayName = finalResponse.model.split('/')[1] || finalResponse.model;
+  const chairmanLabel = label ? `Model ${label}: ${modelDisplayName}` : modelDisplayName;
 
   return (
     <div className="stage stage3">
@@ -22,7 +35,7 @@ export default function Stage3({ finalResponse }) {
             />
           )}
           <div className="chairman-label">
-            Chairman: {finalResponse.model.split('/')[1] || finalResponse.model}
+            Chairman: {chairmanLabel}
           </div>
         </div>
         <div className="final-text markdown-content">

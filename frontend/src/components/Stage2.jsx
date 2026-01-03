@@ -15,6 +15,15 @@ function deAnonymizeText(text, labelToModel) {
   return result;
 }
 
+function getModelLabel(modelName, labelToModel) {
+  if (!labelToModel) return null;
+  const entry = Object.entries(labelToModel).find(([_, model]) => model === modelName);
+  if (entry) {
+    return entry[0].replace('Response ', '');
+  }
+  return null;
+}
+
 export default function Stage2({ rankings, labelToModel, aggregateRankings }) {
   const [activeTab, setActiveTab] = useState(0);
 
@@ -35,6 +44,10 @@ export default function Stage2({ rankings, labelToModel, aggregateRankings }) {
       <div className="tabs">
         {rankings.map((rank, index) => {
           const iconUrl = getModelIcon(rank.model);
+          const label = getModelLabel(rank.model, labelToModel);
+          const modelDisplayName = rank.model.split('/')[1] || rank.model;
+          const fullLabel = label ? `Model ${label}: ${modelDisplayName}` : modelDisplayName;
+
           return (
             <button
               key={index}
@@ -50,7 +63,7 @@ export default function Stage2({ rankings, labelToModel, aggregateRankings }) {
                   onError={(e) => e.target.style.display = 'none'}
                 />
               )}
-              {rank.model.split('/')[1] || rank.model}
+              {fullLabel}
             </button>
           );
         })}
