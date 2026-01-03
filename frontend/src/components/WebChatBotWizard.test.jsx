@@ -3,6 +3,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import WebChatBotWizard from './WebChatBotWizard';
 import { api } from '../api';
 
+// Re-expose calculateCurrentScores for testing if needed, or just let the wizard do its thing
+
 // Mock API
 vi.mock('../api', () => ({
     api: {
@@ -136,5 +138,66 @@ describe('WebChatBotWizard Claude Integration', () => {
                 'claude'
             );
         });
+    });
+});
+
+describe('WebChatBotWizard Stage 3 Preselection', () => {
+    const defaultProps = {
+        conversationId: 'conv-456',
+        currentTitle: 'New Conversation',
+        llmNames: ['Model A', 'Model B', 'Model C'],
+        automationModels: {
+            ai_studio: [],
+            chatgpt: [],
+            claude: [],
+        },
+    };
+
+    it('preselects the winner from Stage 2 and shows explanation', async () => {
+        const savedDraft = {
+            step: 2,
+            stage1Responses: [
+                { model: 'Model A', response: 'A' },
+                { model: 'Model B', response: 'B' },
+            ],
+            labelToModel: {
+                'Response A': 'Model A',
+                'Response B': 'Model B',
+            },
+            stage2Responses: [
+                { model: 'Model A', ranking: 'FINAL RANKING:\n1. Response B\n2. Response A' },
+            ],
+            userQuery: 'Which is better?',
+        };
+
+        // Mock API responses for handleGoToStep3
+        api.processRankings = vi.fn().mockResolvedValue({
+            stage2_results: savedDraft.stage2Responses,
+            aggregate_rankings: []
+        });
+        api.getStage3Prompt = vi.fn().mockResolvedValue({ prompt: 'Stage 3 Prompt' });
+
+        const draftKey = `web_chatbot_draft_${defaultProps.conversationId}`;
+        localStorage.setItem(draftKey, JSON.stringify(savedDraft));
+
+        render(<WebChatBotWizard {...defaultProps} />);
+
+        // Click "Next: Synthesis"
+        const nextBtn = screen.getByText('Next: Synthesis');
+        fireEvent.click(nextBtn);
+
+        await waitFor(() => {
+            expect(screen.getByText('Step 3: Synthesis')).toBeInTheDocument();
+        });
+
+        // Verify Model B is preselected (it won the ranking from Model A)
+        const modelSelect = screen.getByDisplayValue('Model B');
+        expect(modelSelect).toBeInTheDocument();
+
+        // Verify explanation text
+        const explanation = screen.getByText(/Model "Model B" was preselected because it had the highest scores in Stage 2/i);
+        expect(explanation).toBeInTheDocument();
+
+        localStorage.removeItem(draftKey);
     });
 });

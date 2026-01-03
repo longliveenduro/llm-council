@@ -152,6 +152,7 @@ export default function WebChatBotWizard({ conversationId, currentTitle, previou
     const [manualTitle, setManualTitle] = useState(savedDraft.manualTitle || (currentTitle !== 'New Conversation' ? currentTitle : ''));
     const [aggregateRankings, setAggregateRankings] = useState(savedDraft.aggregateRankings || []);
     const [aiStudioModel, setAiStudioModel] = useState(savedDraft.aiStudioModel || (automationModels.ai_studio[0]?.name) || 'Gemini 2.5 Flash');
+    const [preselectionReason, setPreselectionReason] = useState(savedDraft.preselectionReason || '');
 
     // Input State for current item
     const [currentModel, setCurrentModel] = useState(savedDraft.currentModel || llmNames[0] || '');
@@ -206,7 +207,7 @@ export default function WebChatBotWizard({ conversationId, currentTitle, previou
         const draft = {
             step, userQuery, stage1Responses, stage2Prompt, labelToModel,
             stage2Responses, stage3Prompt, stage3Response, manualTitle,
-            aggregateRankings, aiStudioModel, currentModel, currentText
+            aggregateRankings, aiStudioModel, currentModel, currentText, preselectionReason
         };
         localStorage.setItem(draftKey, JSON.stringify(draft));
     }, [draftKey, step, userQuery, stage1Responses, stage2Prompt, labelToModel, stage2Responses, stage3Prompt, stage3Response, manualTitle, aggregateRankings, aiStudioModel, currentModel, currentText]);
@@ -429,9 +430,23 @@ Title:`;
             setStage3Prompt(promptData.prompt);
             setStage2Responses(processed.stage2_results);
             setAggregateRankings(processed.aggregate_rankings);
-            if (!stage3Response.model || stage3Response.model === 'Web ChatBot Chairman') {
-                if (stage1Responses.length > 0) setStage3Response(prev => ({ ...prev, model: stage1Responses[0].model }));
+
+            const scores = calculateCurrentScores(processed.stage2_results, labelToModel);
+            const winners = Object.entries(scores)
+                .filter(([_, score]) => score.rankIndex === 0)
+                .map(([model, _]) => model);
+
+            if (winners.length > 0) {
+                const winner = winners[0];
+                setStage3Response(prev => ({ ...prev, model: winner }));
+                setPreselectionReason(`Model "${winner}" was preselected because it had the highest scores in Stage 2.`);
+            } else if (!stage3Response.model || stage3Response.model === 'Web ChatBot Chairman') {
+                if (stage1Responses.length > 0) {
+                    setStage3Response(prev => ({ ...prev, model: stage1Responses[0].model }));
+                    setPreselectionReason('');
+                }
             }
+
             setStep(3);
         } catch (error) {
             alert('Failed to process rankings');
@@ -630,6 +645,11 @@ Title:`;
                             </button>
                         </div>
                     </div>
+                    {preselectionReason && (
+                        <div className="preselection-explanation" style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '-4px' }}>
+                            {preselectionReason}
+                        </div>
+                    )}
                     <textarea value={stage3Response.response || ''} onChange={(e) => setStage3Response({ ...stage3Response, response: e.target.value })} rows={12} placeholder="Final answer..." />
                 </div>
                 <div className="wizard-actions">
