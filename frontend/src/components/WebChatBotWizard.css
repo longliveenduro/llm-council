@@ -250,9 +250,23 @@
 .mapping-box label {
     font-size: 14px;
     font-weight: 500;
-    margin-bottom: 8px;
-    display: block;
+    margin-bottom: 0;
+    display: inline-block;
     color: var(--text-primary);
+}
+
+.mapping-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-bottom: 8px;
+}
+
+.score-explanation {
+    font-size: 11px;
+    color: var(--text-muted);
+    font-style: italic;
+    font-weight: normal;
 }
 
 .mapping-list {

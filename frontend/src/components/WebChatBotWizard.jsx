@@ -104,11 +104,14 @@ const calculateCurrentScores = (stage2Responses, labelToModel) => {
     return scores;
 };
 
-const MappingBox = ({ labelToModel, scores = {} }) => {
+const MappingBox = ({ labelToModel, scores = {}, showScoreExplanation = false }) => {
     if (!labelToModel || Object.keys(labelToModel).length === 0) return null;
     return (
         <div className="mapping-box">
-            <label>Mapping:</label>
+            <div className="mapping-header">
+                <label>Mapping:</label>
+                {showScoreExplanation && <span className="score-explanation">(Lower is better)</span>}
+            </div>
             <div className="mapping-list">
                 {Object.entries(labelToModel).map(([l, m]) => {
                     const score = scores[m];
@@ -627,7 +630,7 @@ Title:`;
                     <div className="prompt-preview">{stage3Prompt}</div>
                     <button onClick={() => copyToClipboard(stage3Prompt)} className="copy-btn">Copy Prompt</button>
                 </div>
-                <MappingBox labelToModel={labelToModel} scores={currentScores} />
+                <MappingBox labelToModel={labelToModel} scores={currentScores} showScoreExplanation={true} />
             </div>
             <div className="form-group">
                 <label>Final Synthesis:</label>
