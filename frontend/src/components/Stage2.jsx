@@ -1,7 +1,13 @@
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import remarkGfm from 'remark-gfm';
+import 'katex/dist/katex.min.css';
+
 import { getModelIcon } from '../utils/modelIcons';
 import './Stage2.css';
+
 
 function deAnonymizeText(text, labelToModel) {
   if (!labelToModel) return text;
@@ -87,10 +93,15 @@ export default function Stage2({ rankings, labelToModel, aggregateRankings }) {
           </div>
         </div>
         <div className="ranking-content markdown-content">
-          <ReactMarkdown>
+          <ReactMarkdown
+            remarkPlugins={[remarkMath, remarkGfm]}
+            rehypePlugins={[rehypeKatex]}
+          >
             {deAnonymizeText(rankings[activeTab].ranking, labelToModel)}
           </ReactMarkdown>
         </div>
+
+
 
         {rankings[activeTab].parsed_ranking &&
           rankings[activeTab].parsed_ranking.length > 0 && (

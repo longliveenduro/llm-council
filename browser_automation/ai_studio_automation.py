@@ -247,7 +247,8 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None) -> st
     # Extract the response
     response = await extract_response(page)
     
-    return response
+    return clean_ai_studio_text(response)
+
 
 
 async def extract_response(page: Page) -> str:
@@ -402,66 +403,43 @@ async def extract_response(page: Page) -> str:
     print("DEBUG: Falling back to visual extraction...")
     
     try:
-        last_turn = await page.query_selector('ms-chat-turn:last-of-type')
-        if last_turn:
-            # 1. Try to find all text-bearing elements within the turn
-            # Using a broader selector to avoid missing content in non-standard chunks
-            content_selectors = [
-                'ms-text-chunk',
-                'ms-markdown-block',
-                '.text-content',
-                'p',
-                'pre',
-                'code',
-                'div[class*="content"]'
-            ]
+        text = await page.evaluate('''() => {
+            const lastTurn = document.querySelector('ms-chat-turn:last-of-type');
+            if (!lastTurn) return null;
             
-            elements = []
-            for selector in content_selectors:
-                found = await last_turn.query_selector_all(selector)
-                elements.extend(found)
+            const clone = lastTurn.cloneNode(true);
             
-            if elements:
-                texts = []
-                for el in elements:
-                    try:
-                        # Only take elements that are NOT buttons or labels
-                        # In tests, el might be a mock without evaluate
-                        tag = ""
-                        try:
-                            tag = (await el.evaluate('el => el.tagName')).lower()
-                        except:
-                            # Fallback if evaluate fails or is not mocked
-                            pass
-                        
-                        if tag == 'button': continue
-                        
-                        txt = await el.inner_text()
-                        txt = txt.strip()
-                        
-                        # Filter out tiny UI snippets often found in the turn
-                        if txt and not txt.startswith(('thumb_', 'more_vert', 'edit', 'menu', 'Copy', 'Share', 'keyboard_arrow')):
-                            texts.append(txt)
-                    except:
-                        continue
-                
-                if texts:
-                    # Use a set to deduplicate in case selectors overlap (e.g. div and p)
-                    # But we want to maintain order. A simple way:
-                    unique_texts = []
-                    seen = set()
-                    for t in texts:
-                        if t not in seen:
-                            unique_texts.append(t)
-                            seen.add(t)
-                    
-                    full_text = "\n".join(unique_texts)
-                    print(f"DEBUG: Found {len(unique_texts)} content elements in last turn. Joined length: {len(full_text)}")
-                    
-                    if full_text:
-                        return full_text
+            // 1. Process Math Elements
+            // AI Studio uses ms-math-block or similar. LaTeX often in specific attributes.
+            const mathElements = clone.querySelectorAll('ms-math-block, .math, .math-inline, .math-display');
+            mathElements.forEach(el => {
+                // Heuristic: check if there's LaTeX source in a known attribute or child
+                const latex = el.getAttribute('latex') || el.getAttribute('data-latex');
+                if (latex) {
+                    const isBlock = el.tagName === 'MS-MATH-BLOCK' || el.classList.contains('math-display');
+                    el.textContent = isBlock ? `\n$$\n${latex}\n$$\n` : `$${latex}$`;
+                }
+            });
+
+            // 2. Remove UI noise
+            const noise = clone.querySelectorAll('button, .mat-icon, ms-copy-button, ms-feedback-button, .sr-only');
+            noise.forEach(el => el.remove());
+
+            // 3. Extract content
+            // ms-markdown-block or ms-text-chunk usually hold the real message
+            const contentEls = clone.querySelectorAll('ms-markdown-block, ms-text-chunk, .text-content');
+            if (contentEls.length > 0) {
+                return Array.from(contentEls).map(el => el.innerText).join('\\n').trim();
+            }
+            
+            return clone.innerText.trim();
+        }''')
+        
+        if text:
+            print(f"DEBUG: Extracted response via JS visual evaluation ({len(text)} chars)")
+            return text
     except Exception as e:
-        print(f"DEBUG: Error extracting from last_turn: {e}")
+        print(f"DEBUG: JS visual extraction failed: {e}")
 
     # Broader fallbacks if the above fails
     response_selectors = [
@@ -524,7 +502,34 @@ async def extract_response(page: Page) -> str:
     except Exception as e:
         print(f"DEBUG: Error in fallback: {e}")
     
-    return "Could not extract response. Check 'aistudio_debug.html'"
+    return clean_ai_studio_text("Could not extract response. Check 'aistudio_debug.html'")
+
+
+def clean_ai_studio_text(text: str) -> str:
+    """Clean UI noise and artifacts from AI Studio responses."""
+    import re
+    
+    if not text:
+        return ""
+        
+    # AI Studio often has "Run", "Cancel", "Stop" as separate chunks if visual extraction is used
+    noise_words = ["Run", "Cancel", "Stop", "Edit", "Share", "Copy"]
+    
+    lines = text.split('\n')
+    clean_lines = []
+    
+    for line in lines:
+        stripped = line.strip()
+        if stripped in noise_words:
+            continue
+        clean_lines.append(line)
+        
+    result = '\n'.join(clean_lines).strip()
+    # Remove multiple newlines
+    result = re.sub(r'\n{3,}', '\n\n', result)
+    
+    return result
+
 
 
 async def select_model(page: Page, model_name: str):

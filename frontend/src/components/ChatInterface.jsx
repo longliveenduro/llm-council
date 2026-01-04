@@ -1,5 +1,11 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import remarkGfm from 'remark-gfm';
+import 'katex/dist/katex.min.css';
+
+
 import Stage1 from './Stage1';
 import Stage2 from './Stage2';
 import Stage3 from './Stage3';
@@ -163,8 +169,14 @@ export default function ChatInterface({
                       <div className="message-label">You</div>
                       <div className="message-content">
                         <div className="markdown-content">
-                          <ReactMarkdown>{msg.content}</ReactMarkdown>
+                          <ReactMarkdown
+                            remarkPlugins={[remarkMath, remarkGfm]}
+                            rehypePlugins={[rehypeKatex]}
+                          >
+                            {msg.content}
+                          </ReactMarkdown>
                         </div>
+
                       </div>
                     </div>
                   ) : (

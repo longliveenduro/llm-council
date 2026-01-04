@@ -317,9 +317,7 @@ async def extract_response(page: Page, prompt: str = None, model: str = "auto") 
             const candidates = Array.from(document.querySelectorAll('.font-claude-message, .font-claude-response'));
             if (candidates.length === 0) return null;
             
-            // Filter to keep only top-level containers (exclude nested ones)
-            // This handles cases where .font-claude-response is used both for the outer wrapper 
-            // AND for inner content (like thinking blocks), ensuring we grab the outer one.
+            // Filter to keep only top-level containers
             const topLevelMessages = candidates.filter(el => 
                 !el.parentElement.closest('.font-claude-message, .font-claude-response')
             );
@@ -328,12 +326,22 @@ async def extract_response(page: Page, prompt: str = None, model: str = "auto") 
             
             const lastMessage = topLevelMessages[topLevelMessages.length - 1];
             
-            // Clone the element so we can modify it without affecting the page
+            // Clone to avoid side effects
             const clone = lastMessage.cloneNode(true);
+
+            // 1. Process Math Elements
+            // Claude uses KaTeX. LaTeX source is usually in <annotation encoding="application/x-tex">
+            const mathElements = clone.querySelectorAll('.katex, .math, .math-inline, .math-display');
+            mathElements.forEach(el => {
+                const annotation = el.querySelector('annotation[encoding="application/x-tex"]');
+                if (annotation) {
+                    const latex = annotation.textContent;
+                    const isBlock = el.classList.contains('math-display') || el.closest('.math-display');
+                    el.textContent = isBlock ? `\n$$\n${latex}\n$$\n` : `$${latex}$`;
+                }
+            });
             
-            // Strategy 1: Look for the standard markdown container which holds the response prose.
-            // There may be multiple .standard-markdown elements (e.g. inside thinking blocks),
-            // but the actual response is typically the last one.
+            // Strategy 1: Look for the standard markdown container
             const allMarkdown = clone.querySelectorAll('.standard-markdown');
             if (allMarkdown.length > 0) {
                 const lastMarkdown = allMarkdown[allMarkdown.length - 1];
@@ -342,12 +350,12 @@ async def extract_response(page: Page, prompt: str = None, model: str = "auto") 
 
             // Strategy 2: Remove thinking sections and return clean text (fallback)
             const thinkingSelectors = [
-                'details',                          // Collapsible thinking sections
-                '[class*="thinking"]',              // Any element with "thinking" class
-                '[class*="Thinking"]',              // Case variations
-                '[data-testid*="thinking"]',        // Test IDs with thinking
-                'summary',                          // Summary elements (part of details)
-                '.border-border-300.rounded-lg', // The specific card structure for thinking (relative to message container)
+                'details',
+                '[class*="thinking"]',
+                '[class*="Thinking"]',
+                '[data-testid*="thinking"]',
+                'summary',
+                '.border-border-300.rounded-lg',
             ];
             
             for (const selector of thinkingSelectors) {
@@ -355,23 +363,21 @@ async def extract_response(page: Page, prompt: str = None, model: str = "auto") 
                 elements.forEach(el => el.remove());
             }
             
-            // Find the prose content within the cleaned clone
             const prose = clone.querySelector('.prose');
             if (prose) {
                 return prose.innerText.trim();
             }
             
-            // Fallback to the entire cleaned message
             return clone.innerText.trim();
         }''')
         
         if text and len(text.strip()) > 30:
-            # Check if this looks like a response vs UI
             if "New chat" not in text[:50] and "Chats" not in text[:50]:
-                print("SUCCESS: Extracted response using JS with thinking exclusion")
+                print("SUCCESS: Extracted response using JS with thinking/math handling")
                 return clean_claude_text(text, prompt, model)
     except Exception as e:
-        print(f"DEBUG: JS extraction with thinking exclusion failed: {e}")
+        print(f"DEBUG: JS extraction with thinking/math handling failed: {e}")
+
     
     # Fallback: Use original selector-based approach
     response_selectors = [

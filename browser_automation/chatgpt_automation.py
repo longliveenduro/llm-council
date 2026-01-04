@@ -272,7 +272,7 @@ async def extract_response(page: Page) -> str:
     print("DEBUG: Waiting for content to stabilize...")
     prev_len = 0
     stable_count = 0
-    max_stabilization_wait = 5  # seconds (reduced from 10)
+    max_stabilization_wait = 5  # seconds
     stabilization_interval = 0.5  # seconds
     elapsed = 0
     
@@ -281,7 +281,6 @@ async def extract_response(page: Page) -> str:
         
         if current_len > 0 and current_len == prev_len:
             stable_count += 1
-            # Content is stable if length hasn't changed for 2 consecutive checks (1.0s)
             if stable_count >= 2:
                 print(f"DEBUG: Content stabilized at {current_len} characters after {elapsed:.1f}s")
                 break
@@ -295,7 +294,72 @@ async def extract_response(page: Page) -> str:
     if elapsed >= max_stabilization_wait:
         print(f"DEBUG: Stabilization timeout reached, proceeding with extraction (length: {prev_len})")
     
-    # Selectors for assistant messages
+    # Use JavaScript for intelligent extraction
+    try:
+        text = await page.evaluate('''() => {
+            const assistantMessages = document.querySelectorAll('[data-message-author-role="assistant"]');
+            if (assistantMessages.length === 0) return null;
+            
+            const lastMessage = assistantMessages[assistantMessages.length - 1];
+            
+            // Clone to avoid side effects
+            const clone = lastMessage.cloneNode(true);
+            
+            // 1. Process Math Elements (KaTeX)
+            // We search for the top-level math containers first to avoid double-processing
+            const mathContainers = clone.querySelectorAll('.katex-display, .math-display, :not(.katex-display) > .katex, :not(.math-display) > .math');
+            mathContainers.forEach(container => {
+                const annotation = container.querySelector('annotation[encoding="application/x-tex"]');
+                if (annotation) {
+                    const latex = annotation.textContent.trim();
+                    const isBlock = container.classList.contains('katex-display') || container.classList.contains('math-display');
+                    // We use $...$ and $$...$$ which are standard for remark-math
+                    const wrapper = isBlock ? `\n$$\n${latex}\n$$\n` : `$${latex}$`;
+                    container.textContent = wrapper;
+                }
+            });
+            
+            // 2. Remove remaining KaTeX noise if any escaped processing
+            clone.querySelectorAll('.katex, .math').forEach(el => {
+                if (el.textContent.includes('$')) return; // Already processed
+                // If it's still raw KaTeX HTML, it often has the text duplicated or spread out
+                const ann = el.querySelector('annotation');
+                if (ann) {
+                    el.textContent = ann.textContent;
+                }
+            });
+
+            // 3. Remove Citation noise (+1, +2 buttons, etc.)
+            const allElements = clone.querySelectorAll('button, span, .cit-button, [data-testid*="citation"]');
+            allElements.forEach(el => {
+                const text = (el.textContent || "").trim();
+                // Match patterns like [+1], +1, [1], etc.
+                if (/^\[?\+\d+\]?$/.test(text) || /^\[\d+\]$/.test(text)) {
+                     el.remove();
+                }
+                if (el.getAttribute('data-testid') && el.getAttribute('data-testid').includes('citation')) {
+                    el.remove();
+                }
+            });
+
+            // 4. Remove other known UI artifacts
+            const artifacts = clone.querySelectorAll('.flex.items-center.justify-between.mt-2, .sr-only, .mt-2.flex.gap-3');
+            artifacts.forEach(a => a.remove());
+
+            // 5. Return the innerText
+            // Prefer markdown/prose containers
+            const content = clone.querySelector('.markdown, .prose') || clone;
+            return content.innerText.trim();
+        }''')
+
+        
+        if text:
+            print("SUCCESS: Extracted response using JS with math/citation handling")
+            return clean_chatgpt_text(text)
+    except Exception as e:
+        print(f"DEBUG: JS extraction failed: {e}")
+
+    # Fallback to simple extraction
     response_selectors = [
         '[data-message-author-role="assistant"]',
         '.markdown', 
@@ -306,37 +370,63 @@ async def extract_response(page: Page) -> str:
         try:
             elements = await page.query_selector_all(selector)
             if elements:
-                # If we use the assistant role container, we only want the LAST message
-                if selector == '[data-message-author-role="assistant"]' or selector == '.agent-turn':
-                    last_element = elements[-1]
-                    text = await last_element.inner_text()
-                    if text:
-                        return text.strip()
-                else:
-                    # For broad selectors like .markdown, multiple might exist within a single message
-                    # Try to find the last assistant message first
-                    last_assistant = await page.query_selector('[data-message-author-role="assistant"]:last-of-type')
-                    if last_assistant:
-                        sub_elements = await last_assistant.query_selector_all(selector)
-                        if sub_elements:
-                            texts = []
-                            for el in sub_elements:
-                                txt = await el.inner_text()
-                                if txt.strip():
-                                    texts.append(txt.strip())
-                            if texts:
-                                return "\n\n".join(texts)
-                    
-                    # Fallback to just the last matching element if we can't scope it
-                    last_element = elements[-1]
-                    text = await last_element.inner_text()
-                    if text:
-                        return text.strip()
-        except Exception as e:
-            print(f"Extraction error with {selector}: {e}")
+                last_element = elements[-1]
+                text = await last_element.inner_text()
+                if text:
+                    return clean_chatgpt_text(text.strip())
+        except:
             continue
     
     return "Error: Could not extract response."
+
+
+def clean_chatgpt_text(text: str) -> str:
+    """Clean UI noise and artifacts from ChatGPT responses."""
+    import re
+    
+    if not text:
+        return ""
+        
+    lines = text.split('\n')
+    clean_lines = []
+    
+    # List of strings that are likely UI noise when they appear alone on a line
+    noise_patterns = [
+        r'^\+\d+$',                # +1, +2, etc.
+        r'^NobelPrize\.org$',      # Common citation source
+        r'^NASA Science$',         # Common citation source
+        r'^scientificamerican\.com$', # Common citation source
+        r'^arXiv$',                # Common citation source
+        r'^reuters\.com$',         # Common citation source
+        r'^britannica\.com$',      # Common citation source
+        r'^wikipedia\.org$',       # Common citation source
+    ]
+    
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            clean_lines.append("")
+            continue
+            
+        # Skip lines that match noise patterns
+        is_noise = False
+        for pattern in noise_patterns:
+            if re.match(pattern, stripped, re.IGNORECASE):
+                is_noise = True
+                break
+        
+        if is_noise:
+            continue
+            
+        clean_lines.append(line)
+        
+    result = '\n'.join(clean_lines).strip()
+    
+    # Final cleanup of multiple newlines
+    result = re.sub(r'\n{3,}', '\n\n', result)
+    
+    return result
+
 
 
 async def select_model(page: Page, model_name: str):

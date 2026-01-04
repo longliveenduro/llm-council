@@ -1,7 +1,13 @@
 import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import remarkGfm from 'remark-gfm';
+import 'katex/dist/katex.min.css';
+
 import { getModelIcon } from '../utils/modelIcons';
 import './Stage1.css';
+
 
 export default function Stage1({ responses }) {
   const [activeTab, setActiveTab] = useState(0);
@@ -56,10 +62,18 @@ export default function Stage1({ responses }) {
             />
           )}
           <div className="model-name">{responses[activeTab].model}</div>
+          {console.log("DEBUG: Rendering response:", responses[activeTab].response)}
         </div>
         <div className="response-text markdown-content">
-          <ReactMarkdown>{responses[activeTab].response}</ReactMarkdown>
+          <ReactMarkdown
+            remarkPlugins={[remarkMath, remarkGfm]}
+            rehypePlugins={[rehypeKatex]}
+          >
+            {responses[activeTab].response}
+          </ReactMarkdown>
+
         </div>
+
       </div>
     </div >
   );

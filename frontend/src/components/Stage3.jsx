@@ -1,4 +1,10 @@
 import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import remarkGfm from 'remark-gfm';
+import 'katex/dist/katex.min.css';
+
+
 import { getModelIcon } from '../utils/modelIcons';
 import './Stage3.css';
 
@@ -41,8 +47,15 @@ export default function Stage3({ finalResponse, labelToModel }) {
           </div>
         </div>
         <div className="final-text markdown-content">
-          <ReactMarkdown>{finalResponse.response}</ReactMarkdown>
+          <ReactMarkdown
+            remarkPlugins={[remarkMath, remarkGfm]}
+            rehypePlugins={[rehypeKatex]}
+          >
+            {finalResponse.response}
+          </ReactMarkdown>
         </div>
+
+
       </div>
     </div>
   );
