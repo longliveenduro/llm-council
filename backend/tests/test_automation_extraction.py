@@ -27,6 +27,9 @@ async def test_ai_studio_extraction_multiple_chunks():
     mock_page.query_selector = AsyncMock(side_effect=mock_query_selector)
     mock_page.query_selector_all = AsyncMock(return_value=[])
     
+    # Mock JS evaluation for the new extraction strategy
+    mock_page.evaluate = AsyncMock(return_value="Chunk 1\nChunk 2")
+    
     response = await extract_ai_studio(mock_page)
     assert response == "Chunk 1\nChunk 2"
 
@@ -59,6 +62,9 @@ async def test_chatgpt_extraction_multiple_markdown_blocks():
 
     mock_page.query_selector = AsyncMock(side_effect=mock_query_selector)
     mock_page.query_selector_all = AsyncMock(side_effect=mock_query_selector_all)
+    
+    # Mock JS evaluation for the new extraction strategy
+    mock_page.evaluate = AsyncMock(return_value="Block 1\n\nBlock 2")
     
     response = await extract_chatgpt(mock_page)
     assert response == "Block 1\n\nBlock 2"
@@ -133,6 +139,9 @@ async def test_ai_studio_extraction_content_grows_until_stabilized():
     mock_page.query_selector_all = AsyncMock(return_value=[])
     mock_page.context = MagicMock()
     mock_page.context.grant_permissions = AsyncMock()
+    
+    # Mock JS evaluation to return the stable content
+    mock_page.evaluate = AsyncMock(return_value="Part 1... Part 2... Part 3.")
     
     response = await extract_ai_studio(mock_page)
     
