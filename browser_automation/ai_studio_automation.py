@@ -326,78 +326,108 @@ async def extract_response(page: Page) -> str:
     if elapsed >= max_stabilization_wait:
         print(f"DEBUG: Stabilization timeout reached, proceeding with extraction (length: {prev_len})")
 
-    # Try Clipboard Extraction first (High Fidelity for formatted text)
-    # Retry up to 3 times if content looks truncated
-    MAX_CLIPBOARD_RETRIES = 3
-    
-    for attempt in range(MAX_CLIPBOARD_RETRIES):
+    # Prioritize JS Visual Extraction for Math content
+    # AI Studio's copy button flattens rendered MathML/HTML-math to Unicode text, 
+    # losing the underlying LaTeX. We prefer DOM parsing if math blocks are present.
+    try:
+        # Use Playwright locator to check for math elements (automatically pierces Shadow DOM)
+        # Check for common math tags/classes
+        last_turn = page.locator('ms-chat-turn:last-of-type')
+        math_locator = last_turn.locator('ms-math-block, .math-display, .math-inline, math, [latex]')
+        math_count = await math_locator.count()
+        
+        # Debug: Dump HTML of the last turn to help identify structure
         try:
-            # Grant permissions if possible
-            try:
-                await page.context.grant_permissions(['clipboard-read', 'clipboard-write'])
-            except:
-                pass
-
-            turn_selector = 'ms-chat-turn:last-of-type'
-            turn = await page.query_selector(turn_selector)
-            
-            if turn:
-                # Hover to potentially reveal buttons
-                await turn.hover()
-                
-                # 1. Try direct copy button
-                copy_btn = await turn.query_selector('button[aria-label*="copy" i]')
-                
-                # 2. Try 'more_vert' menu if direct button missing
-                if not copy_btn:
-                    menu_btn = await turn.query_selector('button[aria-label="Open options"]')
-                    if menu_btn:
-                        await menu_btn.click()
-                        # Wait/Find menu
-                        try:
-                            await page.wait_for_selector('div[role="menu"]', timeout=2000)
-                            menu_items = await page.query_selector_all('div[role="menu"] button')
-                            for item in menu_items:
-                                txt = await item.text_content()
-                                if "copy" in txt.lower():
-                                    copy_btn = item
-                                    break
-                        except:
-                            pass
-                
-                if copy_btn:
-                    await copy_btn.click()
-                    # Wait for clipboard write
-                    await asyncio.sleep(0.8)
-                    clipboard_text = await page.evaluate("navigator.clipboard.readText()")
-                    
-                    if clipboard_text and len(clipboard_text) > 5:
-                        # Check if text looks truncated (ends mid-word/sentence without proper ending)
-                        text_stripped = clipboard_text.strip()
-                        
-                        # Heuristic: Check if text ends with a proper sentence ending or natural break
-                        proper_endings = ('.', '!', '?', ':', '"', "'", ')', ']', '}', '\n', '```')
-                        looks_complete = any(text_stripped.endswith(e) for e in proper_endings)
-                        
-                        # Also check that it's not ending with an incomplete word (letter followed by nothing)
-                        if not looks_complete and len(text_stripped) > 20:
-                            # The text might be streaming - wait and retry
-                            if attempt < MAX_CLIPBOARD_RETRIES - 1:
-                                print(f"DEBUG: Clipboard text may be truncated (attempt {attempt + 1}), retrying...")
-                                await asyncio.sleep(1.5)
-                                continue
-                        
-                        print(f"DEBUG: Extracted response via Clipboard (attempt {attempt + 1}, {len(clipboard_text)} chars)")
-                        return clipboard_text
-                else:
-                    # No copy button found, break out of retry loop
-                    break
-
+            # We need to get the HTML. innerHTML might not show Shadow DOM content if it's open.
+            # But let's try to get what we can.
+            debug_html = await last_turn.evaluate("el => el.outerHTML")
+            with open("/home/chris/.gemini/antigravity/brain/bfeec05b-c82c-40b2-9318-e346ec294fbd/ai_studio_last_turn.html", "w") as f:
+                f.write(debug_html)
+            print(f"DEBUG: Saved last turn HTML to ai_studio_last_turn.html. Math elements found: {math_count}")
         except Exception as e:
-            print(f"DEBUG: Clipboard extraction failed (attempt {attempt + 1}): {e}")
-            if attempt < MAX_CLIPBOARD_RETRIES - 1:
-                await asyncio.sleep(1)
+            print(f"DEBUG: Failed to save debug HTML: {e}")
 
+        if math_count > 0:
+            print(f"DEBUG: Math elements detected ({math_count}), skipping clipboard to use high-fidelity visual extraction")
+            # Skip clipboard attempts to fall through to the visual extraction block below
+            pass 
+        else:
+            # Try Clipboard Extraction (High Fidelity for tables/markdown without math)
+            # Retry up to 3 times if content looks truncated
+            MAX_CLIPBOARD_RETRIES = 3
+            
+            for attempt in range(MAX_CLIPBOARD_RETRIES):
+                try:
+                    # Grant permissions if possible
+                    try:
+                        await page.context.grant_permissions(['clipboard-read', 'clipboard-write'])
+                    except:
+                        pass
+
+                    turn_selector = 'ms-chat-turn:last-of-type'
+                    turn = await page.query_selector(turn_selector)
+                    
+                    if turn:
+                        # Hover to potentially reveal buttons
+                        try:
+                             await turn.hover()
+                        except:
+                             pass
+                        
+                        # 1. Try direct copy button
+                        copy_btn = await turn.query_selector('button[aria-label*="copy" i]')
+                        
+                        # 2. Try 'more_vert' menu if direct button missing
+                        if not copy_btn:
+                            menu_btn = await turn.query_selector('button[aria-label="Open options"]')
+                            if menu_btn:
+                                await menu_btn.click()
+                                # Wait/Find menu
+                                try:
+                                    await page.wait_for_selector('div[role="menu"]', timeout=2000)
+                                    menu_items = await page.query_selector_all('div[role="menu"] button')
+                                    for item in menu_items:
+                                        txt = await item.text_content()
+                                        if "copy" in txt.lower():
+                                            copy_btn = item
+                                            break
+                                except:
+                                    pass
+                        
+                        if copy_btn:
+                            await copy_btn.click()
+                            # Wait for clipboard write
+                            await asyncio.sleep(0.8)
+                            clipboard_text = await page.evaluate("navigator.clipboard.readText()")
+                            
+                            if clipboard_text and len(clipboard_text) > 5:
+                                # Check if text looks truncated (ends mid-word/sentence without proper ending)
+                                text_stripped = clipboard_text.strip()
+                                
+                                # Heuristic: Check if text ends with a proper sentence ending or natural break
+                                proper_endings = ('.', '!', '?', ':', '"', "'", ')', ']', '}', '\n', '```')
+                                looks_complete = any(text_stripped.endswith(e) for e in proper_endings)
+                                
+                                # Also check that it's not ending with an incomplete word (letter followed by nothing)
+                                if not looks_complete and len(text_stripped) > 20:
+                                    # The text might be streaming - wait and retry
+                                    if attempt < MAX_CLIPBOARD_RETRIES - 1:
+                                        print(f"DEBUG: Clipboard text may be truncated (attempt {attempt + 1}), retrying...")
+                                        await asyncio.sleep(1.5)
+                                        continue
+                                
+                                print(f"DEBUG: Extracted response via Clipboard (attempt {attempt + 1}, {len(clipboard_text)} chars)")
+                                return clipboard_text
+                        else:
+                            # No copy button found, break out of retry loop
+                            break
+
+                except Exception as e:
+                    print(f"DEBUG: Clipboard extraction failed (attempt {attempt + 1}): {e}")
+                    if attempt < MAX_CLIPBOARD_RETRIES - 1:
+                        await asyncio.sleep(1)
+    except Exception as e:
+        print(f"DEBUG: Error checking for math: {e}, proceeding to visual extraction")
 
     # Fallback to AI Studio specific selectors based on HTML analysis
     print("DEBUG: Falling back to visual extraction...")
@@ -410,14 +440,28 @@ async def extract_response(page: Page) -> str:
             const clone = lastTurn.cloneNode(true);
             
             // 1. Process Math Elements
-            // AI Studio uses ms-math-block or similar. LaTeX often in specific attributes.
-            const mathElements = clone.querySelectorAll('ms-math-block, .math, .math-inline, .math-display');
+            // AI Studio uses ms-katex or ms-math-block.
+            // LaTeX is often in <annotation encoding="application/x-tex"> inside MathML
+            const mathElements = clone.querySelectorAll('ms-katex, ms-math-block, .math, .math-inline, .math-display');
+            
             mathElements.forEach(el => {
-                // Heuristic: check if there's LaTeX source in a known attribute or child
-                const latex = el.getAttribute('latex') || el.getAttribute('data-latex');
+                let latex = el.getAttribute('latex') || el.getAttribute('data-latex');
+                
+                // Try finding annotation tag if attribute not present
+                if (!latex) {
+                    const annotation = el.querySelector('annotation[encoding="application/x-tex"]');
+                    if (annotation) {
+                        latex = annotation.textContent.trim();
+                    }
+                }
+                
                 if (latex) {
-                    const isBlock = el.tagName === 'MS-MATH-BLOCK' || el.classList.contains('math-display');
-                    el.textContent = isBlock ? `\n$$\n${latex}\n$$\n` : `$${latex}$`;
+                    const isDisplay = el.classList.contains('display') || 
+                                      el.classList.contains('math-display') || 
+                                      el.tagName === 'MS-MATH-BLOCK';
+                    
+                    // Replace the entire element content with the LaTeX code
+                    el.textContent = isDisplay ? `\n$$\n${latex}\n$$\n` : `$${latex}$`;
                 }
             });
 
@@ -427,8 +471,11 @@ async def extract_response(page: Page) -> str:
 
             // 3. Extract content
             // ms-markdown-block or ms-text-chunk usually hold the real message
+            // We use innerText to respect line breaks, but since we replaced math with text, 
+            // it should be preserved.
             const contentEls = clone.querySelectorAll('ms-markdown-block, ms-text-chunk, .text-content');
             if (contentEls.length > 0) {
+                // Join with newline, but check if we have multiple text chunks that should be merged carefully
                 return Array.from(contentEls).map(el => el.innerText).join('\\n').trim();
             }
             

@@ -1,5 +1,9 @@
 import { useState, useEffect, useRef, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import remarkGfm from 'remark-gfm';
+import 'katex/dist/katex.min.css';
 import { api } from '../api';
 import { getModelIcon } from '../utils/modelIcons';
 import './WebChatBotWizard.css';
@@ -160,6 +164,8 @@ export default function WebChatBotWizard({ conversationId, currentTitle, previou
     // Input State for current item
     const [currentModel, setCurrentModel] = useState(savedDraft.currentModel || llmNames[0] || '');
     const [currentText, setCurrentText] = useState(savedDraft.currentText || '');
+    const [showPreview, setShowPreview] = useState(true); // Step 1 Preview Toggle
+    const [showStep3Preview, setShowStep3Preview] = useState(true); // Step 3 Preview Toggle
 
     const currentScores = useMemo(() => {
         return calculateCurrentScores(stage2Responses, labelToModel);
@@ -538,7 +544,41 @@ Title:`;
                     </select>
                     {!llmNames.includes(currentModel) && <input value={currentModel} onChange={(e) => setCurrentModel(e.target.value)} className="custom-model-input" placeholder="Model Name" />}
                 </div>
-                <textarea value={currentText} onChange={(e) => setCurrentText(e.target.value)} rows={8} placeholder="Model Response" />
+
+                <div className="input-tabs-container">
+                    <div className="input-tabs">
+                        <button
+                            className={`input-tab ${!showPreview ? 'active' : ''}`}
+                            onClick={() => setShowPreview(false)}
+                        >
+                            Write
+                        </button>
+                        <button
+                            className={`input-tab ${showPreview ? 'active' : ''}`}
+                            onClick={() => setShowPreview(true)}
+                        >
+                            Preview
+                        </button>
+                    </div>
+                    <div className="input-content-wrapper">
+                        {showPreview ? (
+                            <div className="input-preview-content markdown-content">
+                                {currentText ? (
+                                    <ReactMarkdown
+                                        remarkPlugins={[remarkMath, remarkGfm]}
+                                        rehypePlugins={[rehypeKatex]}
+                                    >
+                                        {currentText}
+                                    </ReactMarkdown>
+                                ) : (
+                                    <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Nothing to preview</span>
+                                )}
+                            </div>
+                        ) : (
+                            <textarea value={currentText} onChange={(e) => setCurrentText(e.target.value)} rows={8} placeholder="Model Response" />
+                        )}
+                    </div>
+                </div>
                 <div className="add-response-actions">
                     <button onClick={addStage1Response} disabled={!currentModel || !currentText}>Add Response</button>
                     <div className="automation-row">
@@ -656,17 +696,52 @@ Title:`;
                             {preselectionReason}
                         </div>
                     )}
-                    <textarea value={stage3Response.response || ''} onChange={(e) => setStage3Response({ ...stage3Response, response: e.target.value })} rows={12} placeholder="Final answer..." />
-                </div>
-                <div className="wizard-actions">
-                    <div className="left-actions">
-                        <button onClick={() => setStep(2)} className="secondary-btn">Back</button>
-                        <button onClick={() => { if (window.confirm('Reset?')) { localStorage.removeItem(draftKey); window.location.reload(); } }} className="secondary-btn discard-btn">Discard</button>
+
+                    <div className="input-tabs-container">
+                        <div className="input-tabs">
+                            <button
+                                className={`input-tab ${!showStep3Preview ? 'active' : ''}`}
+                                onClick={() => setShowStep3Preview(false)}
+                            >
+                                Write
+                            </button>
+                            <button
+                                className={`input-tab ${showStep3Preview ? 'active' : ''}`}
+                                onClick={() => setShowStep3Preview(true)}
+                            >
+                                Preview
+                            </button>
+                        </div>
+                        <div className="input-content-wrapper">
+                            {showStep3Preview ? (
+                                <div className="input-preview-content markdown-content" style={{ minHeight: '200px' }}>
+                                    {stage3Response.response ? (
+                                        <ReactMarkdown
+                                            remarkPlugins={[remarkMath, remarkGfm]}
+                                            rehypePlugins={[rehypeKatex]}
+                                        >
+                                            {stage3Response.response}
+                                        </ReactMarkdown>
+                                    ) : (
+                                        <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Nothing to preview</span>
+                                    )}
+                                </div>
+                            ) : (
+                                <textarea value={stage3Response.response || ''} onChange={(e) => setStage3Response({ ...stage3Response, response: e.target.value })} rows={12} placeholder="Final answer..." />
+                            )}
+                        </div>
                     </div>
-                    <button onClick={handleComplete} className="primary-btn complete-btn" disabled={!stage3Response.response}>Finish & Save</button>
                 </div>
             </div>
+            <div className="wizard-actions">
+                <div className="left-actions">
+                    <button onClick={() => setStep(2)} className="secondary-btn">Back</button>
+                    <button onClick={() => { if (window.confirm('Reset?')) { localStorage.removeItem(draftKey); window.location.reload(); } }} className="secondary-btn discard-btn">Discard</button>
+                </div>
+                <button onClick={handleComplete} className="primary-btn complete-btn" disabled={!stage3Response.response}>Finish & Save</button>
+            </div>
         </div>
+
     );
 
     if (isLoading) return <div className="web-chatbot-wizard-loading">Processing...</div>;
