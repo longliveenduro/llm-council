@@ -78,6 +78,9 @@ describe('WebChatBotWizard Claude Integration', () => {
             );
         });
 
+        // Click Write tab to see the textarea
+        fireEvent.click(screen.getByText('Write'));
+
         // Check if response is displayed
         const responseArea = screen.getByPlaceholderText('Model Response');
         expect(responseArea).toHaveValue('Claude says hello');

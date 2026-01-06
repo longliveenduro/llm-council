@@ -148,8 +148,11 @@ export default function WebChatBotWizard({ conversationId, currentTitle, previou
 
     const isFollowUp = previousMessages.length > 0;
 
+    const isDanglingUser = previousMessages.length > 0 && previousMessages[previousMessages.length - 1].role === 'user';
+    const danglingContent = isDanglingUser ? previousMessages[previousMessages.length - 1].content : '';
+
     // Data State
-    const [userQuery, setUserQuery] = useState(savedDraft.userQuery || initialQuestion || '');
+    const [userQuery, setUserQuery] = useState(savedDraft.userQuery || initialQuestion || danglingContent || '');
     const [stage1Responses, setStage1Responses] = useState(savedDraft.stage1Responses || []); // { model, response }
     const [stage2Prompt, setStage2Prompt] = useState(savedDraft.stage2Prompt || '');
     const [labelToModel, setLabelToModel] = useState(savedDraft.labelToModel || {});
@@ -259,18 +262,44 @@ Title:`;
     const copyToClipboard = (text) => navigator.clipboard.writeText(text);
 
     const getContextText = () => {
-        let text = 'Context so far:\n\n';
+        let contextBuffer = '';
         let turnCount = 1;
-        for (let i = 0; i < previousMessages.length; i++) {
+        // Robustly pair User and Assistant messages.
+        // Only include a User message if it is followed by an Assistant message.
+        // This automatically excludes any trailing/dangling user messages.
+
+        let i = 0;
+        while (i < previousMessages.length) {
             const msg = previousMessages[i];
+
             if (msg.role === 'user') {
-                text += `User Question ${turnCount}: ${msg.content}\n`;
+                // Check if next message exists and is assistant
+                if (i + 1 < previousMessages.length && previousMessages[i + 1].role === 'assistant') {
+                    // Start of a valid turn
+                    contextBuffer += `User Question ${turnCount}: ${msg.content}\n`;
+                    // Move to assistant
+                    i++;
+                    const assistantMsg = previousMessages[i];
+                    contextBuffer += `LLM Answer ${turnCount}: ${assistantMsg.stage3?.response || "(No response)"}\n\n`;
+                    turnCount++;
+                } else {
+                    // Dangling user message (or followed by another user message?), skip it from context
+                    // matches the logic that this should be the "Current Question"
+                }
             } else if (msg.role === 'assistant') {
-                text += `LLM Answer ${turnCount}: ${msg.stage3?.response || "(No response)"}\n\n`;
-                turnCount++;
+                // Orphaned assistant message? Should not happen in normal flow, but if so, ignore or handle?
+                // For now, ignore as we expect User -> Assistant structure
             }
+            i++;
         }
-        text += `Current Question: ${userQuery}`;
+
+        let text = '';
+        if (contextBuffer) {
+            text += `Context so far:\n\n${contextBuffer}`;
+            text += `Current Question: ${userQuery}`;
+        } else {
+            text = userQuery;
+        }
         return text;
     };
 
@@ -414,12 +443,33 @@ Title:`;
         }
     };
 
+    const getValidHistory = () => {
+        const validMsgs = [];
+        let i = 0;
+        while (i < previousMessages.length) {
+            const msg = previousMessages[i];
+            if (msg.role === 'user') {
+                if (i + 1 < previousMessages.length && previousMessages[i + 1].role === 'assistant') {
+                    validMsgs.push(msg);
+                    validMsgs.push(previousMessages[i + 1]);
+                    i += 2;
+                } else {
+                    i++;
+                }
+            } else {
+                i++;
+            }
+        }
+        return validMsgs;
+    };
+
     const handleGoToStep2 = async () => {
         if (!userQuery.trim() || stage1Responses.length === 0) return;
         setIsLoading(true);
         try {
             if (!manualTitle || manualTitle === 'New Conversation') await generateTitle(userQuery);
-            const data = await api.getStage2Prompt(userQuery, stage1Responses, previousMessages);
+            const cleanHistory = getValidHistory();
+            const data = await api.getStage2Prompt(userQuery, stage1Responses, cleanHistory);
             setStage2Prompt(data.prompt);
             setLabelToModel(data.label_to_model);
             setStep(2);
@@ -435,7 +485,8 @@ Title:`;
         setIsLoading(true);
         try {
             const processed = await api.processRankings(stage2Responses, labelToModel);
-            const promptData = await api.getStage3Prompt(userQuery, stage1Responses, processed.stage2_results, previousMessages);
+            const cleanHistory = getValidHistory();
+            const promptData = await api.getStage3Prompt(userQuery, stage1Responses, processed.stage2_results, cleanHistory);
             setStage3Prompt(promptData.prompt);
             setStage2Responses(processed.stage2_results);
             setAggregateRankings(processed.aggregate_rankings);
