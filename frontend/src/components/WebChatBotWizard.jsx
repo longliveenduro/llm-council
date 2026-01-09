@@ -167,8 +167,8 @@ export default function WebChatBotWizard({ conversationId, currentTitle, previou
     // Input State for current item
     const [currentModel, setCurrentModel] = useState(savedDraft.currentModel || llmNames[0] || '');
     const [currentText, setCurrentText] = useState(savedDraft.currentText || '');
-    const [showPreview, setShowPreview] = useState(true); // Step 1 Preview Toggle
-    const [showStep3Preview, setShowStep3Preview] = useState(true); // Step 3 Preview Toggle
+    const [showPreview, setShowPreview] = useState(false); // Step 1 Preview Toggle - default to Write mode
+    const [showStep3Preview, setShowStep3Preview] = useState(false); // Step 3 Preview Toggle - default to Write mode
 
     const currentScores = useMemo(() => {
         return calculateCurrentScores(stage2Responses, labelToModel);
@@ -599,19 +599,21 @@ Title:`;
                 <div className="input-tabs-container">
                     <div className="input-tabs">
                         <button
+                            type="button"
                             className={`input-tab ${!showPreview ? 'active' : ''}`}
                             onClick={() => setShowPreview(false)}
                         >
                             Write
                         </button>
                         <button
+                            type="button"
                             className={`input-tab ${showPreview ? 'active' : ''}`}
                             onClick={() => setShowPreview(true)}
                         >
                             Preview
                         </button>
                     </div>
-                    <div className="input-content-wrapper">
+                    <div className="input-content-wrapper" key={showPreview ? 'preview' : 'write'}>
                         {showPreview ? (
                             <div className="input-preview-content markdown-content">
                                 {currentText ? (
@@ -713,7 +715,7 @@ Title:`;
     );
 
     const renderStep3 = () => (
-        <div className="wizard-step">
+        <div className="wizard-step step3-wizard">
             <h3>Step 3: Synthesis</h3>
             <div className="prompt-col-layout">
                 <div className="prompt-box">
@@ -723,64 +725,62 @@ Title:`;
                 </div>
                 <MappingBox labelToModel={labelToModel} scores={currentScores} showScoreExplanation={true} />
             </div>
-            <div className="form-group">
+            <div className="stage3-synthesis-section">
                 <label>Final Synthesis:</label>
-                <div className="chairman-input-row" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                        <select value={stage3Response.model} onChange={(e) => setStage3Response({ ...stage3Response, model: e.target.value })} className="model-select">
-                            <option value="Web ChatBot Chairman">Web ChatBot Chairman</option>
-                            {stage1Responses.map((r, i) => <option key={i} value={r.model}>{r.model}</option>)}
-                        </select>
-                        <div className="automation-row">
-                            <button
-                                onClick={() => handleRunStage3Automation(stage3Prompt, providerInfo.key)}
-                                className={`automation-btn stage3-auto-btn ${providerInfo.key}-btn`}
-                                disabled={isAutomating || !stage3Prompt || stage3Response.model === 'Web ChatBot Chairman'}
-                                style={providerInfo.color ? { backgroundColor: providerInfo.color } : {}}
-                            >
-                                Run via {providerInfo.label}
-                            </button>
-                        </div>
+                <div className="stage3-controls-row">
+                    <select value={stage3Response.model} onChange={(e) => setStage3Response({ ...stage3Response, model: e.target.value })} className="model-select">
+                        <option value="Web ChatBot Chairman">Web ChatBot Chairman</option>
+                        {stage1Responses.map((r, i) => <option key={i} value={r.model}>{r.model}</option>)}
+                    </select>
+                    <button
+                        onClick={() => handleRunStage3Automation(stage3Prompt, providerInfo.key)}
+                        className={`automation-btn stage3-auto-btn ${providerInfo.key}-btn`}
+                        disabled={isAutomating || !stage3Prompt || stage3Response.model === 'Web ChatBot Chairman'}
+                        style={providerInfo.color ? { backgroundColor: providerInfo.color } : {}}
+                    >
+                        Run via {providerInfo.label}
+                    </button>
+                </div>
+                {preselectionReason && (
+                    <div className="preselection-explanation" style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                        {preselectionReason}
                     </div>
-                    {preselectionReason && (
-                        <div className="preselection-explanation" style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '-4px' }}>
-                            {preselectionReason}
-                        </div>
-                    )}
+                )}
 
-                    <div className="input-tabs-container">
-                        <div className="input-tabs">
-                            <button
-                                className={`input-tab ${!showStep3Preview ? 'active' : ''}`}
-                                onClick={() => setShowStep3Preview(false)}
-                            >
-                                Write
-                            </button>
-                            <button
-                                className={`input-tab ${showStep3Preview ? 'active' : ''}`}
-                                onClick={() => setShowStep3Preview(true)}
-                            >
-                                Preview
-                            </button>
-                        </div>
-                        <div className="input-content-wrapper">
-                            {showStep3Preview ? (
-                                <div className="input-preview-content markdown-content" style={{ minHeight: '200px' }}>
-                                    {stage3Response.response ? (
-                                        <ReactMarkdown
-                                            remarkPlugins={[remarkMath, remarkGfm]}
-                                            rehypePlugins={[rehypeKatex]}
-                                        >
-                                            {stage3Response.response}
-                                        </ReactMarkdown>
-                                    ) : (
-                                        <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Nothing to preview</span>
-                                    )}
-                                </div>
-                            ) : (
-                                <textarea value={stage3Response.response || ''} onChange={(e) => setStage3Response({ ...stage3Response, response: e.target.value })} rows={12} placeholder="Final answer..." />
-                            )}
-                        </div>
+                <div className="input-tabs-container stage3-tabs-container">
+                    <div className="input-tabs">
+                        <button
+                            type="button"
+                            className={`input-tab ${!showStep3Preview ? 'active' : ''}`}
+                            onClick={() => setShowStep3Preview(false)}
+                        >
+                            Write
+                        </button>
+                        <button
+                            type="button"
+                            className={`input-tab ${showStep3Preview ? 'active' : ''}`}
+                            onClick={() => setShowStep3Preview(true)}
+                        >
+                            Preview
+                        </button>
+                    </div>
+                    <div className="input-content-wrapper" key={showStep3Preview ? 'preview' : 'write'}>
+                        {showStep3Preview ? (
+                            <div className="input-preview-content markdown-content">
+                                {stage3Response.response ? (
+                                    <ReactMarkdown
+                                        remarkPlugins={[remarkMath, remarkGfm]}
+                                        rehypePlugins={[rehypeKatex]}
+                                    >
+                                        {stage3Response.response}
+                                    </ReactMarkdown>
+                                ) : (
+                                    <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Nothing to preview</span>
+                                )}
+                            </div>
+                        ) : (
+                            <textarea value={stage3Response.response || ''} onChange={(e) => setStage3Response({ ...stage3Response, response: e.target.value })} placeholder="Final answer..." />
+                        )}
                     </div>
                 </div>
             </div>

@@ -4,6 +4,42 @@
     padding: 16px;
     display: flex;
     flex-direction: column;
+    height: 100%;
+}
+
+/* Stage 3 specific layout */
+.step3-wizard {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+}
+
+.stage3-synthesis-section {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    margin-top: 16px;
+}
+
+.stage3-synthesis-section>label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    font-size: 14px;
+    color: var(--text-primary);
+}
+
+.stage3-controls-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.stage3-tabs-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
 }
 
 .web-chatbot-wizard h3 {
@@ -577,6 +613,7 @@
 .input-tabs-container {
     display: flex;
     flex-direction: column;
+    flex: 1;
 }
 
 .input-tabs {
@@ -618,6 +655,9 @@
 .input-content-wrapper {
     position: relative;
     z-index: 0;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
 }
 
 /* Ensure textarea and preview have generic border logic handled by wrapper or themselves */
@@ -626,6 +666,20 @@
     border-top-left-radius: 0;
     margin-top: 0;
     width: 100%;
+    flex: 1;
+    min-height: calc(100vh - 550px);
+}
+
+.input-content-wrapper textarea {
+    resize: vertical;
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 10px;
+    font-family: inherit;
+    font-size: 14px;
+    border-radius: 6px;
+    border-top-left-radius: 0;
 }
 
 .input-preview-content {
@@ -635,8 +689,8 @@
     border-top-left-radius: 0;
     padding: 10px;
     color: var(--text-primary);
-    min-height: 150px;
-    max-height: 400px;
+    min-height: calc(100vh - 550px);
+    max-height: none;
     overflow-y: auto;
     font-size: 14px;
     line-height: 1.5;
