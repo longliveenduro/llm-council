@@ -442,7 +442,7 @@ async def extract_response(page: Page) -> str:
             // 1. Process Math Elements
             // AI Studio uses ms-katex or ms-math-block.
             // LaTeX is often in <annotation encoding="application/x-tex"> inside MathML
-            const mathElements = clone.querySelectorAll('ms-katex, ms-math-block, .math, .math-inline, .math-display');
+            const mathElements = clone.querySelectorAll('ms-katex, ms-math-block, .math, .math-inline, .math-display, [latex]');
             
             mathElements.forEach(el => {
                 let latex = el.getAttribute('latex') || el.getAttribute('data-latex');
@@ -458,10 +458,11 @@ async def extract_response(page: Page) -> str:
                 if (latex) {
                     const isDisplay = el.classList.contains('display') || 
                                       el.classList.contains('math-display') || 
-                                      el.tagName === 'MS-MATH-BLOCK';
+                                      el.tagName === 'MS-MATH-BLOCK' ||
+                                      el.closest('ms-math-block');
                     
                     // Replace the entire element content with the LaTeX code
-                    el.textContent = isDisplay ? `\n$$\n${latex}\n$$\n` : `$${latex}$`;
+                    el.textContent = isDisplay ? `\\n$$\\n${latex}\\n$$\\n` : `$${latex}$`;
                 }
             });
 
@@ -469,17 +470,30 @@ async def extract_response(page: Page) -> str:
             const noise = clone.querySelectorAll('button, .mat-icon, ms-copy-button, ms-feedback-button, .sr-only');
             noise.forEach(el => el.remove());
 
-            // 3. Extract content
-            // ms-markdown-block or ms-text-chunk usually hold the real message
-            // We use innerText to respect line breaks, but since we replaced math with text, 
-            // it should be preserved.
-            const contentEls = clone.querySelectorAll('ms-markdown-block, ms-text-chunk, .text-content');
-            if (contentEls.length > 0) {
-                // Join with newline, but check if we have multiple text chunks that should be merged carefully
-                return Array.from(contentEls).map(el => el.innerText).join('\\n').trim();
+            // 3. Hidden Append Strategy for Correct line breaks (innerText needs layout)
+            clone.style.position = 'absolute';
+            clone.style.left = '-9999px';
+            clone.style.whiteSpace = 'pre-wrap'; // Ensure whitespace is preserved
+            document.body.appendChild(clone);
+            
+            let resultText = null;
+            
+            try {
+                // 3. Extract content
+                // ms-markdown-block or ms-text-chunk usually hold the real message
+                const contentEls = clone.querySelectorAll('ms-markdown-block, ms-text-chunk, .text-content');
+                if (contentEls.length > 0) {
+                    // Use innerText on each chunk. join with newline.
+                    resultText = Array.from(contentEls).map(el => el.innerText).join('\\n').trim();
+                } else {
+                    resultText = clone.innerText.trim();
+                }
+            } finally {
+                // Cleanup
+                document.body.removeChild(clone);
             }
             
-            return clone.innerText.trim();
+            return resultText;
         }''')
         
         if text:
