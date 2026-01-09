@@ -346,10 +346,23 @@ async def extract_response(page: Page) -> str:
             const artifacts = clone.querySelectorAll('.flex.items-center.justify-between.mt-2, .sr-only, .mt-2.flex.gap-3');
             artifacts.forEach(a => a.remove());
 
-            // 5. Return the innerText
-            // Prefer markdown/prose containers
-            const content = clone.querySelector('.markdown, .prose') || clone;
-            return content.innerText.trim();
+            // 5. Hidden Append Strategy for Correct line breaks (innerText needs layout)
+            clone.style.position = 'absolute';
+            clone.style.left = '-9999px';
+            clone.style.whiteSpace = 'pre-wrap';
+            document.body.appendChild(clone);
+            
+            let resultText = null;
+            
+            try {
+                // Prefer markdown/prose containers
+                const content = clone.querySelector('.markdown, .prose') || clone;
+                resultText = content.innerText.trim();
+            } finally {
+                document.body.removeChild(clone);
+            }
+            
+            return resultText;
         }''')
 
         

@@ -340,35 +340,50 @@ async def extract_response(page: Page, prompt: str = None, model: str = "auto") 
                     el.textContent = isBlock ? `\n$$\n${latex}\n$$\n` : `$${latex}$`;
                 }
             });
-            
-            // Strategy 1: Look for the standard markdown container
-            const allMarkdown = clone.querySelectorAll('.standard-markdown');
-            if (allMarkdown.length > 0) {
-                const lastMarkdown = allMarkdown[allMarkdown.length - 1];
-                return lastMarkdown.innerText.trim();
-            }
 
-            // Strategy 2: Remove thinking sections and return clean text (fallback)
-            const thinkingSelectors = [
-                'details',
-                '[class*="thinking"]',
-                '[class*="Thinking"]',
-                '[data-testid*="thinking"]',
-                'summary',
-                '.border-border-300.rounded-lg',
-            ];
+            // 2. Hidden Append Strategy for Correct line breaks (innerText needs layout)
+            clone.style.position = 'absolute';
+            clone.style.left = '-9999px';
+            clone.style.whiteSpace = 'pre-wrap'; // Ensure whitespace is preserved
+            document.body.appendChild(clone);
             
-            for (const selector of thinkingSelectors) {
-                const elements = clone.querySelectorAll(selector);
-                elements.forEach(el => el.remove());
+            let resultText = null;
+            
+            try {
+                // Strategy 1: Look for the standard markdown container
+                const allMarkdown = clone.querySelectorAll('.standard-markdown');
+                if (allMarkdown.length > 0) {
+                    const lastMarkdown = allMarkdown[allMarkdown.length - 1];
+                    resultText = lastMarkdown.innerText.trim();
+                } else {
+                    // Strategy 2: Remove thinking sections and return clean text (fallback)
+                    const thinkingSelectors = [
+                        'details',
+                        '[class*="thinking"]',
+                        '[class*="Thinking"]',
+                        '[data-testid*="thinking"]',
+                        'summary',
+                        '.border-border-300.rounded-lg',
+                    ];
+                    
+                    for (const selector of thinkingSelectors) {
+                        const elements = clone.querySelectorAll(selector);
+                        elements.forEach(el => el.remove());
+                    }
+                    
+                    const prose = clone.querySelector('.prose');
+                    if (prose) {
+                        resultText = prose.innerText.trim();
+                    } else {
+                        resultText = clone.innerText.trim();
+                    }
+                }
+            } finally {
+                // Cleanup
+                document.body.removeChild(clone);
             }
             
-            const prose = clone.querySelector('.prose');
-            if (prose) {
-                return prose.innerText.trim();
-            }
-            
-            return clone.innerText.trim();
+            return resultText;
         }''')
         
         if text and len(text.strip()) > 30:
