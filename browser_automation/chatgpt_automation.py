@@ -26,6 +26,61 @@ from playwright.async_api import async_playwright, Page, BrowserContext
 # Directory to store browser profile (keeps you logged in)
 BROWSER_DATA_DIR = Path(__file__).parent / ".chatgpt_browser_data"
 
+# Combined JS script for extraction
+CHATGPT_JS = r'''
+(() => {
+    const assistantMessages = document.querySelectorAll('[data-message-author-role="assistant"]');
+    if (assistantMessages.length === 0) return null;
+    
+    const lastMessage = assistantMessages[assistantMessages.length - 1];
+    
+    // Clone to avoid side effects
+    const clone = lastMessage.cloneNode(true);
+    
+    // 1. Process Math Elements (KaTeX)
+    const mathContainers = clone.querySelectorAll('.katex-display, .math-display, :not(.katex-display) > .katex, :not(.math-display) > .math');
+    mathContainers.forEach(container => {
+        const annotation = container.querySelector('annotation[encoding="application/x-tex"]');
+        if (annotation) {
+            const latex = annotation.textContent.trim();
+            const isBlock = container.classList.contains('katex-display') || container.classList.contains('math-display');
+            container.textContent = isBlock ? `\n$$\n${latex}\n$$\n` : `$${latex}$`;
+        }
+    });
+    
+    clone.querySelectorAll('.katex, .math').forEach(el => {
+        if (el.textContent.includes('$')) return;
+        const ann = el.querySelector('annotation');
+        if (ann) el.textContent = ann.textContent;
+    });
+
+    const allElements = clone.querySelectorAll('button, span, .cit-button, [data-testid*="citation"]');
+    allElements.forEach(el => {
+        const text = (el.textContent || "").trim();
+        if (/^\[?\+\d+\]?$/.test(text) || /^\[\d+\]$/.test(text)) el.remove();
+        if (el.getAttribute('data-testid') && el.getAttribute('data-testid').includes('citation')) el.remove();
+    });
+
+    const artifacts = clone.querySelectorAll('.flex.items-center.justify-between.mt-2, .sr-only, .mt-2.flex.gap-3');
+    artifacts.forEach(a => a.remove());
+
+    clone.style.position = 'absolute';
+    clone.style.left = '-9999px';
+    clone.style.whiteSpace = 'pre-wrap';
+    document.body.appendChild(clone);
+    
+    let resultText = null;
+    try {
+        const content = clone.querySelector('.markdown, .prose') || clone;
+        resultText = content.innerText.trim();
+    } finally {
+        document.body.removeChild(clone);
+    }
+    
+    return resultText;
+})()
+'''
+
 
 async def get_browser_context() -> tuple[BrowserContext, Page]:
     """Get a browser context with persistent storage (keeps login state)."""
@@ -296,74 +351,7 @@ async def extract_response(page: Page) -> str:
     
     # Use JavaScript for intelligent extraction
     try:
-        text = await page.evaluate('''() => {
-            const assistantMessages = document.querySelectorAll('[data-message-author-role="assistant"]');
-            if (assistantMessages.length === 0) return null;
-            
-            const lastMessage = assistantMessages[assistantMessages.length - 1];
-            
-            // Clone to avoid side effects
-            const clone = lastMessage.cloneNode(true);
-            
-            // 1. Process Math Elements (KaTeX)
-            // We search for the top-level math containers first to avoid double-processing
-            const mathContainers = clone.querySelectorAll('.katex-display, .math-display, :not(.katex-display) > .katex, :not(.math-display) > .math');
-            mathContainers.forEach(container => {
-                const annotation = container.querySelector('annotation[encoding="application/x-tex"]');
-                if (annotation) {
-                    const latex = annotation.textContent.trim();
-                    const isBlock = container.classList.contains('katex-display') || container.classList.contains('math-display');
-                    // We use $...$ and $$...$$ which are standard for remark-math
-                    const wrapper = isBlock ? `\n$$\n${latex}\n$$\n` : `$${latex}$`;
-                    container.textContent = wrapper;
-                }
-            });
-            
-            // 2. Remove remaining KaTeX noise if any escaped processing
-            clone.querySelectorAll('.katex, .math').forEach(el => {
-                if (el.textContent.includes('$')) return; // Already processed
-                // If it's still raw KaTeX HTML, it often has the text duplicated or spread out
-                const ann = el.querySelector('annotation');
-                if (ann) {
-                    el.textContent = ann.textContent;
-                }
-            });
-
-            // 3. Remove Citation noise (+1, +2 buttons, etc.)
-            const allElements = clone.querySelectorAll('button, span, .cit-button, [data-testid*="citation"]');
-            allElements.forEach(el => {
-                const text = (el.textContent || "").trim();
-                // Match patterns like [+1], +1, [1], etc.
-                if (/^\[?\+\d+\]?$/.test(text) || /^\[\d+\]$/.test(text)) {
-                     el.remove();
-                }
-                if (el.getAttribute('data-testid') && el.getAttribute('data-testid').includes('citation')) {
-                    el.remove();
-                }
-            });
-
-            // 4. Remove other known UI artifacts
-            const artifacts = clone.querySelectorAll('.flex.items-center.justify-between.mt-2, .sr-only, .mt-2.flex.gap-3');
-            artifacts.forEach(a => a.remove());
-
-            // 5. Hidden Append Strategy for Correct line breaks (innerText needs layout)
-            clone.style.position = 'absolute';
-            clone.style.left = '-9999px';
-            clone.style.whiteSpace = 'pre-wrap';
-            document.body.appendChild(clone);
-            
-            let resultText = null;
-            
-            try {
-                // Prefer markdown/prose containers
-                const content = clone.querySelector('.markdown, .prose') || clone;
-                resultText = content.innerText.trim();
-            } finally {
-                document.body.removeChild(clone);
-            }
-            
-            return resultText;
-        }''')
+        text = await page.evaluate(CHATGPT_JS)
 
         
         if text:

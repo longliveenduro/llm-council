@@ -26,6 +26,83 @@ from playwright.async_api import async_playwright, Page, BrowserContext
 # Directory to store browser profile (keeps you logged in)
 BROWSER_DATA_DIR = Path(__file__).parent / ".claude_browser_data"
 
+# Combined JS script for extraction
+CLAUDE_JS = r'''
+(() => {
+    // Find potential message containers
+    const candidates = Array.from(document.querySelectorAll('.font-claude-message, .font-claude-response'));
+    if (candidates.length === 0) return null;
+    
+    // Filter to keep only top-level containers
+    const topLevelMessages = candidates.filter(el => 
+        !el.parentElement.closest('.font-claude-message, .font-claude-response')
+    );
+    
+    if (topLevelMessages.length === 0) return null;
+    
+    const lastMessage = topLevelMessages[topLevelMessages.length - 1];
+    
+    // Clone to avoid side effects
+    const clone = lastMessage.cloneNode(true);
+
+    // 1. Process Math Elements
+    // Claude uses KaTeX. LaTeX source is usually in <annotation encoding="application/x-tex">
+    const mathElements = clone.querySelectorAll('.katex, .math, .math-inline, .math-display');
+    mathElements.forEach(el => {
+        const annotation = el.querySelector('annotation[encoding="application/x-tex"]');
+        if (annotation) {
+            const latex = annotation.textContent;
+            const isBlock = el.classList.contains('math-display') || el.closest('.math-display');
+            el.textContent = isBlock ? `\n$$\n${latex}\n$$\n` : `$${latex}$`;
+        }
+    });
+
+    // 2. Hidden Append Strategy for Correct line breaks (innerText needs layout)
+    clone.style.position = 'absolute';
+    clone.style.left = '-9999px';
+    clone.style.whiteSpace = 'pre-wrap'; // Ensure whitespace is preserved
+    document.body.appendChild(clone);
+    
+    let resultText = null;
+    
+    try {
+        // Strategy 1: Look for the standard markdown container
+        const allMarkdown = clone.querySelectorAll('.standard-markdown');
+        if (allMarkdown.length > 0) {
+            const lastMarkdown = allMarkdown[allMarkdown.length - 1];
+            resultText = lastMarkdown.innerText.trim();
+        } else {
+            // Strategy 2: Remove thinking sections and return clean text (fallback)
+            const thinkingSelectors = [
+                'details',
+                '[class*="thinking"]',
+                '[class*="Thinking"]',
+                '[data-testid*="thinking"]',
+                'summary',
+                '.border-border-300.rounded-lg',
+            ];
+            
+            for (const selector of thinkingSelectors) {
+                const elements = clone.querySelectorAll(selector);
+                elements.forEach(el => el.remove());
+            }
+            
+            const prose = clone.querySelector('.prose');
+            if (prose) {
+                resultText = prose.innerText.trim();
+            } else {
+                resultText = clone.innerText.trim();
+            }
+        }
+    } finally {
+        // Cleanup
+        document.body.removeChild(clone);
+    }
+    
+    return resultText;
+})()
+'''
+
 
 async def get_browser_context() -> tuple[BrowserContext, Page]:
     """Get a browser context with persistent storage (keeps login state)."""
@@ -312,79 +389,7 @@ async def extract_response(page: Page, prompt: str = None, model: str = "auto") 
     # Use JavaScript to extract text while excluding thinking sections
     # Claude's Extended Thinking is typically in a <details> element or similar collapsible container
     try:
-        text = await page.evaluate('''() => {
-            // Find potential message containers
-            const candidates = Array.from(document.querySelectorAll('.font-claude-message, .font-claude-response'));
-            if (candidates.length === 0) return null;
-            
-            // Filter to keep only top-level containers
-            const topLevelMessages = candidates.filter(el => 
-                !el.parentElement.closest('.font-claude-message, .font-claude-response')
-            );
-            
-            if (topLevelMessages.length === 0) return null;
-            
-            const lastMessage = topLevelMessages[topLevelMessages.length - 1];
-            
-            // Clone to avoid side effects
-            const clone = lastMessage.cloneNode(true);
-
-            // 1. Process Math Elements
-            // Claude uses KaTeX. LaTeX source is usually in <annotation encoding="application/x-tex">
-            const mathElements = clone.querySelectorAll('.katex, .math, .math-inline, .math-display');
-            mathElements.forEach(el => {
-                const annotation = el.querySelector('annotation[encoding="application/x-tex"]');
-                if (annotation) {
-                    const latex = annotation.textContent;
-                    const isBlock = el.classList.contains('math-display') || el.closest('.math-display');
-                    el.textContent = isBlock ? `\n$$\n${latex}\n$$\n` : `$${latex}$`;
-                }
-            });
-
-            // 2. Hidden Append Strategy for Correct line breaks (innerText needs layout)
-            clone.style.position = 'absolute';
-            clone.style.left = '-9999px';
-            clone.style.whiteSpace = 'pre-wrap'; // Ensure whitespace is preserved
-            document.body.appendChild(clone);
-            
-            let resultText = null;
-            
-            try {
-                // Strategy 1: Look for the standard markdown container
-                const allMarkdown = clone.querySelectorAll('.standard-markdown');
-                if (allMarkdown.length > 0) {
-                    const lastMarkdown = allMarkdown[allMarkdown.length - 1];
-                    resultText = lastMarkdown.innerText.trim();
-                } else {
-                    // Strategy 2: Remove thinking sections and return clean text (fallback)
-                    const thinkingSelectors = [
-                        'details',
-                        '[class*="thinking"]',
-                        '[class*="Thinking"]',
-                        '[data-testid*="thinking"]',
-                        'summary',
-                        '.border-border-300.rounded-lg',
-                    ];
-                    
-                    for (const selector of thinkingSelectors) {
-                        const elements = clone.querySelectorAll(selector);
-                        elements.forEach(el => el.remove());
-                    }
-                    
-                    const prose = clone.querySelector('.prose');
-                    if (prose) {
-                        resultText = prose.innerText.trim();
-                    } else {
-                        resultText = clone.innerText.trim();
-                    }
-                }
-            } finally {
-                // Cleanup
-                document.body.removeChild(clone);
-            }
-            
-            return resultText;
-        }''')
+        text = await page.evaluate(CLAUDE_JS)
         
         if text and len(text.strip()) > 30:
             if "New chat" not in text[:50] and "Chats" not in text[:50]:

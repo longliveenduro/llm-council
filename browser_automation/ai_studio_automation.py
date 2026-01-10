@@ -29,6 +29,58 @@ from playwright.async_api import async_playwright, Page, BrowserContext
 # Directory to store browser profile (keeps you logged in)
 BROWSER_DATA_DIR = Path(__file__).parent / ".ai_studio_browser_data"
 
+# Combined JS script for extraction
+AI_STUDIO_JS = r'''
+(() => {
+    const lastTurn = document.querySelector('ms-chat-turn:last-of-type');
+    if (!lastTurn) return null;
+    
+    const clone = lastTurn.cloneNode(true);
+    
+    // 1. Process Math Elements
+    const mathElements = clone.querySelectorAll('ms-katex, ms-math-block, .math, .math-inline, .math-display, [latex]');
+    
+    mathElements.forEach(el => {
+        let latex = el.getAttribute('latex') || el.getAttribute('data-latex');
+        if (!latex) {
+            const annotation = el.querySelector('annotation[encoding="application/x-tex"]');
+            if (annotation) latex = annotation.textContent.trim();
+        }
+        
+        if (latex) {
+            const isDisplay = el.classList.contains('display') || 
+                              el.classList.contains('math-display') || 
+                              el.tagName === 'MS-MATH-BLOCK' ||
+                              el.closest('ms-math-block');
+            
+            el.textContent = isDisplay ? `\n$$\n${latex}\n$$\n` : `$${latex}$`;
+        }
+    });
+
+    const noise = clone.querySelectorAll('button, .mat-icon, ms-copy-button, ms-feedback-button, .sr-only');
+    noise.forEach(el => el.remove());
+
+    clone.style.position = 'absolute';
+    clone.style.left = '-9999px';
+    clone.style.whiteSpace = 'pre-wrap';
+    document.body.appendChild(clone);
+    
+    let resultText = null;
+    try {
+        const contentEls = clone.querySelectorAll('ms-markdown-block, ms-text-chunk, .text-content');
+        if (contentEls.length > 0) {
+            resultText = Array.from(contentEls).map(el => el.innerText).join('\n').trim();
+        } else {
+            resultText = clone.innerText.trim();
+        }
+    } finally {
+        document.body.removeChild(clone);
+    }
+    
+    return resultText;
+})()
+'''
+
 
 async def get_browser_context() -> tuple[BrowserContext, Page]:
     """Get a browser context with persistent storage (keeps login state)."""
@@ -433,68 +485,7 @@ async def extract_response(page: Page) -> str:
     print("DEBUG: Falling back to visual extraction...")
     
     try:
-        text = await page.evaluate('''() => {
-            const lastTurn = document.querySelector('ms-chat-turn:last-of-type');
-            if (!lastTurn) return null;
-            
-            const clone = lastTurn.cloneNode(true);
-            
-            // 1. Process Math Elements
-            // AI Studio uses ms-katex or ms-math-block.
-            // LaTeX is often in <annotation encoding="application/x-tex"> inside MathML
-            const mathElements = clone.querySelectorAll('ms-katex, ms-math-block, .math, .math-inline, .math-display, [latex]');
-            
-            mathElements.forEach(el => {
-                let latex = el.getAttribute('latex') || el.getAttribute('data-latex');
-                
-                // Try finding annotation tag if attribute not present
-                if (!latex) {
-                    const annotation = el.querySelector('annotation[encoding="application/x-tex"]');
-                    if (annotation) {
-                        latex = annotation.textContent.trim();
-                    }
-                }
-                
-                if (latex) {
-                    const isDisplay = el.classList.contains('display') || 
-                                      el.classList.contains('math-display') || 
-                                      el.tagName === 'MS-MATH-BLOCK' ||
-                                      el.closest('ms-math-block');
-                    
-                    // Replace the entire element content with the LaTeX code
-                    el.textContent = isDisplay ? `\\n$$\\n${latex}\\n$$\\n` : `$${latex}$`;
-                }
-            });
-
-            // 2. Remove UI noise
-            const noise = clone.querySelectorAll('button, .mat-icon, ms-copy-button, ms-feedback-button, .sr-only');
-            noise.forEach(el => el.remove());
-
-            // 3. Hidden Append Strategy for Correct line breaks (innerText needs layout)
-            clone.style.position = 'absolute';
-            clone.style.left = '-9999px';
-            clone.style.whiteSpace = 'pre-wrap'; // Ensure whitespace is preserved
-            document.body.appendChild(clone);
-            
-            let resultText = null;
-            
-            try {
-                // 3. Extract content
-                // ms-markdown-block or ms-text-chunk usually hold the real message
-                const contentEls = clone.querySelectorAll('ms-markdown-block, ms-text-chunk, .text-content');
-                if (contentEls.length > 0) {
-                    // Use innerText on each chunk. join with newline.
-                    resultText = Array.from(contentEls).map(el => el.innerText).join('\\n').trim();
-                } else {
-                    resultText = clone.innerText.trim();
-                }
-            } finally {
-                // Cleanup
-                document.body.removeChild(clone);
-            }
-            
-            return resultText;
-        }''')
+        text = await page.evaluate(AI_STUDIO_JS)
         
         if text:
             print(f"DEBUG: Extracted response via JS visual evaluation ({len(text)} chars)")
