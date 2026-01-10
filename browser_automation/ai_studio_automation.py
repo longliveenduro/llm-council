@@ -57,8 +57,16 @@ AI_STUDIO_JS = r'''
         }
     });
 
+    // 2. Remove UI noise (but keep footnotes)
     const noise = clone.querySelectorAll('button, .mat-icon, ms-copy-button, ms-feedback-button, .sr-only');
-    noise.forEach(el => el.remove());
+    noise.forEach(el => {
+        if (el.tagName === 'BUTTON') {
+            const text = el.textContent.trim();
+            // Preserve [1], [1][2], [+1] style footnotes
+            if (/^\[\+?\d+\]+$/.test(text)) return;
+        }
+        el.remove();
+    });
 
     clone.style.position = 'absolute';
     clone.style.left = '-9999px';

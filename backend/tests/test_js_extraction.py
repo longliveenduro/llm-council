@@ -30,9 +30,16 @@ AI_STUDIO_JS = r'''
         }
     });
 
-    // 2. Remove UI noise
+    // 2. Remove UI noise (but keep footnotes)
     const noise = clone.querySelectorAll('button, .mat-icon, ms-copy-button, ms-feedback-button, .sr-only');
-    noise.forEach(el => el.remove());
+    noise.forEach(el => {
+        if (el.tagName === 'BUTTON') {
+            const text = el.textContent.trim();
+            // Preserve [1], [1][2], [+1] style footnotes
+            if (/^\[\+?\d+\]+$/.test(text)) return;
+        }
+        el.remove();
+    });
 
     // 3. Hidden Append Strategy
     clone.style.position = 'absolute';
@@ -207,6 +214,52 @@ async def test_ai_studio_line_breaks_and_math():
         assert "\n" in result
 
 @pytest.mark.asyncio
+async def test_ai_studio_footnotes():
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page()
+        
+        # Simulate AI Studio HTML with nested footnotes
+        htmlContent = r'''
+        <ms-chat-turn>
+            <ms-markdown-block>
+                <ms-text-chunk>
+                    <p>Dark energy is a hypothetical form of energy.[1][2][3][4][5][6][7]</p>
+                    <p>In the standard model of cosmology.[2][3]</p>
+                    <p>Einstein originally added this term.[10]</p>
+                </ms-text-chunk>
+            </ms-markdown-block>
+            <button class="mat-icon-button">Copy</button>
+        </ms-chat-turn>
+        '''
+        # We need to simulate that those [1] etc are actually inside buttons or other elements
+        # that the current logic removes.
+        # Let's refine the HTML to be more realistic.
+        htmlContent = r'''
+        <ms-chat-turn>
+            <ms-markdown-block>
+                <ms-text-chunk>
+                    <p>Dark energy is a hypothetical form of energy.
+                        <ms-reference><button><span>[1]</span></button></ms-reference>
+                        <ms-reference><button><span>[2]</span></button></ms-reference>
+                        <ms-reference><button><span>[3]</span></button></ms-reference>
+                    </p>
+                </ms-text-chunk>
+            </ms-markdown-block>
+            <button>Copy</button>
+        </ms-chat-turn>
+        '''
+        await page.set_content(htmlContent)
+        
+        result = await page.evaluate(AI_STUDIO_JS)
+        await browser.close()
+        
+        print(f"\nAI Studio Footnotes Result:\n{result}")
+        assert "[1]" in result
+        assert "[2]" in result
+        assert "[3]" in result
+
+@pytest.mark.asyncio
 async def test_claude_formatting():
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
@@ -237,6 +290,30 @@ async def test_claude_formatting():
         assert r"$\pi$" in result or r"pi" in result.lower()
         assert r"int_0^1xdx" in result.replace(" ", "") or "int_0^1 x dx" in result
         assert "thinking content" not in result
+
+@pytest.mark.asyncio
+async def test_claude_footnotes():
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        page = await browser.new_page()
+        
+        # Simulate Claude HTML with footnotes
+        # Claude often uses <sup><a href="...">1</a></sup> or similar
+        htmlContent = r'''
+        <div class="font-claude-message">
+            <div class="prose">
+                <p>Claude also has citations<sup>1</sup> and maybe more<sup>[2]</sup>.</p>
+            </div>
+        </div>
+        '''
+        await page.set_content(htmlContent)
+        
+        result = await page.evaluate(CLAUDE_JS)
+        await browser.close()
+        
+        print(f"\nClaude Footnotes Result:\n{result}")
+        assert "1" in result
+        assert "2" in result
 
 @pytest.mark.asyncio
 async def test_chatgpt_formatting():
