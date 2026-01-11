@@ -451,7 +451,8 @@ input:checked+.slider:before {
 
 .web-chatbot-wizard-fullscreen .web-chatbot-wizard {
   flex: 1;
-  overflow-y: auto;
+  overflow: hidden;
+  /* Changed from overflow-y: auto to prevent scrolling the whole wizard */
   border-top: none;
   padding: 0;
   background: transparent;

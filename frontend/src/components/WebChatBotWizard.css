@@ -7,10 +7,18 @@
     height: 100%;
 }
 
-/* Stage 3 specific layout */
-.step3-wizard {
+/* Base wizard step layout */
+.wizard-step {
     display: flex;
     flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    /* Ensure step itself doesn't scroll, let internal areas handle it */
+}
+
+/* Stage 3 specific layout - inherits flex column */
+.step3-wizard {
     flex: 1;
 }
 
@@ -140,7 +148,10 @@
     background: var(--item-active);
     padding: 12px;
     border-radius: 6px;
-    margin-bottom: 16px;
+    margin-bottom: 0;
+    /* Remove margin to respect parent flex */
+    flex: 1;
+    min-height: 0;
 }
 
 .add-response-form input,
@@ -667,7 +678,8 @@
     margin-top: 0;
     width: 100%;
     flex: 1;
-    min-height: calc(100vh - 550px);
+    min-height: 0;
+    /* Allow shrinking below 100px if space is tight */
 }
 
 .input-content-wrapper textarea {
@@ -689,7 +701,7 @@
     border-top-left-radius: 0;
     padding: 10px;
     color: var(--text-primary);
-    min-height: calc(100vh - 550px);
+    min-height: 100px;
     max-height: none;
     overflow-y: auto;
     font-size: 14px;
