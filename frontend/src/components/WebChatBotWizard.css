@@ -625,6 +625,7 @@
     display: flex;
     flex-direction: column;
     flex: 1;
+    min-height: 0;
 }
 
 .input-tabs {
@@ -669,6 +670,7 @@
     flex: 1;
     display: flex;
     flex-direction: column;
+    min-height: 0;
 }
 
 /* Ensure textarea and preview have generic border logic handled by wrapper or themselves */
@@ -701,8 +703,8 @@
     border-top-left-radius: 0;
     padding: 10px;
     color: var(--text-primary);
-    min-height: 100px;
-    max-height: none;
+    min-height: 0;
+    flex: 1;
     overflow-y: auto;
     font-size: 14px;
     line-height: 1.5;
