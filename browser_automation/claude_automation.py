@@ -213,6 +213,21 @@ async def wait_for_chat_interface(page: Page, timeout: int = 30000):
     if await detect_captcha(page):
         await wait_for_user_intervention(page)
 
+    # Check for broken conversation state (e.g. Conversation not found)
+    try:
+        # Check specific error toasts or messages
+        # We check for text content that indicates a dead end
+        content = await page.content()
+        if "Conversation not found" in content or "Page not found" in content:
+            print("Detected error page/broken conversation. Redirecting to home...")
+            await page.goto("https://claude.ai/")
+            await asyncio.sleep(2)
+            
+            if await detect_captcha(page):
+                await wait_for_user_intervention(page)
+    except Exception as e:
+        print(f"Error checking for error page: {e}")
+
     # First check if login is required
     if await check_login_required(page):
         raise Exception("Login required. Please log in to Claude first using the Login button in the sidebar.")
