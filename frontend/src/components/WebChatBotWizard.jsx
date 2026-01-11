@@ -538,10 +538,13 @@ Title:`;
         }
     };
 
+    const [viewingResponse, setViewingResponse] = useState(null);
+    const [viewingMode, setViewingMode] = useState('preview'); // 'preview' or 'source'
+
     const renderStep1 = () => (
         <div className="wizard-step">
             <h3>{isFollowUp ? 'Step 1: Follow Up Opinions' : 'Step 1: Initial Opinions'}</h3>
-            <p className="step-desc">Enter query and add model responses.</p>
+            <p className="step-desc">Enter query and add model responses. Click existing response to view full content.</p>
             <div className="automation-settings">
                 <label>Automation Model:</label>
                 <div className="automation-input-row">
@@ -575,7 +578,7 @@ Title:`;
                 <div className="responses-list" style={stage1Responses.length > 0 ? { flex: 2, marginBottom: 0 } : {}}>
                     {stage1Responses.length === 0 && <div className="no-responses-hint" style={{ color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic', textAlign: 'center', padding: '12px' }}>No responses added yet.</div>}
                     {stage1Responses.map((r, i) => (
-                        <div key={i} className="response-item">
+                        <div key={i} className="response-item clickable-response-item" onClick={() => setViewingResponse(r)} title="Click to view full response">
                             <div className="response-header">
                                 <span className="response-model-label">Model {String.fromCharCode(65 + i)}:</span> <ModelBadge model={r.model} />:
                             </div>
@@ -653,6 +656,52 @@ Title:`;
                     <button onClick={handleGoToStep2} className="primary-btn" disabled={!userQuery || stage1Responses.length === 0}>Next: Peer Review</button>
                 </div>
             </div>
+
+            {/* Response Viewer Modal */}
+            {viewingResponse && (
+                <div className="response-modal-overlay" onClick={() => setViewingResponse(null)}>
+                    <div className="response-modal-content" onClick={e => e.stopPropagation()} data-testid="response-modal">
+                        <div className="response-modal-header">
+                            <h3><ModelBadge model={viewingResponse.model} /> Response</h3>
+                            <button className="response-modal-close-btn" onClick={() => setViewingResponse(null)}>×</button>
+                        </div>
+                        <div className="response-modal-body">
+                            <div className="input-tabs">
+                                <button
+                                    className={`input-tab ${viewingMode === 'preview' ? 'active' : ''}`}
+                                    onClick={() => setViewingMode('preview')}
+                                >
+                                    Preview
+                                </button>
+                                <button
+                                    className={`input-tab ${viewingMode === 'source' ? 'active' : ''}`}
+                                    onClick={() => setViewingMode('source')}
+                                >
+                                    Source
+                                </button>
+                            </div>
+                            <div className="response-modal-content-area">
+                                {viewingMode === 'preview' ? (
+                                    <div className="markdown-content">
+                                        <ReactMarkdown
+                                            remarkPlugins={[remarkMath, remarkGfm]}
+                                            rehypePlugins={[rehypeKatex]}
+                                        >
+                                            {viewingResponse.response}
+                                        </ReactMarkdown>
+                                    </div>
+                                ) : (
+                                    <textarea
+                                        readOnly
+                                        value={viewingResponse.response}
+                                        style={{ cursor: 'text' }}
+                                    />
+                                )}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 
