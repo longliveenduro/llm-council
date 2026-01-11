@@ -11,7 +11,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(false);
   const [llmNames, setLlmNames] = useState(() => {
     const saved = localStorage.getItem('llmNames');
-    return saved ? JSON.parse(saved) : ['GPT-4o', 'Claude 3.5 Sonnet', 'Gemini 1.5 Pro'];
+    return saved ? JSON.parse(saved) : ['Gemini 3 Pro Preview', 'Claude Sonnet 4.5 [Ext. Thinking]'];
   });
   const [theme, setTheme] = useState(() => {
     const saved = localStorage.getItem('theme');
