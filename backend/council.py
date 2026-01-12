@@ -791,9 +791,12 @@ async def get_ai_studio_models() -> List[Dict[str, str]]:
             return []
 
 
-async def run_chatgpt_automation(prompt: str, model: str = "auto") -> str:
+async def run_chatgpt_automation(prompt: str, model: str = "auto") -> tuple[str, bool]:
     """
     Run the ChatGPT automation script via subprocess.
+    
+    Returns:
+        Tuple of (response_text, thinking_used)
     """
     script_path = Path(__file__).parent.parent / "browser_automation" / "chatgpt_automation.py"
     
@@ -815,7 +818,7 @@ async def run_chatgpt_automation(prompt: str, model: str = "auto") -> str:
             if process.returncode != 0:
                 error_msg = stderr.decode().strip()
                 print(f"ChatGPT Automation Error (Code {process.returncode}): {error_msg}")
-                return f"Error: ChatGPT automation script failed. {error_msg}"
+                return f"Error: ChatGPT automation script failed. {error_msg}", False
                 
             output = stdout.decode().strip()
             # Print full output for debugging
@@ -823,26 +826,36 @@ async def run_chatgpt_automation(prompt: str, model: str = "auto") -> str:
             print(output)
             print("-" * 67)
             
+            # Parse THINKING_USED marker
+            thinking_used = False
+            if "THINKING_USED=true" in output:
+                thinking_used = True
+            elif "THINKING_USED=false" in output:
+                thinking_used = False
+            
             # Use unique delimiters to extract the real response
             if "RESULT_START" in output and "RESULT_END" in output:
                 response = output.split("RESULT_START")[1].split("RESULT_END")[0].strip()
-                return response
+                return response, thinking_used
                 
             # Fallback
             if "Response:" in output:
                 response = output.split("Response:")[-1].strip()
-                return response
+                return response, thinking_used
                 
-            return output
+            return output, thinking_used
         except Exception as e:
             print(f"Subprocess Exception: {e}")
-            return f"Error running automation: {str(e)}"
+            return f"Error running automation: {str(e)}", False
 
 
 
-async def run_claude_automation(prompt: str, model: str = "auto") -> str:
+async def run_claude_automation(prompt: str, model: str = "auto") -> tuple[str, bool]:
     """
     Run the Claude automation script via subprocess.
+    
+    Returns:
+        Tuple of (response_text, thinking_used)
     """
     script_path = Path(__file__).parent.parent / "browser_automation" / "claude_automation.py"
     
@@ -864,7 +877,7 @@ async def run_claude_automation(prompt: str, model: str = "auto") -> str:
             if process.returncode != 0:
                 error_msg = stderr.decode().strip()
                 print(f"Claude Automation Error (Code {process.returncode}): {error_msg}")
-                return f"Error: Claude automation script failed. {error_msg}"
+                return f"Error: Claude automation script failed. {error_msg}", False
                 
             output = stdout.decode().strip()
             # Print full output for debugging
@@ -872,15 +885,22 @@ async def run_claude_automation(prompt: str, model: str = "auto") -> str:
             print(output)
             print("-" * 67)
             
+            # Parse THINKING_USED marker
+            thinking_used = False
+            if "THINKING_USED=true" in output:
+                thinking_used = True
+            elif "THINKING_USED=false" in output:
+                thinking_used = False
+            
             # Use unique delimiters to extract the real response
             if "RESULT_START" in output and "RESULT_END" in output:
                 response = output.split("RESULT_START")[1].split("RESULT_END")[0].strip()
-                return response
+                return response, thinking_used
                 
-            return output
+            return output, thinking_used
         except Exception as e:
             print(f"Subprocess Exception: {e}")
-            return f"Error running automation: {str(e)}"
+            return f"Error running automation: {str(e)}", False
 
 
 async def get_claude_models() -> List[Dict[str, str]]:

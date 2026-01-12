@@ -169,6 +169,8 @@ export default function WebChatBotWizard({ conversationId, currentTitle, previou
     const [currentText, setCurrentText] = useState(savedDraft.currentText || '');
     const [showPreview, setShowPreview] = useState(false); // Step 1 Preview Toggle - default to Write mode
     const [showStep3Preview, setShowStep3Preview] = useState(false); // Step 3 Preview Toggle - default to Write mode
+    const [lastThinkingUsed, setLastThinkingUsed] = useState(null); // null, true, or false - tracks if last automation used thinking
+    const [lastAutomationProvider, setLastAutomationProvider] = useState(null); // tracks which provider was used for last automation
 
     const currentScores = useMemo(() => {
         return calculateCurrentScores(stage2Responses, labelToModel);
@@ -308,14 +310,33 @@ Title:`;
             const existingIdx = stage1Responses.findIndex(r => r.model === currentModel);
             let newResponses;
 
+            // Determine the model name to use (potentially with Thinking suffix)
+            let modelNameToUse = currentModel;
+
+            // Only add thinking suffix if:
+            // 1. lastThinkingUsed is true
+            // 2. The model doesn't already have a thinking-related suffix
+            // 3. The provider was Claude or ChatGPT (Gemini always has thinking, doesn't need suffix)
+            if (lastThinkingUsed === true && lastAutomationProvider !== 'ai_studio') {
+                const hasThinkingSuffix = modelNameToUse.toLowerCase().includes('thinking') ||
+                    modelNameToUse.toLowerCase().includes('[ext.');
+                if (!hasThinkingSuffix) {
+                    if (lastAutomationProvider === 'claude') {
+                        modelNameToUse += ' [Ext. Thinking]';
+                    } else if (lastAutomationProvider === 'chatgpt') {
+                        modelNameToUse += ' Thinking';
+                    }
+                }
+            }
+
             if (existingIdx !== -1) {
                 if (!window.confirm(`A response from "${currentModel}" has already been added. Do you want to overwrite the old response with the new one?`)) {
                     return;
                 }
                 newResponses = [...stage1Responses];
-                newResponses[existingIdx] = { model: currentModel, response: currentText };
+                newResponses[existingIdx] = { model: modelNameToUse, response: currentText };
             } else {
-                newResponses = [...stage1Responses, { model: currentModel, response: currentText }];
+                newResponses = [...stage1Responses, { model: modelNameToUse, response: currentText }];
             }
 
             setStage1Responses(newResponses);
@@ -333,6 +354,9 @@ Title:`;
                 setCurrentModel(nextIdx > 0 && nextIdx < llmNames.length ? llmNames[nextIdx] : '');
             }
             setCurrentText('');
+            // Reset thinking status after adding response
+            setLastThinkingUsed(null);
+            setLastAutomationProvider(null);
         }
     };
 
@@ -341,26 +365,40 @@ Title:`;
             const existingIdx = stage2Responses.findIndex(r => r.model === currentModel);
             let newResponses;
 
+            // Determine the model name to use (potentially with Thinking suffix)
+            let modelNameToUse = currentModel;
+            if (lastThinkingUsed === true && lastAutomationProvider !== 'ai_studio') {
+                const norm = (name) => name ? name.toLowerCase().replace(/\s+/g, '') : '';
+                const hasThinkingSuffix = modelNameToUse.toLowerCase().includes('thinking') ||
+                    modelNameToUse.toLowerCase().includes('[ext.');
+                if (!hasThinkingSuffix) {
+                    if (lastAutomationProvider === 'claude') {
+                        modelNameToUse += ' [Ext. Thinking]';
+                    } else if (lastAutomationProvider === 'chatgpt') {
+                        modelNameToUse += ' Thinking';
+                    }
+                }
+            }
+
             if (existingIdx !== -1) {
                 if (!window.confirm(`A response from "${currentModel}" has already been added. Do you want to overwrite the old response with the new one?`)) {
                     return;
                 }
                 newResponses = [...stage2Responses];
-                newResponses[existingIdx] = { model: currentModel, ranking: currentText };
+                newResponses[existingIdx] = { model: modelNameToUse, ranking: currentText };
             } else {
-                newResponses = [...stage2Responses, { model: currentModel, ranking: currentText }];
+                newResponses = [...stage2Responses, { model: modelNameToUse, ranking: currentText }];
             }
 
             setStage2Responses(newResponses);
 
             if (existingIdx === -1) {
-                const stage1Models = stage1Responses.map(r => r.model);
-                const otherModels = llmNames.filter(name => !stage1Models.includes(name));
-                const allReviewerModels = [...stage1Models, ...otherModels];
-                const nextIdx = allReviewerModels.indexOf(currentModel) + 1;
-                setCurrentModel(nextIdx > 0 && nextIdx < allReviewerModels.length ? allReviewerModels[nextIdx] : '');
+                const nextIdx = llmNames.indexOf(currentModel) + 1;
+                setCurrentModel(nextIdx > 0 && nextIdx < llmNames.length ? llmNames[nextIdx] : '');
             }
             setCurrentText('');
+            setLastThinkingUsed(null);
+            setLastAutomationProvider(null);
         }
     };
 
@@ -368,6 +406,8 @@ Title:`;
         if (!prompt) return;
         setIsAutomating(true);
         setCurrentText('');
+        setLastThinkingUsed(null);
+        setLastAutomationProvider(null);
         try {
             let modelToUse = aiStudioModel;
             const norm = (name) => name ? name.toLowerCase().replace(/\s+/g, '') : '';
@@ -397,9 +437,15 @@ Title:`;
 
             const data = await api.runAutomation(prompt, modelToUse, provider);
             setCurrentText(data.response);
-            // Update currentModel to match the actual model used (especially for thinking suffix)
+            setLastThinkingUsed(data.thinking_used ?? null);
+            setLastAutomationProvider(provider);
+            // Update currentModel to the base model (without thinking suffix for display)
             if (provider === 'claude' || provider === 'chatgpt') {
-                setCurrentModel(modelToUse);
+                // Set to base model name (the one from llmNames, not with suffix)
+                const baseModel = (llmNames || []).find(n => norm(n).includes(provider === 'claude' ? 'claude' : 'chatgpt'));
+                if (baseModel) {
+                    setCurrentModel(baseModel);
+                }
             }
         } catch (error) {
             alert(`Automation failed: ${error.message}`);
@@ -412,6 +458,8 @@ Title:`;
         if (!prompt) return;
         setIsAutomating(true);
         setStage3Response(prev => ({ ...prev, response: '' }));
+        setLastThinkingUsed(null);
+        setLastAutomationProvider(null);
         try {
             let modelToUse = aiStudioModel;
             const norm = (name) => name ? name.toLowerCase().replace(/\s+/g, '') : '';
@@ -435,7 +483,25 @@ Title:`;
             }
 
             const data = await api.runAutomation(prompt, modelToUse, provider);
-            setStage3Response(prev => ({ ...prev, model: modelToUse, response: data.response }));
+            console.log(`Automation successful for ${provider}, setting response`);
+
+            setLastThinkingUsed(data.thinking_used ?? null);
+            setLastAutomationProvider(provider);
+
+            // Clean display model and set response in one update
+            let finalDisplayModel = stage3Response.model;
+            if (provider === 'claude' || provider === 'chatgpt') {
+                const baseModel = (llmNames || []).find(n => norm(n).includes(provider === 'claude' ? 'claude' : 'chatgpt'));
+                if (baseModel) {
+                    finalDisplayModel = baseModel;
+                }
+            }
+
+            setStage3Response(prev => ({
+                ...prev,
+                response: data.response,
+                model: finalDisplayModel
+            }));
         } catch (error) {
             alert(`Automation failed: ${error.message}`);
         } finally {
@@ -519,11 +585,25 @@ Title:`;
         if (!stage3Response.model || !stage3Response.response) return;
         setIsLoading(true);
         try {
+            // Finalize Stage 3 model name with suffix if needed
+            let finalStage3Model = stage3Response.model;
+            if (lastThinkingUsed === true && lastAutomationProvider !== 'ai_studio') {
+                const hasThinkingSuffix = finalStage3Model.toLowerCase().includes('thinking') ||
+                    finalStage3Model.toLowerCase().includes('[ext.');
+                if (!hasThinkingSuffix) {
+                    if (lastAutomationProvider === 'claude') {
+                        finalStage3Model += ' [Ext. Thinking]';
+                    } else if (lastAutomationProvider === 'chatgpt') {
+                        finalStage3Model += ' Thinking';
+                    }
+                }
+            }
+
             const messageData = {
                 user_query: userQuery,
                 stage1: stage1Responses,
                 stage2: stage2Responses,
-                stage3: stage3Response,
+                stage3: { ...stage3Response, model: finalStage3Model },
                 metadata: { label_to_model: labelToModel, aggregate_rankings: aggregateRankings },
                 title: manualTitle
             };
@@ -592,11 +672,15 @@ Title:`;
             </div>
             <div className="add-response-form">
                 <div className="model-input-group">
-                    <select id="current-model-select" value={llmNames.includes(currentModel) ? currentModel : 'custom'} onChange={(e) => setCurrentModel(e.target.value === 'custom' ? '' : e.target.value)} className="model-select" aria-label="Current Model">
+                    <select id="current-model-select" value={currentModel} onChange={(e) => setCurrentModel(e.target.value)} className="model-select" aria-label="Current Model">
+                        <option value="">Select Model...</option>
                         {llmNames.map(name => <option key={name} value={name}>{name}</option>)}
-                        <option value="custom">Custom...</option>
                     </select>
-                    {!llmNames.includes(currentModel) && <input value={currentModel} onChange={(e) => setCurrentModel(e.target.value)} className="custom-model-input" placeholder="Model Name" />}
+                    {lastThinkingUsed !== null && (
+                        <span className={`thinking-indicator ${lastThinkingUsed ? 'thinking-on' : 'thinking-off'}`} title={lastThinkingUsed ? 'Thinking was enabled' : 'Thinking was not enabled'}>
+                            {lastThinkingUsed ? '🧠 Thinking' : '💭 No Thinking'}
+                        </span>
+                    )}
                 </div>
 
                 <div className="input-tabs-container">
@@ -733,11 +817,22 @@ Title:`;
                 })}
             </div>
             <div className="add-response-form">
-                <select value={currentModel} onChange={(e) => setCurrentModel(e.target.value)} className="model-select">
-                    <option value="">Select Reviewer</option>
-                    <optgroup label="Stage 1 Participants">{stage1Responses.map((r, i) => <option key={i} value={r.model}>{r.model}</option>)}</optgroup>
-                    <optgroup label="Other">{llmNames.filter(n => !stage1Responses.some(r => r.model === n)).map(n => <option key={n} value={n}>{n}</option>)}</optgroup>
-                </select>
+                <div className="model-input-group">
+                    <select
+                        value={currentModel}
+                        onChange={(e) => setCurrentModel(e.target.value)}
+                        className="model-select"
+                        aria-label="Current Model"
+                    >
+                        <option value="">Select Reviewer</option>
+                        {llmNames.map(name => <option key={name} value={name}>{name}</option>)}
+                    </select>
+                    {lastThinkingUsed !== null && (
+                        <span className={`thinking-indicator ${lastThinkingUsed ? 'thinking-on' : 'thinking-off'}`} title={lastThinkingUsed ? 'Thinking was enabled' : 'Thinking was not enabled'}>
+                            {lastThinkingUsed ? '🧠 Thinking' : '💭 No Thinking'}
+                        </span>
+                    )}
+                </div>
                 <textarea value={currentText} onChange={(e) => setCurrentText(e.target.value)} rows={8} placeholder="Paste Ranking" />
                 <div className="add-response-actions">
                     <button onClick={addStage2Response} disabled={!currentModel || !currentText}>Add Ranking</button>
@@ -777,10 +872,23 @@ Title:`;
             <div className="stage3-synthesis-section">
                 <label>Final Synthesis:</label>
                 <div className="stage3-controls-row">
-                    <select value={stage3Response.model} onChange={(e) => setStage3Response({ ...stage3Response, model: e.target.value })} className="model-select">
-                        <option value="Web ChatBot Chairman">Web ChatBot Chairman</option>
-                        {stage1Responses.map((r, i) => <option key={i} value={r.model}>{r.model}</option>)}
-                    </select>
+                    <div className="model-input-group">
+                        <select
+                            value={stage3Response.model}
+                            onChange={(e) => setStage3Response({ ...stage3Response, model: e.target.value })}
+                            className="model-select"
+                            aria-label="Select Synthesis Model"
+                        >
+                            <option value="">Select Synthesis Model</option>
+                            <option value="Web ChatBot Chairman">Web ChatBot Chairman</option>
+                            {llmNames.map(name => <option key={name} value={name}>{name}</option>)}
+                        </select>
+                        {lastThinkingUsed !== null && (
+                            <span className={`thinking-indicator ${lastThinkingUsed ? 'thinking-on' : 'thinking-off'}`} title={lastThinkingUsed ? 'Thinking was enabled' : 'Thinking was not enabled'}>
+                                {lastThinkingUsed ? '🧠 Thinking' : '💭 No Thinking'}
+                            </span>
+                        )}
+                    </div>
                     <button
                         onClick={() => handleRunStage3Automation(stage3Prompt, providerInfo.key)}
                         className={`automation-btn stage3-auto-btn ${providerInfo.key}-btn`}

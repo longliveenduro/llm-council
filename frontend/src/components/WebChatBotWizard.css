@@ -379,6 +379,30 @@
     flex: 1;
 }
 
+/* Thinking Indicator Styles */
+.thinking-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.thinking-indicator.thinking-on {
+    background-color: rgba(39, 174, 96, 0.15);
+    color: #27ae60;
+    border: 1px solid rgba(39, 174, 96, 0.3);
+}
+
+.thinking-indicator.thinking-off {
+    background-color: rgba(155, 155, 155, 0.15);
+    color: var(--text-muted);
+    border: 1px solid rgba(155, 155, 155, 0.3);
+}
+
 .chairman-input-row {
     margin-bottom: 8px;
 }

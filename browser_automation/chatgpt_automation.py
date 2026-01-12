@@ -218,9 +218,7 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None) -> st
     if not input_selector:
         input_selector = await wait_for_chat_interface(page)
     
-    # Select model if specified
-    if hasattr(page, 'target_model') and page.target_model:
-        await select_model(page, page.target_model)
+    # Note: Model selection and thinking mode are now handled in main() before calling send_prompt
 
     # Click on the input to focus it
     await page.click(input_selector, timeout=10000)
@@ -430,13 +428,14 @@ def clean_chatgpt_text(text: str) -> str:
 
 
 
-async def select_model(page: Page, model_name: str):
+async def select_model(page: Page, model_name: str) -> bool:
     """
     1. Select specific model from top-left (o1, o3, etc.)
     2. Toggle thinking mode if requested (via + menu)
+    Returns True if thinking mode was successfully enabled, False otherwise.
     """
     if model_name == "auto" or not model_name:
-        return
+        return False
 
     print(f"[DEBUG] Setting up ChatGPT mode: {model_name}")
     
@@ -461,7 +460,7 @@ async def select_model(page: Page, model_name: str):
     # 2. THINKING MODE TOGGLE (Critical)
     wants_thinking = "thinking" in model_name.lower() or "reason" in model_name.lower()
     if not wants_thinking:
-        return
+        return False
 
     print(f"[DEBUG] Thinking mode requested for: {model_name}")
     
@@ -475,7 +474,7 @@ async def select_model(page: Page, model_name: str):
         }''')
         if (verified):
             print("[DEBUG] Thinking/Think indicator already found on page. Proceeding.")
-            return
+            return True
 
         # 1. Check for direct toggle button in the composer area
         print("[DEBUG] Checking for direct Thinking toggle in composer...")
@@ -496,7 +495,7 @@ async def select_model(page: Page, model_name: str):
             }''')
             if verified:
                 print("[SUCCESS] Thinking activated via direct toggle!")
-                return
+                return True
             else:
                 print("[DEBUG] Direct toggle didn't seem to work, falling back to menu.")
 
@@ -544,7 +543,7 @@ async def select_model(page: Page, model_name: str):
                     
                     if verified:
                         print("[SUCCESS] Thinking mode verified on page!")
-                        return
+                        return True
                     else:
                         print("[WARNING] Thinking clicked but indicator not detected. Retrying...")
                 else:
@@ -554,9 +553,11 @@ async def select_model(page: Page, model_name: str):
             await asyncio.sleep(0.5)
 
         print("[ERROR] Thinking mode activation failed. Proceeding without it.")
+        return False
         
     except Exception as e:
         print(f"[ERROR] select_model Thinking error: {e}")
+        return False
 
 
 
@@ -637,10 +638,12 @@ async def main():
         if args.interactive:
             await interactive_mode(page)
         else:
-            # Store model in page object
-            page.target_model = args.model
+            # Set up thinking mode and track if it was enabled
+            thinking_used = await select_model(page, args.model)
+            
             response = await send_prompt(page, args.prompt)
-            print("\nRESULT_START")
+            print(f"\nTHINKING_USED={str(thinking_used).lower()}")
+            print("RESULT_START")
             print(response)
             print("RESULT_END")
             

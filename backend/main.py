@@ -283,14 +283,15 @@ async def web_chatbot_run_automation(request: AutomationRequest):
     """Run automation for a prompt using specified provider."""
     try:
         if request.provider == "chatgpt":
-            response = await run_chatgpt_automation(request.prompt, request.model)
+            response, thinking_used = await run_chatgpt_automation(request.prompt, request.model)
         elif request.provider == "claude":
-            response = await run_claude_automation(request.prompt, request.model)
+            response, thinking_used = await run_claude_automation(request.prompt, request.model)
         else:
-            # Default to AI Studio
+            # Default to AI Studio - Gemini always has thinking enabled
             response = await run_ai_studio_automation(request.prompt, request.model)
+            thinking_used = True  # Gemini thinking is always on by default
             
-        return {"response": response}
+        return {"response": response, "thinking_used": thinking_used}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

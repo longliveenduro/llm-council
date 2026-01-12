@@ -268,9 +268,7 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None, model
     if not input_selector:
         input_selector = await wait_for_chat_interface(page)
     
-    # Handle Extended Thinking
-    if model and "thinking" in model.lower():
-        await select_thinking_mode(page, wants_thinking=True)
+    # Note: Extended Thinking is now handled in main() before calling send_prompt
     
     # Click on the input to focus it
     await page.click(input_selector, timeout=10000)
@@ -635,9 +633,10 @@ def clean_claude_text(text: str, prompt: str = None, model: str = "auto") -> str
     return text
 
 
-async def select_thinking_mode(page: Page, wants_thinking: bool = True):
+async def select_thinking_mode(page: Page, wants_thinking: bool = True) -> bool:
     """
     Find and click the "stop clock" symbol to toggle Extended Thinking.
+    Returns True if thinking mode is confirmed active, False otherwise.
     """
     print(f"Setting Extended Thinking to: {wants_thinking}")
     
@@ -672,16 +671,26 @@ async def select_thinking_mode(page: Page, wants_thinking: bool = True):
                 
                 if is_active == wants_thinking:
                     print(f"Extended Thinking is already in state: {wants_thinking}")
-                    return
+                    return wants_thinking
                 
                 await button.click()
                 print("Clicked thinking toggle.")
                 await asyncio.sleep(1)
-                return
+                
+                # Verify the toggle worked
+                is_now_active = await page.evaluate('''(el) => {
+                    const btn = el.closest('button') || el;
+                    return btn.getAttribute('aria-pressed') === 'true' || 
+                           btn.classList.contains('active') ||
+                           document.body.innerText.includes('Extended thinking is on');
+                }''', button)
+                
+                return is_now_active == wants_thinking
         except Exception as e:
             continue
             
     print("Warning: Could not find Extended Thinking toggle.")
+    return False
 
 
 async def main():
@@ -720,8 +729,14 @@ async def main():
                     response = await send_prompt(page, prompt, model=args.model)
                     print(f"\nClaude: {response}\n")
         else:
+            # Track if thinking mode was requested and enabled
+            thinking_used = False
+            if args.model and "thinking" in args.model.lower():
+                thinking_used = await select_thinking_mode(page, wants_thinking=True)
+            
             response = await send_prompt(page, args.prompt, model=args.model)
-            print("\nRESULT_START")
+            print(f"\nTHINKING_USED={str(thinking_used).lower()}")
+            print("RESULT_START")
             print(response)
             print("RESULT_END")
             

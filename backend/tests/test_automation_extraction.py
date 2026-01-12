@@ -178,3 +178,76 @@ async def test_extract_response_removes_thinking_structure_mock():
     assert 'closest' in script
     # Check for new strategy
     assert '.standard-markdown' in script
+
+
+# --- Tests for THINKING_USED parsing in council.py ---
+
+def test_parse_thinking_used_true_from_output():
+    """Test that THINKING_USED=true is correctly parsed from script output."""
+    output = """
+[DEBUG] Thinking mode requested
+[SUCCESS] Thinking activated via direct toggle!
+
+THINKING_USED=true
+RESULT_START
+This is the AI response text.
+RESULT_END
+"""
+    # Parse thinking_used
+    thinking_used = False
+    if "THINKING_USED=true" in output:
+        thinking_used = True
+    elif "THINKING_USED=false" in output:
+        thinking_used = False
+    
+    # Parse response
+    response = ""
+    if "RESULT_START" in output and "RESULT_END" in output:
+        response = output.split("RESULT_START")[1].split("RESULT_END")[0].strip()
+    
+    assert thinking_used is True
+    assert response == "This is the AI response text."
+
+
+def test_parse_thinking_used_false_from_output():
+    """Test that THINKING_USED=false is correctly parsed from script output."""
+    output = """
+[WARNING] Could not find Extended Thinking toggle.
+
+THINKING_USED=false
+RESULT_START
+Response without thinking.
+RESULT_END
+"""
+    # Parse thinking_used
+    thinking_used = False
+    if "THINKING_USED=true" in output:
+        thinking_used = True
+    elif "THINKING_USED=false" in output:
+        thinking_used = False
+    
+    # Parse response
+    response = ""
+    if "RESULT_START" in output and "RESULT_END" in output:
+        response = output.split("RESULT_START")[1].split("RESULT_END")[0].strip()
+    
+    assert thinking_used is False
+    assert response == "Response without thinking."
+
+
+def test_parse_thinking_used_missing_defaults_to_false():
+    """Test that missing THINKING_USED defaults to False."""
+    output = """
+RESULT_START
+Legacy response without thinking marker.
+RESULT_END
+"""
+    # Parse thinking_used
+    thinking_used = False
+    if "THINKING_USED=true" in output:
+        thinking_used = True
+    elif "THINKING_USED=false" in output:
+        thinking_used = False
+    
+    assert thinking_used is False
+

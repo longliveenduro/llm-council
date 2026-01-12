@@ -204,3 +204,187 @@ describe('WebChatBotWizard Stage 3 Preselection', () => {
         localStorage.removeItem(draftKey);
     });
 });
+
+
+describe('WebChatBotWizard UI Changes - Thinking Status', () => {
+    const defaultProps = {
+        conversationId: 'test-conv-123',
+        currentTitle: 'New Conversation',
+        llmNames: ['GPT-4o', 'Claude 3.5 Sonnet', 'Gemini 2.5 Flash'],
+        automationModels: {
+            ai_studio: [{ name: 'Gemini 2.5 Flash', id: 'gemini-flash' }],
+            chatgpt: [{ name: 'GPT-4o', id: 'gpt-4o' }],
+            claude: [{ name: 'Claude 3.5 Sonnet', id: 'claude-sonnet' }],
+        },
+    };
+
+    beforeEach(() => {
+        vi.clearAllMocks();
+        localStorage.clear();
+    });
+
+    it('does not include a Custom option in the model dropdown', () => {
+        render(<WebChatBotWizard {...defaultProps} />);
+
+        const modelSelect = screen.getByRole('combobox', { name: /current model/i });
+
+        // Get all options
+        const options = Array.from(modelSelect.querySelectorAll('option'));
+        const optionValues = options.map(opt => opt.value);
+        const optionTexts = options.map(opt => opt.textContent);
+
+        // Verify no Custom option
+        expect(optionValues).not.toContain('custom');
+        expect(optionTexts).not.toContain('Custom...');
+    });
+
+    it('shows "Select Model..." as default option when no model selected', () => {
+        render(<WebChatBotWizard {...defaultProps} />);
+
+        // The first option should be "Select Model..."
+        const modelSelect = screen.getByRole('combobox', { name: /current model/i });
+        const firstOption = modelSelect.querySelector('option:first-child');
+
+        expect(firstOption.textContent).toBe('Select Model...');
+    });
+
+    it('shows thinking indicator when automation returns thinking_used=true', async () => {
+        api.runAutomation = vi.fn().mockResolvedValue({
+            response: 'Test response',
+            thinking_used: true
+        });
+
+        render(<WebChatBotWizard {...defaultProps} />);
+
+        // Type a prompt in the user query textarea
+        const promptInput = screen.getByLabelText(/Your Question:/i);
+        fireEvent.change(promptInput, { target: { value: 'Test question' } });
+
+        // Select Claude model to show Claude button
+        const modelSelect = screen.getByLabelText('Current Model');
+        fireEvent.change(modelSelect, { target: { value: 'Claude 3.5 Sonnet' } });
+
+        // Click the Claude automation button
+        const claudeBtn = screen.getByText('Run via Claude');
+        fireEvent.click(claudeBtn);
+
+        await waitFor(() => {
+            // Check for thinking indicator by looking for the span element
+            const thinkingIndicator = document.querySelector('.thinking-indicator.thinking-on');
+            expect(thinkingIndicator).toBeInTheDocument();
+        });
+    });
+
+    it('shows "No Thinking" indicator when automation returns thinking_used=false', async () => {
+        api.runAutomation = vi.fn().mockResolvedValue({
+            response: 'Test response',
+            thinking_used: false
+        });
+
+        render(<WebChatBotWizard {...defaultProps} />);
+
+        // Type a prompt in the user query textarea
+        const promptInput = screen.getByLabelText(/Your Question:/i);
+        fireEvent.change(promptInput, { target: { value: 'Test question' } });
+
+        // Select Claude model to show Claude button
+        const modelSelect = screen.getByLabelText('Current Model');
+        fireEvent.change(modelSelect, { target: { value: 'Claude 3.5 Sonnet' } });
+
+        // Click the Claude automation button
+        const claudeBtn = screen.getByText('Run via Claude');
+        fireEvent.click(claudeBtn);
+
+        await waitFor(() => {
+            // Check for no thinking indicator
+            const indicator = document.querySelector('.thinking-indicator.thinking-off');
+            expect(indicator).toBeInTheDocument();
+        });
+    });
+
+    it('adds Thinking suffix to Claude model name when thinking_used is true', async () => {
+        api.runAutomation = vi.fn().mockResolvedValue({
+            response: 'Claude response',
+            thinking_used: true
+        });
+
+        const draftKey = `web_chatbot_draft_${defaultProps.conversationId}`;
+        localStorage.setItem(draftKey, JSON.stringify({ userQuery: 'Test query' }));
+
+        render(<WebChatBotWizard {...defaultProps} />);
+
+        // Type a prompt in the user query textarea
+        const promptInput = screen.getByLabelText(/Your Question:/i);
+        fireEvent.change(promptInput, { target: { value: 'Test question' } });
+
+        // Select Claude model to show Claude button
+        const modelSelect = screen.getByLabelText('Current Model');
+        fireEvent.change(modelSelect, { target: { value: 'Claude 3.5 Sonnet' } });
+
+        // Click the Claude automation button
+        const claudeBtn = screen.getByText('Run via Claude');
+        fireEvent.click(claudeBtn);
+
+        await waitFor(() => {
+            // Response should be in the response textarea
+            expect(screen.getByDisplayValue('Claude response')).toBeInTheDocument();
+        });
+
+        // Click "Add Response"
+        const addBtn = screen.getByText('Add Response');
+        fireEvent.click(addBtn);
+
+        // Check the responses list for the model name with Thinking suffix
+        await waitFor(() => {
+            const elements = screen.getAllByText(/Claude 3.5 Sonnet \[Ext. Thinking\]/i);
+            expect(elements.length).toBeGreaterThan(0);
+        });
+
+        localStorage.removeItem(draftKey);
+    });
+
+    it('does not add Thinking suffix when thinking_used is false', async () => {
+        api.runAutomation = vi.fn().mockResolvedValue({
+            response: 'Claude response',
+            thinking_used: false
+        });
+
+        const draftKey = `web_chatbot_draft_${defaultProps.conversationId}`;
+        localStorage.setItem(draftKey, JSON.stringify({ userQuery: 'Test query' }));
+
+        render(<WebChatBotWizard {...defaultProps} />);
+
+        // Type a prompt in the user query textarea
+        const promptInput = screen.getByLabelText(/Your Question:/i);
+        fireEvent.change(promptInput, { target: { value: 'Test question' } });
+
+        // Select Claude model to show Claude button
+        const modelSelect = screen.getByLabelText('Current Model');
+        fireEvent.change(modelSelect, { target: { value: 'Claude 3.5 Sonnet' } });
+
+        // Click the Claude automation button
+        const claudeBtn = screen.getByText('Run via Claude');
+        fireEvent.click(claudeBtn);
+
+        await waitFor(() => {
+            // Response should be in the response textarea
+            expect(screen.getByDisplayValue('Claude response')).toBeInTheDocument();
+        });
+
+        // Click "Add Response"
+        const addBtn = screen.getByText('Add Response');
+        fireEvent.click(addBtn);
+
+        // Check the responses list - model name should NOT have Thinking suffix
+        await waitFor(() => {
+            const responsesList = document.querySelector('.responses-list');
+            expect(responsesList).toBeInTheDocument();
+            expect(responsesList.textContent).toContain('Claude 3.5 Sonnet');
+            expect(responsesList.textContent).not.toContain('Thinking');
+        });
+
+        localStorage.removeItem(draftKey);
+    });
+});
+
+
