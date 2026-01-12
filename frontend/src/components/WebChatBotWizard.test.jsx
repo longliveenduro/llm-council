@@ -388,3 +388,59 @@ describe('WebChatBotWizard UI Changes - Thinking Status', () => {
 });
 
 
+
+describe('WebChatBotWizard Gemini Reference Display', () => {
+    const defaultProps = {
+        conversationId: 'test-conv-refs',
+        currentTitle: 'New Conversation',
+        llmNames: ['Gemini 3 Pro'],
+        automationModels: {
+            ai_studio: [{ name: 'Gemini 3 Pro', id: 'gemini-3-pro' }],
+            chatgpt: [],
+            claude: [],
+        },
+    };
+
+    it('correctly renders Gemini references in the preview tab', async () => {
+        const geminiResponse = "Main response with a footnote [1].\n\n---\n#### Sources\n[1] https://source.com";
+        api.runAutomation.mockResolvedValue({
+            response: geminiResponse,
+            thinking_used: false
+        });
+
+        render(<WebChatBotWizard {...defaultProps} />);
+
+        // Type a prompt
+        const promptInput = screen.getByLabelText(/Your Question:/i);
+        fireEvent.change(promptInput, { target: { value: 'Test references' } });
+
+        // Select Gemini model
+        const modelSelect = screen.getByLabelText('Current Model');
+        fireEvent.change(modelSelect, { target: { value: 'Gemini 3 Pro' } });
+
+        // Click run
+        const aiStudioBtn = screen.getByText('Run via AI Studio');
+        fireEvent.click(aiStudioBtn);
+
+        await waitFor(() => {
+            // Check in the Write tab first (textarea)
+            const textArea = screen.getByPlaceholderText('Model Response');
+            expect(textArea.value).toContain('---');
+            expect(textArea.value).toContain('#### Sources');
+        });
+
+        // Click Preview tab
+        const previewTab = screen.getByText('Preview');
+        fireEvent.click(previewTab);
+
+        // In preview tab, it should be rendered. 
+        // We check for the text content. 
+        await waitFor(() => {
+            expect(screen.getByText(/Main response with a footnote/)).toBeInTheDocument();
+            // Match the header - level 4 heading for #### Sources
+            expect(screen.getByRole('heading', { level: 4 })).toHaveTextContent(/Sources/i);
+            // Match the source URL part
+            expect(screen.getByText(/https:\/\/source\.com/)).toBeInTheDocument();
+        }, { timeout: 3000 });
+    });
+});

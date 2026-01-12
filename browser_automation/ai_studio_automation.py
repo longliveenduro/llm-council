@@ -62,8 +62,14 @@ AI_STUDIO_JS = r'''
     noise.forEach(el => {
         if (el.tagName === 'BUTTON') {
             const text = el.textContent.trim();
-            // Preserve [1], [1][2], [+1] style footnotes
-            if (/^\[\+?\d+\]+$/.test(text)) return;
+            // Preserve [1], [1][2], [+1] style footnotes, or plain numbers like "1"
+            // If it's a plain number, wrap it in brackets for consistent Markdown formatting
+            if (/^\[?(\+?\d+)\]?$/.test(text)) {
+                if (!text.startsWith('[')) {
+                    el.textContent = `[${text}]`;
+                }
+                return;
+            }
         }
         el.remove();
     });
@@ -80,6 +86,103 @@ AI_STUDIO_JS = r'''
             resultText = Array.from(contentEls).map(el => el.innerText).join('\n').trim();
         } else {
             resultText = clone.innerText.trim();
+        }
+
+        // 3. Extract and Refine Reference Links (URLs)
+        // AI Studio's innerText flattens links to just their text. We want their URLs too.
+        // We also want to ensure a very clean [n] format both in-text and at the bottom.
+        
+        let bodyText = resultText;
+        let rawRefs = [];
+        let headerTitle = "Sources";
+        
+        // Find the split point if "Sources", "References", or "Footnotes" is in the text
+        const refHeaderRegex = /\n+(Sources|References|Footnotes)\b/i;
+        const headerMatch = resultText.match(refHeaderRegex);
+        
+        if (headerMatch) {
+            bodyText = resultText.substring(0, headerMatch.index).trim();
+            headerTitle = headerMatch[1];
+            const refsSection = resultText.substring(headerMatch.index).trim();
+            rawRefs = refsSection.split('\n').slice(1).map(line => line.trim()).filter(l => l);
+        }
+
+        const sourcesHeader = Array.from(clone.querySelectorAll('h1, h2, h3, h4, h5, .author-label, b, .grounding-sources-container-title'))
+            .find(el => /Sources|References|Footnotes/i.test(el.textContent.trim()));
+        
+        const groundingSources = clone.querySelector('ms-grounding-sources');
+        const uiLinks = [];
+        const uniqueUrls = new Set();
+
+        // Process UI-based grounding sources
+        if (sourcesHeader || groundingSources) {
+            const container = groundingSources || sourcesHeader.parentElement;
+            const links = Array.from(container.querySelectorAll('a[href]'));
+            
+            links.forEach(a => {
+                let url = a.href;
+                if (url && !url.startsWith('javascript:')) {
+                    if (url.includes('google.com/url?sa=E&q=')) {
+                        try {
+                            const match = url.match(/q=([^&]+)/);
+                            if (match) url = decodeURIComponent(match[1]);
+                        } catch (e) {}
+                    }
+                    
+                    if (!uniqueUrls.has(url)) {
+                        const linkText = a.textContent.trim();
+                        if (linkText && linkText.length > 1 && !/^(Copy|Share|Edit)$/i.test(linkText)) {
+                            uiLinks.push({ text: linkText, url: url });
+                            uniqueUrls.add(url);
+                        }
+                    }
+                }
+            });
+            if (sourcesHeader) headerTitle = sourcesHeader.textContent.trim();
+        }
+
+        // Build final section with Attempt 4 logic: Clean & Numbered
+        if (rawRefs.length > 0 || uiLinks.length > 0) {
+            let finalPart = `\n\n---\n#### ${headerTitle}\n`;
+            let nextNum = 1;
+            const usedUrls = new Set();
+            
+            // 1. Process existing text refs
+            rawRefs.forEach(line => {
+                // Extract number from start or first bracket
+                const numMatch = line.match(/^(\d+)[\.\s]+|\[(\d+)\]/);
+                const n = numMatch ? (numMatch[1] || numMatch[2]) : nextNum;
+                if (!numMatch) nextNum++;
+                else nextNum = Math.max(nextNum, parseInt(n) + 1);
+
+                // Clean the text: remove leading numbers, bracketed citations, and trailing citations
+                let clean = line.replace(/^\d+[\.\s]+|\[\d+\]/g, '').trim();
+                clean = clean.replace(/(\[\d+\])+$/g, '').trim();
+                
+                // Attempt to merge UI links into this line if they match the hostname or text
+                uiLinks.forEach(link => {
+                    if (!usedUrls.has(link.url)) {
+                        const hostname = new URL(link.url).hostname.replace('www.', '');
+                        if (clean.toLowerCase().includes(hostname.toLowerCase()) || 
+                            clean.toLowerCase().includes(link.text.toLowerCase())) {
+                            clean += ` [${link.text}](${link.url})`;
+                            usedUrls.add(link.url);
+                        }
+                    }
+                });
+
+                finalPart += `[${n}] ${clean}\n\n`;
+            });
+            
+            // 2. Add remaining UI links that weren't merged
+            uiLinks.forEach(link => {
+                if (!usedUrls.has(link.url)) {
+                    finalPart += `[${nextNum++}] [${link.text}](${link.url})\n\n`;
+                    usedUrls.add(link.url);
+                }
+            });
+            
+            resultText = bodyText + finalPart;
         }
     } finally {
         document.body.removeChild(clone);
@@ -401,7 +504,7 @@ async def extract_response(page: Page) -> str:
             # We need to get the HTML. innerHTML might not show Shadow DOM content if it's open.
             # But let's try to get what we can.
             debug_html = await last_turn.evaluate("el => el.outerHTML")
-            with open("/home/chris/.gemini/antigravity/brain/bfeec05b-c82c-40b2-9318-e346ec294fbd/ai_studio_last_turn.html", "w") as f:
+            with open("ai_studio_last_turn.html", "w") as f:
                 f.write(debug_html)
             print(f"DEBUG: Saved last turn HTML to ai_studio_last_turn.html. Math elements found: {math_count}")
         except Exception as e:
