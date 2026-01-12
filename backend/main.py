@@ -22,6 +22,7 @@ from .council import (
 
 from .storage import get_cached_models, save_cached_models
 from .scores import get_scores, update_scores
+from .utils import clean_model_name
 
 app = FastAPI(title="LLM Council API")
 
@@ -335,10 +336,14 @@ async def web_chatbot_process_rankings(request: WebChatBotRankingProcessRequest)
             "parsed_ranking": parsed
         })
         
-    aggregate_rankings = calculate_aggregate_rankings(processed_results, request.label_to_model)
+    # Parse manual rankings and calculate aggregate
+    # Ensure label_to_model uses clean names
+    clean_label_to_model = {label: clean_model_name(model) for label, model in request.label_to_model.items()}
+    
+    aggregate_rankings = calculate_aggregate_rankings(processed_results, clean_label_to_model)
     
     # Update persistent scores
-    update_scores(processed_results, request.label_to_model)
+    update_scores(processed_results, clean_label_to_model)
     
     return {
         "stage2_results": processed_results,
@@ -382,12 +387,26 @@ async def save_web_chatbot_message(conversation_id: str, request: SaveWebChatBot
                 _generate_and_save_title(conversation_id, request.user_query)
             )
 
+    # Clean model names in results before saving
+    cleaned_stage1 = []
+    for s1 in request.stage1:
+        cleaned_stage1.append({**s1, "model": clean_model_name(s1.get("model", ""))})
+    
+    cleaned_stage2 = []
+    for s2 in request.stage2:
+        cleaned_stage2.append({**s2, "model": clean_model_name(s2.get("model", ""))})
+        
+    cleaned_stage3 = {
+        **request.stage3,
+        "model": clean_model_name(request.stage3.get("model", ""))
+    }
+
     # Add assistant message
     storage.add_assistant_message(
         conversation_id,
-        request.stage1,
-        request.stage2,
-        request.stage3,
+        cleaned_stage1,
+        cleaned_stage2,
+        cleaned_stage3,
         request.metadata
     )
 

@@ -4,6 +4,7 @@ from typing import List, Dict, Any, Tuple
 from .openrouter import query_models_parallel, query_model
 from .config import COUNCIL_MODELS, CHAIRMAN_MODEL
 from .scores import update_scores
+from .utils import clean_model_name
 import subprocess
 import os
 import sys
@@ -277,7 +278,7 @@ async def stage1_collect_responses(
     for model, response in responses.items():
         if response is not None:  # Only include successful responses
             stage1_results.append({
-                "model": model,
+                "model": clean_model_name(model),
                 "response": response.get('content', '')
             })
 
@@ -324,7 +325,7 @@ async def stage2_collect_rankings(
             full_text = response.get('content', '')
             parsed = parse_ranking_from_text(full_text)
             stage2_results.append({
-                "model": model,
+                "model": clean_model_name(model),
                 "ranking": full_text,
                 "parsed_ranking": parsed
             })
@@ -451,7 +452,7 @@ async def stage3_synthesize_final(
         }
 
     return {
-        "model": CHAIRMAN_MODEL,
+        "model": clean_model_name(CHAIRMAN_MODEL),
         "response": response.get('content', '')
     }
 

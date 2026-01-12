@@ -7,6 +7,7 @@ import os
 from typing import List, Dict, Any
 from pathlib import Path
 from .config import DATA_DIR
+from .utils import clean_model_name
 
 
 # Points for rankings (0-indexed: 1st, 2nd, 3rd...)
@@ -106,17 +107,19 @@ def update_scores(stage2_results: List[Dict[str, Any]], label_to_model: Dict[str
         # (e.g. if Model A got 25 pts from one reviewer and 12 from another, round_score is 18.5)
         round_avg_score = stats['points'] / stats['reviews']
         
-        prev_score = current_scores.get(model)
+        # CLEAN MODEL NAME BEFORE SAVING/CHECKING
+        clean_name = clean_model_name(model)
+        prev_score = current_scores.get(clean_name)
         
         if prev_score is None or prev_score == 0:
             # New model or first run: initialize with this round's score directly
             # This gives new models a "fast start" to their actual performance level
-            current_scores[model] = round_avg_score
+            current_scores[clean_name] = round_avg_score
         else:
             # Existing model: Apply EMA decay
             # New Score = (Previous * (1 - Alpha)) + (Round * Alpha)
             new_score = (prev_score * (1 - EMA_ALPHA)) + (round_avg_score * EMA_ALPHA)
-            current_scores[model] = round(new_score, 2)
+            current_scores[clean_name] = round(new_score, 2)
             
     save_scores(current_scores)
 
