@@ -59,7 +59,7 @@ async def test_council_passes_image_argument_ai_studio():
         mock_exec.return_value = get_mock_process()
         
         with patch('backend.council._save_temp_image', return_value='/tmp/mock_image.png'):
-            await council.run_ai_studio_automation("test prompt", image_base64="fake_base64")
+            await council.run_ai_studio_automation("test prompt", "Gemini 1.5 Pro", image_base64="fake_base64")
             
             flat_args = [str(arg) for arg in mock_exec.call_args[0]]
             print(f"AI Studio Call Args: {flat_args}")

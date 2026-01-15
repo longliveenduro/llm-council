@@ -1,3 +1,4 @@
+import pytest
 import urllib.request
 import urllib.parse
 import json
@@ -10,8 +11,11 @@ BASE_URL = "http://localhost:8001"
 TEST_TEXT_FILE = Path("backend/tests/temp_test.txt")
 TEST_LARGE_FILE = Path("backend/tests/temp_test_large.jpg")
 
+import pytest
+
 # Ensure test files exist
-def setup_files():
+@pytest.fixture(scope="module", autouse=True)
+def setup_test_files():
     print("Setting up temporary test files...")
     # 1. Text file
     with open(TEST_TEXT_FILE, "w") as f:
@@ -20,8 +24,9 @@ def setup_files():
     # 2. Large file (approx 6MB)
     with open(TEST_LARGE_FILE, "wb") as f:
         f.write(os.urandom(6 * 1024 * 1024))
-
-def cleanup_files():
+    
+    yield
+    
     print("\nCleaning up temporary test files...")
     if TEST_TEXT_FILE.exists(): 
         os.remove(TEST_TEXT_FILE)
@@ -138,12 +143,9 @@ def test_legacy_base64_automation():
 
 if __name__ == "__main__":
     try:
-        setup_files()
-        test_invalid_file_type()
-        test_large_file_upload()
-        test_broken_image_path_automation()
-        test_legacy_base64_automation()
+        # In manual mode, we need to run setup manually if not using pytest
+        # But we replaced setup_files with a fixture. 
+        # Ideally, this script should just be run with pytest.
+        pass
     except Exception as e:
         print(f"\nAn error occurred during testing: {e}")
-    finally:
-        cleanup_files()
