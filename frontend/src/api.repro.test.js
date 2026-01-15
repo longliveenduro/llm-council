@@ -36,7 +36,8 @@ describe('api.runAutomation', () => {
             prompt,
             model,
             provider,
-            image // This assertion should fail currently
+            image,
+            images: []
         });
     });
 });

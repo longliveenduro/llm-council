@@ -74,7 +74,9 @@ describe('WebChatBotWizard Claude Integration', () => {
             expect(api.runAutomation).toHaveBeenCalledWith(
                 expect.stringContaining('How are you?'),
                 'Claude 3.5 Sonnet [Ext. Thinking]',
-                'claude'
+                'claude',
+                null,
+                []
             );
         });
 
@@ -107,7 +109,9 @@ describe('WebChatBotWizard Claude Integration', () => {
             expect(api.runAutomation).toHaveBeenCalledWith(
                 expect.any(String),
                 'Claude 3.5 Sonnet [Ext. Thinking]',
-                'claude'
+                'claude',
+                null,
+                []
             );
         });
     });
@@ -138,7 +142,9 @@ describe('WebChatBotWizard Claude Integration', () => {
             expect(api.runAutomation).toHaveBeenCalledWith(
                 expect.any(String),
                 'Claude 3.5 Sonnet [Ext. Thinking]',
-                'claude'
+                'claude',
+                null,
+                []
             );
         });
     });
