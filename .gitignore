@@ -31,3 +31,9 @@ browser_automation/ai_studio_dump.html
 browser_automation/chatgpt_dump.html
 browser_automation/claude_dump.html
 browser_automation/temp_images/
+ai_studio_last_turn.html
+ai_studio_dump.html
+chatgpt_last_turn.html
+chatgpt_dump.html
+claude_last_turn.html
+claude_dump.html
