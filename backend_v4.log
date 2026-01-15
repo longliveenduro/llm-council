@@ -1,0 +1,12 @@
+INFO:     Started server process [622556]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:55690 - "POST /api/conversations HTTP/1.1" 200 OK
+Saved image to backend/data/images/d6789dab-589b-46f8-96e1-35774af6bafe.png
+INFO:     127.0.0.1:55704 - "POST /api/conversations/1c1b91cb-6f9b-4117-8235-c2584c36d559/message/web-chatbot HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55712 - "GET /api/conversations/1c1b91cb-6f9b-4117-8235-c2584c36d559 HTTP/1.1" 200 OK
+INFO:     Shutting down
+INFO:     Waiting for application shutdown.
+INFO:     Application shutdown complete.
+INFO:     Finished server process [622556]

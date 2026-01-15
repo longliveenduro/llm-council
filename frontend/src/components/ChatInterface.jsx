@@ -168,6 +168,23 @@ export default function ChatInterface({
                     <div className="user-message">
                       <div className="message-label">You</div>
                       <div className="message-content">
+                        {msg.metadata?.image_url && (
+                          <div className="user-uploaded-image">
+                            <img
+                              src={msg.metadata.image_url}
+                              alt="Attached"
+                              style={{
+                                maxWidth: '100%',
+                                maxHeight: '300px',
+                                borderRadius: '8px',
+                                marginBottom: '12px',
+                                border: '1px solid var(--border-color)'
+                              }}
+                              onClick={() => window.open(msg.metadata.image_url, '_blank')}
+                              title="Click to view full size"
+                            />
+                          </div>
+                        )}
                         <div className="markdown-content">
                           <ReactMarkdown
                             remarkPlugins={[remarkMath, remarkGfm]}

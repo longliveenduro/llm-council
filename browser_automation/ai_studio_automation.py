@@ -250,23 +250,76 @@ async def wait_for_chat_interface(page: Page, timeout: int = 30000):
     raise Exception("Could not find chat input element")
 
 
-async def send_prompt(page: Page, prompt: str, input_selector: str = None) -> str:
-    """
-    Send a prompt to AI Studio and wait for the response.
-    
-    Args:
-        page: Playwright page object
-        prompt: The prompt text to send
-        input_selector: Optional specific selector for the input
-        
-    Returns:
-        The response text from Gemini
-    """
+async def send_prompt(page: Page, prompt: str, input_selector: str = None, image_paths: list = None) -> str:
+    """Send a prompt to the model and return the response."""
     
     # Find the input element if not specified
     if not input_selector:
         input_selector = await wait_for_chat_interface(page)
     
+    # Handle image uploads
+    if image_paths:
+        print(f"[DEBUG] Processing {len(image_paths)} images...")
+        attached_direct = False
+        # 1. Try direct upload via hidden input first - this is often most robust
+        # We try to find the file input and set ALL files at once
+        try:
+            file_input = await page.query_selector('input[type="file"]')
+            if file_input:
+                print("[DEBUG] Found hidden file input, setting all files at once...")
+                await file_input.set_input_files(image_paths)
+                # Wait for any thumbnail to appear
+                await page.wait_for_selector('img[alt="Image preview"], button[aria-label="Remove image"], mat-chip-row, .thumbnail', timeout=10000)
+                print("[DEBUG] Images attached via hidden input.")
+                attached_direct = True
+            else:
+                print("[DEBUG] No hidden file input found initially.")
+        except Exception as e:
+            print(f"[DEBUG] Direct upload attempt failed or timed out: {e}")
+
+        # 2. Sequential fallback (only if direct didn't work)
+        if not attached_direct:
+            for image_path in image_paths:
+                if not image_path: continue
+                
+                # Check if this image_path is already attached (basic check)
+                # This is hard to do perfectly, so we'll just try to attach if needed.
+                
+                print(f"Uploading image: {image_path}")
+                try:
+                    # Click plus button
+                    plus_btn = await page.wait_for_selector('button[aria-label="Insert images, videos, audio, or files"], button[aria-label="Add to prompt"], button[aria-label*="Attach"], button:has(mat-icon[data-mat-icon-name="add_circle"])', timeout=5000)
+                    if plus_btn:
+                        await plus_btn.click()
+                        await asyncio.sleep(0.5)
+                        
+                        # Click "Upload image"
+                        upload_menu_item = await page.wait_for_selector('button:has-text("Upload image"), button:has-text("Upload file"), .mat-menu-item:has-text("Upload")', timeout=3000)
+                        
+                        if upload_menu_item:
+                            async with page.expect_file_chooser() as fc_info:
+                                await upload_menu_item.click()
+                            file_chooser = await fc_info.value
+                            await file_chooser.set_files(image_path)
+                        else:
+                            # Direct input setting within the "plus" menu
+                            file_input = await page.query_selector('input[type="file"]')
+                            if file_input:
+                                await file_input.set_input_files(image_path)
+                    
+                    # Wait for upload to complete
+                    await page.wait_for_selector('img[alt="Image preview"], button[aria-label="Remove image"], mat-chip-row', timeout=30000)
+                    print(f"Image {image_path} uploaded successfully.")
+                except Exception as e:
+                    print(f"Error uploading image {image_path}: {e}")
+                    try:
+                        html = await page.content()
+                        with open("ai_studio_dump.html", "w") as f:
+                            f.write(html)
+                        print("Dumped HTML to ai_studio_dump.html")
+                    except:
+                        pass
+
     # Click on the input to focus it
     await page.click(input_selector)
     await asyncio.sleep(0.3)
@@ -855,8 +908,9 @@ async def main():
                         help="Run in interactive mode")
     parser.add_argument("--model", "-m", default="Gemini 2.5 Flash",
                         help="Model to use (default: Gemini 2.5 Flash)")
-    parser.add_argument("--list-models", action="store_true",
+    parser.add_argument("--list-models", "-l", action="store_true",
                         help="List available models and exit")
+    parser.add_argument("--image", "-img", action="append", help="Path to image file to upload (can be used multiple times)", default=[])
     
     args = parser.parse_args()
     
@@ -897,7 +951,7 @@ async def main():
         if args.interactive:
             await interactive_mode(page)
         else:
-            response = await send_prompt(page, args.prompt)
+            response = await send_prompt(page, args.prompt, image_paths=args.image)
             print("\nRESULT_START")
             print(response)
             print("RESULT_END")

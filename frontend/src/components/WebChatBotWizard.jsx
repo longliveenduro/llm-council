@@ -163,6 +163,7 @@ export default function WebChatBotWizard({ conversationId, currentTitle, previou
     const [aggregateRankings, setAggregateRankings] = useState(savedDraft.aggregateRankings || []);
     const [aiStudioModel, setAiStudioModel] = useState(savedDraft.aiStudioModel || (automationModels.ai_studio[0]?.name) || 'Gemini 2.5 Flash');
     const [preselectionReason, setPreselectionReason] = useState(savedDraft.preselectionReason || '');
+    const [selectedImages, setSelectedImages] = useState(savedDraft.selectedImages || (savedDraft.selectedImage ? [savedDraft.selectedImage] : []));
 
     // Input State for current item
     const [currentModel, setCurrentModel] = useState(savedDraft.currentModel || llmNames[0] || '');
@@ -435,7 +436,7 @@ Title:`;
                 }
             }
 
-            const data = await api.runAutomation(prompt, modelToUse, provider);
+            const data = await api.runAutomation(prompt, modelToUse, provider, null, selectedImages);
             setCurrentText(data.response);
             setLastThinkingUsed(data.thinking_used ?? null);
             setLastAutomationProvider(provider);
@@ -482,7 +483,7 @@ Title:`;
                 }
             }
 
-            const data = await api.runAutomation(prompt, modelToUse, provider);
+            const data = await api.runAutomation(prompt, modelToUse, provider, null, selectedImages); // Pass images if present (likely only for Step 1, but keeping consistent)
             console.log(`Automation successful for ${provider}, setting response`);
 
             setLastThinkingUsed(data.thinking_used ?? null);
@@ -605,7 +606,9 @@ Title:`;
                 stage2: stage2Responses,
                 stage3: { ...stage3Response, model: finalStage3Model },
                 metadata: { label_to_model: labelToModel, aggregate_rankings: aggregateRankings },
-                title: manualTitle
+                title: manualTitle,
+                images: selectedImages,
+                image: selectedImages.length > 0 ? selectedImages[0] : null // Legacy support
             };
             await api.saveWebChatBotMessage(conversationId, messageData);
             alert('Conversation saved!');
@@ -654,6 +657,48 @@ Title:`;
                 <label htmlFor="user-query">Your Question:</label>
                 <textarea id="user-query" value={userQuery} onChange={(e) => setUserQuery(e.target.value)} rows={4} />
             </div>
+
+            {/* Image Upload Section */}
+            <div className="form-group image-upload-section">
+                <label>Attach Images (Optional):</label>
+                <div className="image-input-wrapper">
+                    <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        onChange={(e) => {
+                            const files = Array.from(e.target.files);
+                            if (files.length > 0) {
+                                // Process multiple files
+                                Promise.all(files.map(file => {
+                                    return new Promise((resolve, reject) => {
+                                        const reader = new FileReader();
+                                        reader.onloadend = () => resolve(reader.result);
+                                        reader.onerror = reject;
+                                        reader.readAsDataURL(file);
+                                    });
+                                })).then(results => {
+                                    setSelectedImages(prev => [...prev, ...results]);
+                                    // Reset input so same files can be selected again if needed (though rare)
+                                    e.target.value = null;
+                                }).catch(err => console.error("Error reading files", err));
+                            }
+                        }}
+                        style={{ display: 'none' }}
+                        id="image-upload-input"
+                    />
+                    <label htmlFor="image-upload-input" className="image-upload-btn secondary-btn">
+                        {selectedImages.length > 0 ? 'Add More Images' : '📷 Add Images'}
+                    </label>
+                    {selectedImages.map((img, idx) => (
+                        <div key={idx} className="image-preview-container">
+                            <img src={img} alt={`Preview ${idx}`} className="image-preview-thumb" />
+                            <button className="remove-image-btn" onClick={() => setSelectedImages(prev => prev.filter((_, i) => i !== idx))} title="Remove Image">×</button>
+                        </div>
+                    ))}
+                </div>
+            </div>
+
             <div className={stage1Responses.length > 0 ? "prompt-col-layout" : ""}>
                 <div className="responses-list" style={stage1Responses.length > 0 ? { flex: 2, marginBottom: 0 } : {}}>
                     {stage1Responses.length === 0 && <div className="no-responses-hint" style={{ color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic', textAlign: 'center', padding: '12px' }}>No responses added yet.</div>}

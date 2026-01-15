@@ -251,7 +251,7 @@ async def wait_for_chat_interface(page: Page, timeout: int = 30000):
     raise Exception("Could not find chat input element")
 
 
-async def send_prompt(page: Page, prompt: str, input_selector: str = None, model: str = "auto") -> str:
+async def send_prompt(page: Page, prompt: str, input_selector: str = None, model: str = "auto", image_paths: list = None) -> str:
     """
     Send a prompt to Claude and wait for the response.
     """
@@ -270,6 +270,96 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None, model
     
     # Note: Extended Thinking is now handled in main() before calling send_prompt
     
+    # Handle image uploads
+    if image_paths:
+        print(f"[DEBUG] Processing {len(image_paths)} images for Claude...")
+        attached_direct = False
+        # 1. Try direct upload via hidden input first
+        try:
+            file_input = await page.query_selector('input[type="file"]')
+            if file_input:
+                print("[DEBUG] Found hidden file input in Claude, setting all files...")
+                await file_input.set_input_files(image_paths)
+                # Wait for any thumbnail
+                # Wait for any thumbnail
+                # Enhanced selectors for robustness
+                thumbnail_selectors = [
+                    'div[data-testid="attachment-thumbnail"]',
+                    'div[class*="AttachmentThumbnail"]',
+                    '.AttachmentThumbnail',
+                    'img[alt*="upload"]', 
+                    'button[aria-label="Remove attachment"]',
+                    'div.relative img:not([alt="User"])', # Generic image in relative container
+                    'div.flex.gap-2 img',
+                ]
+                combined_selector = ", ".join(thumbnail_selectors)
+                await page.wait_for_selector(combined_selector, timeout=10000)
+                print("[DEBUG] Images attached via hidden input in Claude.")
+                attached_direct = True
+            else:
+                print("[DEBUG] No hidden file input found initially in Claude.")
+        except Exception as e:
+            print(f"[DEBUG] Direct upload attempt in Claude failed: {e}")
+
+        # 2. Sequential fallback (only if direct didn't work and no images visible)
+        if not attached_direct:
+            # Double check: did the direct upload work but just timed out on the specific selector?
+            # Or maybe it appeared now?
+            try:
+                # Same broad selectors
+                thumbnail_selectors = [
+                    'div[data-testid="attachment-thumbnail"]',
+                    'div[class*="AttachmentThumbnail"]',
+                    '.AttachmentThumbnail',
+                    'img[alt*="upload"]', 
+                    'button[aria-label="Remove attachment"]',
+                    'div.relative img:not([alt="User"])',
+                    'div.flex.gap-2 img',
+                ]
+                combined_selector = ", ".join(thumbnail_selectors)
+                elements = await page.query_selector_all(combined_selector)
+                if elements and len(elements) > 0:
+                     print(f"[DEBUG] Found {len(elements)} existing attachments, assuming direct upload worked.")
+                     attached_direct = True
+            except:
+                pass
+                
+        if not attached_direct:
+            for image_path in image_paths:
+                if not image_path: continue
+                
+                print(f"Uploading image to Claude: {image_path}")
+                try:
+                    # Check directly for input[type=file] again inside loop if needed
+                    file_input = await page.query_selector('input[type="file"]')
+                    if file_input:
+                        await file_input.set_input_files(image_path)
+                        print("[DEBUG] Image set via hidden file input.")
+                    else:
+                        # Try to open menu
+                        attach_btn = await page.wait_for_selector('button[aria-label="Attach files"], button[data-testid="attach-button"], button:has(svg[data-icon="paperclip"])', timeout=3000)
+                        if attach_btn:
+                            async with page.expect_file_chooser() as fc_info:
+                                await attach_btn.click()
+                            file_chooser = await fc_info.value
+                            await file_chooser.set_files(image_path)
+                            print("[DEBUG] Image set via attach button.")
+                        else:
+                            print("[ERROR] Attach button not found.")
+                         
+                    # Wait for upload (thumbnail)
+                    await page.wait_for_selector('div[data-testid="attachment-thumbnail"], div[class*="AttachmentThumbnail"]', timeout=30000)
+                    print(f"Image {image_path} uploaded successfully to Claude.")
+                except Exception as e:
+                    print(f"[ERROR] Error uploading image {image_path}: {e}")
+                    try:
+                        html = await page.content()
+                        with open("claude_dump.html", "w") as f:
+                            f.write(html)
+                        print("Dumped HTML to claude_dump.html")
+                    except:
+                        pass
+
     # Click on the input to focus it
     await page.click(input_selector, timeout=10000)
     await asyncio.sleep(0.1)
@@ -698,43 +788,32 @@ async def main():
     parser.add_argument("prompt", nargs="?", help="The prompt to send")
     parser.add_argument("--interactive", "-i", action="store_true", 
                         help="Run in interactive mode")
-    parser.add_argument("--model", "-m", default="auto",
-                        help="Model to use (default: auto)")
+    parser.add_argument("--model", "-m", help="Model to use (default: auto)")
+    parser.add_argument("--image", "-img", action="append", help="Path to image file to upload (can be used multiple times)", default=[])
     
     args = parser.parse_args()
     
     if not args.prompt and not args.interactive:
         parser.print_help()
+        print("\nError: Please provide a prompt or use --interactive mode")
         sys.exit(1)
-    
+        
     context = None
     try:
+        print("Launching browser...")
         context, page = await get_browser_context()
         
+        print(f"Ready! Current page: {page.url}")
+        
         if args.interactive:
-            print("\n=== Claude Interactive Mode ===")
-            print("Type your prompt. press Enter for new lines.")
-            print("To SEND, type 'END' on a new line.")
-            print("To EXIT, type 'quit' at the start.\n")
-            
-            while True:
-                lines = []
-                while True:
-                    line = input()
-                    if line.strip() == "END": break
-                    if line.lower() == "quit": sys.exit(0)
-                    lines.append(line)
-                prompt = "\n".join(lines)
-                if prompt:
-                    response = await send_prompt(page, prompt, model=args.model)
-                    print(f"\nClaude: {response}\n")
+            await interactive_mode(page)
         else:
             # Track if thinking mode was requested and enabled
             thinking_used = False
             if args.model and "thinking" in args.model.lower():
                 thinking_used = await select_thinking_mode(page, wants_thinking=True)
             
-            response = await send_prompt(page, args.prompt, model=args.model)
+            response = await send_prompt(page, args.prompt, model=args.model, image_paths=args.image)
             print(f"\nTHINKING_USED={str(thinking_used).lower()}")
             print("RESULT_START")
             print(response)

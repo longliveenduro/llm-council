@@ -1,13 +1,15 @@
-"""FastAPI backend for LLM Council."""
-
-from fastapi import FastAPI, HTTPException
+import asyncio
+import os
+import sys
+import base64
+import uuid
+from typing import List, Dict, Any, Optional
+from pathlib import Path
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from typing import List, Dict, Any
-import uuid
-import json
-import asyncio
 
 from . import storage
 
@@ -29,11 +31,19 @@ app = FastAPI(title="LLM Council API")
 # Enable CORS for local development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Mount images directory for serving
+IMAGES_DIR = Path("backend/data/images")
+IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/api/images", StaticFiles(directory=str(IMAGES_DIR)), name="images")
+
+# Add backend directory to sys.path
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 
 class CreateConversationRequest(BaseModel):
@@ -87,15 +97,15 @@ class SaveWebChatBotMessageRequest(BaseModel):
     metadata: Dict[str, Any]
     user_query: str
     title: str = None  # Optional manual title
-
+    image: Optional[str] = None # Legacy: Base64 encoded image string
+    images: Optional[List[str]] = None # Base64 encoded image strings
 
 class AutomationRequest(BaseModel):
     prompt: str
     model: str = "Gemini 2.5 Flash"
     provider: str = "ai_studio"  # "ai_studio" or "chatgpt"
-
-
-
+    image: Optional[str] = None # Legacy: Base64 encoded image string
+    images: Optional[List[str]] = None # Base64 encoded image strings
 
 
 @app.get("/")
@@ -283,13 +293,20 @@ async def send_message_stream(conversation_id: str, request: SendMessageRequest)
 async def web_chatbot_run_automation(request: AutomationRequest):
     """Run automation for a prompt using specified provider."""
     try:
+        # Collect images from either field
+        images = []
+        if request.images:
+            images.extend(request.images)
+        if request.image and request.image not in images:
+            images.append(request.image)
+            
         if request.provider == "chatgpt":
-            response, thinking_used = await run_chatgpt_automation(request.prompt, request.model)
+            response, thinking_used = await run_chatgpt_automation(request.prompt, request.model, images=images)
         elif request.provider == "claude":
-            response, thinking_used = await run_claude_automation(request.prompt, request.model)
+            response, thinking_used = await run_claude_automation(request.prompt, request.model, images=images)
         else:
             # Default to AI Studio - Gemini always has thinking enabled
-            response = await run_ai_studio_automation(request.prompt, request.model)
+            response = await run_ai_studio_automation(request.prompt, request.model, images=images)
             thinking_used = True  # Gemini thinking is always on by default
             
         return {"response": response, "thinking_used": thinking_used}
@@ -374,7 +391,47 @@ async def save_web_chatbot_message(conversation_id: str, request: SaveWebChatBot
     is_first_message = len(conversation["messages"]) == 0
 
     # Add user message
-    storage.add_user_message(conversation_id, request.user_query)
+    user_metadata = {}
+    
+    image_list = []
+    if request.images:
+        image_list.extend(request.images)
+    if request.image and request.image not in image_list:
+        image_list.append(request.image)
+        
+    if image_list:
+        user_metadata["image_urls"] = []
+        # Also keep first image in "image_url" for legacy support
+        
+        for idx, img_b64 in enumerate(image_list):
+            try:
+                # Expecting "data:image/jpeg;base64,..."
+                if ',' in img_b64:
+                    header, encoded = img_b64.split(',', 1)
+                    ext = header.split(';')[0].split('/')[1]
+                else:
+                    encoded = img_b64
+                    ext = "jpg" # Default
+                
+                image_data = base64.b64decode(encoded)
+                filename = f"{uuid.uuid4()}.{ext}"
+                filepath = IMAGES_DIR / filename
+                
+                with open(filepath, "wb") as f:
+                    f.write(image_data)
+                
+                url = f"/api/images/{filename}"
+                user_metadata["image_urls"].append(url)
+                print(f"Saved image to {filepath}")
+                
+                if idx == 0:
+                    user_metadata["image_url"] = url
+                    
+            except Exception as e:
+                print(f"Error saving image: {e}")
+                # Don't fail the whole request, just log error
+
+    storage.add_user_message(conversation_id, request.user_query, metadata=user_metadata)
 
     # Handle Title
     if is_first_message:

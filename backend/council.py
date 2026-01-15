@@ -23,6 +23,35 @@ AI_STUDIO_LOCK = asyncio.Lock()
 CHATGPT_LOCK = asyncio.Lock()
 CLAUDE_LOCK = asyncio.Lock()
 
+TEMP_IMAGES_DIR = Path(__file__).parent.parent / "browser_automation" / "temp_images"
+TEMP_IMAGES_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def _save_temp_image(base64_data: str) -> str:
+    """Save base64 image to a temporary file and return path."""
+    import base64
+    import uuid
+    
+    try:
+        if ',' in base64_data:
+            header, encoded = base64_data.split(',', 1)
+            ext = header.split(';')[0].split('/')[1]
+        else:
+            encoded = base64_data
+            ext = "jpg"
+            
+        filename = f"{uuid.uuid4()}.{ext}"
+        filepath = TEMP_IMAGES_DIR / filename
+        
+        with open(filepath, "wb") as f:
+            f.write(base64.b64decode(encoded))
+            
+        print(f"Saved temp image: {filepath}")
+        return str(filepath)
+    except Exception as e:
+        print(f"Error saving temp image: {e}")
+        return None
+
 
 def get_browser_data_dir(provider: str) -> Path:
     """Get the browser data directory for a provider."""
@@ -638,53 +667,76 @@ Title:"""
     return title
 
 
-async def run_ai_studio_automation(prompt: str, model: str = "Gemini 2.5 Flash") -> str:
+async def run_ai_studio_automation(prompt: str, model: str, images: list = None, image_base64: str = None) -> str:
     """
     Run the AI Studio automation script via subprocess.
     """
     script_path = Path(__file__).parent.parent / "browser_automation" / "ai_studio_automation.py"
     
-    # Use the same python interpreter as the current process
     args = [sys.executable, str(script_path), prompt, "--model", model]
+    
+    temp_image_paths = []
+    
+    # Handle single legacy image arg if provided
+    if image_base64:
+        path = _save_temp_image(image_base64)
+        if path: temp_image_paths.append(path)
+        
+    # Handle list of images
+    if images:
+        for img in images:
+            path = _save_temp_image(img)
+            if path: temp_image_paths.append(path)
+            
+    for path in temp_image_paths:
+        args.extend(["--image", path])
     
     async with AI_STUDIO_LOCK:
         try:
-            print(f"Executing automation: {model}")
+            print(f"Executing AI Studio automation...")
             # Run subprocess and capture output
             process = await asyncio.create_subprocess_exec(
                 *args,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE
             )
-            
+        
             stdout, stderr = await process.communicate()
+            
+            # Cleanup temp images
+            for path in temp_image_paths:
+                if path and os.path.exists(path):
+                    try:
+                        os.remove(path)
+                    except:
+                        pass
             
             if process.returncode != 0:
                 error_msg = stderr.decode().strip()
-                print(f"Automation Error (Code {process.returncode}): {error_msg}")
-                return f"Error: Automation script failed. {error_msg}"
+                print(f"AI Studio Automation Error (Code {process.returncode}): {error_msg}")
+                return f"Error: AI Studio automation script failed. {error_msg}"
                 
             output = stdout.decode().strip()
             # Print full output for debugging
-            print("-" * 20 + " Automation Output " + "-" * 20)
+            print("-" * 20 + " AI Studio Automation Output " + "-" * 20)
             print(output)
-            print("-" * 59)
+            print("-" * 70)
             
             # Use unique delimiters to extract the real response
             if "RESULT_START" in output and "RESULT_END" in output:
                 response = output.split("RESULT_START")[1].split("RESULT_END")[0].strip()
-                return response
                 
-            # Fallback for older script versions or unexpected output
-            if "Response:" in output:
-                response = output.split("Response:")[-1].strip()
-                # Clean up exit logs if any
-                if "Exit code:" in response:
-                    response = response.split("Exit code:")[0].strip()
+                # Check for footnotes in the response (format [^1], [^2], etc.)
+                # If they exist, ensure corresponding definitions are present
+                if "[^1]" in response:
+                    # Basic check: if we see footnote markers but no "Sources:" or similar section at end
+                    # We might want to append the raw sources from output if we captured them separately
+                    # But for now, just returning the extraction is good.
+                    pass
+                    
                 return response
                 
             return output
-
         except Exception as e:
             print(f"Subprocess Exception: {e}")
             return f"Error running automation: {str(e)}"
@@ -748,11 +800,6 @@ def sort_gemini_models(models: List[Dict[str, str]]) -> List[Dict[str, str]]:
         if contains("preview"):
             score += 100
             
-        return score
-
-    return sorted(models, key=get_model_score, reverse=True)
-
-
 async def get_ai_studio_models() -> List[Dict[str, str]]:
     """
     Get the list of available models from AI Studio, sorted by capability.
@@ -792,7 +839,7 @@ async def get_ai_studio_models() -> List[Dict[str, str]]:
             return []
 
 
-async def run_chatgpt_automation(prompt: str, model: str = "auto") -> tuple[str, bool]:
+async def run_chatgpt_automation(prompt: str, model: str = "auto", images: list = None, image_base64: str = None) -> tuple[str, bool]:
     """
     Run the ChatGPT automation script via subprocess.
     
@@ -801,8 +848,21 @@ async def run_chatgpt_automation(prompt: str, model: str = "auto") -> tuple[str,
     """
     script_path = Path(__file__).parent.parent / "browser_automation" / "chatgpt_automation.py"
     
-    # Use the same python interpreter as the current process
     args = [sys.executable, str(script_path), prompt, "--model", model]
+    
+    temp_image_paths = []
+    
+    if image_base64:
+        path = _save_temp_image(image_base64)
+        if path: temp_image_paths.append(path)
+        
+    if images:
+        for img in images:
+            path = _save_temp_image(img)
+            if path: temp_image_paths.append(path)
+    
+    for path in temp_image_paths:
+        args.extend(["--image", path])
     
     async with CHATGPT_LOCK:
         try:
@@ -815,6 +875,14 @@ async def run_chatgpt_automation(prompt: str, model: str = "auto") -> tuple[str,
             )
         
             stdout, stderr = await process.communicate()
+            
+            # Cleanup temp images
+            for path in temp_image_paths:
+                if path and os.path.exists(path):
+                    try:
+                        os.remove(path)
+                    except:
+                        pass
             
             if process.returncode != 0:
                 error_msg = stderr.decode().strip()
@@ -851,7 +919,7 @@ async def run_chatgpt_automation(prompt: str, model: str = "auto") -> tuple[str,
 
 
 
-async def run_claude_automation(prompt: str, model: str = "auto") -> tuple[str, bool]:
+async def run_claude_automation(prompt: str, model: str = "auto", images: list = None, image_base64: str = None) -> tuple[str, bool]:
     """
     Run the Claude automation script via subprocess.
     
@@ -862,6 +930,20 @@ async def run_claude_automation(prompt: str, model: str = "auto") -> tuple[str, 
     
     # Use the same python interpreter as the current process
     args = [sys.executable, str(script_path), prompt, "--model", model]
+    
+    temp_image_paths = []
+    
+    if image_base64:
+        path = _save_temp_image(image_base64)
+        if path: temp_image_paths.append(path)
+        
+    if images:
+        for img in images:
+            path = _save_temp_image(img)
+            if path: temp_image_paths.append(path)
+            
+    for path in temp_image_paths:
+        args.extend(["--image", path])
     
     async with CLAUDE_LOCK:
         try:
@@ -874,6 +956,14 @@ async def run_claude_automation(prompt: str, model: str = "auto") -> tuple[str, 
             )
         
             stdout, stderr = await process.communicate()
+            
+            # Cleanup temp images
+            for path in temp_image_paths:
+                if path and os.path.exists(path):
+                    try:
+                        os.remove(path)
+                    except:
+                        pass
             
             if process.returncode != 0:
                 error_msg = stderr.decode().strip()

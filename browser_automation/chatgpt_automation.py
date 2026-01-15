@@ -197,7 +197,7 @@ async def wait_for_chat_interface(page: Page, timeout: int = 30000):
     raise Exception("Could not find chat input element")
 
 
-async def send_prompt(page: Page, prompt: str, input_selector: str = None) -> str:
+async def send_prompt(page: Page, prompt: str, input_selector: str = None, image_paths: list = None) -> str:
     """
     Send a prompt to ChatGPT and wait for the response.
     
@@ -219,6 +219,64 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None) -> st
         input_selector = await wait_for_chat_interface(page)
     
     # Note: Model selection and thinking mode are now handled in main() before calling send_prompt
+
+    # Handle image uploads
+    if image_paths:
+        print(f"[DEBUG] Processing {len(image_paths)} images for ChatGPT...")
+        attached_direct = False
+        # 1. Try direct upload via hidden input first
+        try:
+            file_input = await page.query_selector('input[type="file"]')
+            if file_input:
+                print("[DEBUG] Found hidden file input in ChatGPT, setting all files...")
+                await file_input.set_input_files(image_paths)
+                # Wait for any thumbnail
+                await page.wait_for_selector('button[aria-label="Remove attachment"], [data-testid="attachment-thumbnail"], [data-testid="bubble-file"], div[class*="attachment"]', timeout=10000)
+                print("[DEBUG] Images attached via hidden input in ChatGPT.")
+                attached_direct = True
+            else:
+                print("[DEBUG] No hidden file input found initially in ChatGPT.")
+        except Exception as e:
+            print(f"[DEBUG] Direct upload attempt in ChatGPT failed: {e}")
+
+        # 2. Sequential fallback (only if direct didn't work)
+        if not attached_direct:
+            for image_path in image_paths:
+                if not image_path: continue
+                
+                print(f"Uploading image to ChatGPT: {image_path}")
+                try:
+                    # Try to find attachment button
+                    attach_btn = await page.wait_for_selector('button[aria-label="Add photos and files"], button[aria-label="Attach files"], [data-testid="attach-button"]', timeout=5000)
+                    
+                    if attach_btn:
+                         async with page.expect_file_chooser() as fc_info:
+                             await attach_btn.click()
+                         file_chooser = await fc_info.value
+                         await file_chooser.set_files(image_path)
+                         print("[DEBUG] Image set via file chooser.")
+                    else:
+                        # Fallback to direct input inside loop
+                        file_input = await page.query_selector('input[type="file"]')
+                        if file_input:
+                            await file_input.set_input_files(image_path)
+                            print("[DEBUG] Image set via hidden input in loop.")
+                        else:
+                            print("[ERROR] Could not find attachment mechanism.")
+                    
+                    # Wait for upload to complete
+                    await page.wait_for_selector('button[aria-label="Remove attachment"], [data-testid="attachment-thumbnail"], [data-testid="bubble-file"], div[class*="attachment"]', timeout=30000)
+                    print(f"Image {image_path} uploaded successfully to ChatGPT.")
+                    
+                except Exception as e:
+                    print(f"[ERROR] Failed to upload image {image_path}: {e}")
+                    try:
+                        html = await page.content()
+                        with open("chatgpt_dump.html", "w") as f:
+                            f.write(html)
+                        print("Dumped HTML to chatgpt_dump.html")
+                    except:
+                        pass
 
     # Click on the input to focus it
     await page.click(input_selector, timeout=10000)
@@ -612,8 +670,8 @@ async def main():
     parser.add_argument("prompt", nargs="?", help="The prompt to send")
     parser.add_argument("--interactive", "-i", action="store_true", 
                         help="Run in interactive mode")
-    parser.add_argument("--model", "-m", default="auto",
-                        help="Model to use (default: auto)")
+    parser.add_argument("--model", "-m", help="Model to use (default: auto)")
+    parser.add_argument("--image", "-img", action="append", help="Path to image file to upload (can be used multiple times)", default=[])
     
     args = parser.parse_args()
     
@@ -621,7 +679,7 @@ async def main():
         parser.print_help()
         print("\nError: Please provide a prompt or use --interactive mode")
         sys.exit(1)
-    
+        
     context = None
     try:
         print("Launching browser...")
@@ -638,10 +696,9 @@ async def main():
         if args.interactive:
             await interactive_mode(page)
         else:
-            # Set up thinking mode and track if it was enabled
             thinking_used = await select_model(page, args.model)
             
-            response = await send_prompt(page, args.prompt)
+            response = await send_prompt(page, args.prompt, image_paths=args.image)
             print(f"\nTHINKING_USED={str(thinking_used).lower()}")
             print("RESULT_START")
             print(response)

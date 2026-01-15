@@ -117,13 +117,13 @@ export const api = {
    * Run automation for a prompt.
    * provider: "ai_studio", "chatgpt", or "claude"
    */
-  async runAutomation(prompt, model, provider = "ai_studio") {
+  async runAutomation(prompt, model, provider = "ai_studio", image = null, images = []) {
     const response = await fetch(`${API_BASE}/api/web-chatbot/run-automation`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ prompt, model, provider }),
+      body: JSON.stringify({ prompt, model, provider, image, images }),
     });
     if (!response.ok) {
       const error = await response.json();
