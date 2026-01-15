@@ -8,6 +8,7 @@ vi.mock('./api', () => ({
         listConversations: vi.fn(() => Promise.resolve([])),
         getAutomationStatus: vi.fn(() => Promise.resolve({ ai_studio: false, chatgpt: false })),
         getAutomationModels: vi.fn(() => Promise.resolve([])),
+        getModelScores: vi.fn(() => Promise.resolve({})),
     },
 }));
 
