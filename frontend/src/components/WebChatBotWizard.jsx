@@ -222,10 +222,11 @@ export default function WebChatBotWizard({ conversationId, currentTitle, previou
         const draft = {
             step, userQuery, stage1Responses, stage2Prompt, labelToModel,
             stage2Responses, stage3Prompt, stage3Response, manualTitle,
-            aggregateRankings, aiStudioModel, currentModel, currentText, preselectionReason
+            aggregateRankings, aiStudioModel, currentModel, currentText, preselectionReason,
+            selectedImages
         };
         localStorage.setItem(draftKey, JSON.stringify(draft));
-    }, [draftKey, step, userQuery, stage1Responses, stage2Prompt, labelToModel, stage2Responses, stage3Prompt, stage3Response, manualTitle, aggregateRankings, aiStudioModel, currentModel, currentText]);
+    }, [draftKey, step, userQuery, stage1Responses, stage2Prompt, labelToModel, stage2Responses, stage3Prompt, stage3Response, manualTitle, aggregateRankings, aiStudioModel, currentModel, currentText, selectedImages]);
 
     const [isGeneratingTitle, setIsGeneratingTitle] = useState(false);
     const generatingLock = useRef(false);
@@ -669,19 +670,22 @@ Title:`;
                         onChange={(e) => {
                             const files = Array.from(e.target.files);
                             if (files.length > 0) {
-                                // Process multiple files
+                                // Upload multiple files immediately
                                 Promise.all(files.map(file => {
-                                    return new Promise((resolve, reject) => {
-                                        const reader = new FileReader();
-                                        reader.onloadend = () => resolve(reader.result);
-                                        reader.onerror = reject;
-                                        reader.readAsDataURL(file);
-                                    });
+                                    return api.uploadImage(file)
+                                        .then(data => data.url)
+                                        .catch(err => {
+                                            console.error("Error uploading file", err);
+                                            alert(`Failed to upload ${file.name}`);
+                                            return null;
+                                        });
                                 })).then(results => {
-                                    setSelectedImages(prev => [...prev, ...results]);
-                                    // Reset input so same files can be selected again if needed (though rare)
+                                    // Filter out failures
+                                    const validUrls = results.filter(url => url !== null);
+                                    setSelectedImages(prev => [...prev, ...validUrls]);
+                                    // Reset input
                                     e.target.value = null;
-                                }).catch(err => console.error("Error reading files", err));
+                                });
                             }
                         }}
                         style={{ display: 'none' }}
@@ -692,7 +696,7 @@ Title:`;
                     </label>
                     {selectedImages.map((img, idx) => (
                         <div key={idx} className="image-preview-container">
-                            <img src={img} alt={`Preview ${idx}`} className="image-preview-thumb" />
+                            <img src={api.getImageUrl(img)} alt={`Preview ${idx}`} className="image-preview-thumb" />
                             <button className="remove-image-btn" onClick={() => setSelectedImages(prev => prev.filter((_, i) => i !== idx))} title="Remove Image">×</button>
                         </div>
                     ))}

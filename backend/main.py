@@ -38,7 +38,8 @@ app.add_middleware(
 )
 
 # Mount images directory for serving
-IMAGES_DIR = Path("backend/data/images")
+BASE_DIR = Path(__file__).parent
+IMAGES_DIR = BASE_DIR / "data" / "images"
 IMAGES_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/api/images", StaticFiles(directory=str(IMAGES_DIR)), name="images")
 
@@ -289,6 +290,28 @@ async def send_message_stream(conversation_id: str, request: SendMessageRequest)
 
 # --- Web ChatBot Helper Endpoints ---
 
+from fastapi import UploadFile, File
+
+@app.post("/api/upload-image")
+async def upload_image(file: UploadFile = File(...)):
+    """Upload an image and return its URL."""
+    try:
+        # Generate unique filename
+        ext = file.filename.split('.')[-1] if '.' in file.filename else "jpg"
+        filename = f"{uuid.uuid4()}.{ext}"
+        filepath = IMAGES_DIR / filename
+        
+        # Save file
+        with open(filepath, "wb") as f:
+            content = await file.read()
+            f.write(content)
+            
+        url = f"/api/images/{filename}"
+        return {"url": url, "filename": filename}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/web-chatbot/run-automation")
 async def web_chatbot_run_automation(request: AutomationRequest):
     """Run automation for a prompt using specified provider."""
@@ -300,13 +323,26 @@ async def web_chatbot_run_automation(request: AutomationRequest):
         if request.image and request.image not in images:
             images.append(request.image)
             
+        # Process images: partial URLs need to be converted to local paths
+        processed_images = []
+        for img in images:
+            if img.startswith("/api/images/"):
+                # Convert URL to local path
+                filename = img.split("/")[-1]
+                local_path = IMAGES_DIR / filename
+                if local_path.exists():
+                    processed_images.append(str(local_path))
+            else:
+                # Assume base64
+                processed_images.append(img)
+            
         if request.provider == "chatgpt":
-            response, thinking_used = await run_chatgpt_automation(request.prompt, request.model, images=images)
+            response, thinking_used = await run_chatgpt_automation(request.prompt, request.model, images=processed_images)
         elif request.provider == "claude":
-            response, thinking_used = await run_claude_automation(request.prompt, request.model, images=images)
+            response, thinking_used = await run_claude_automation(request.prompt, request.model, images=processed_images)
         else:
             # Default to AI Studio - Gemini always has thinking enabled
-            response = await run_ai_studio_automation(request.prompt, request.model, images=images)
+            response = await run_ai_studio_automation(request.prompt, request.model, images=processed_images)
             thinking_used = True  # Gemini thinking is always on by default
             
         return {"response": response, "thinking_used": thinking_used}

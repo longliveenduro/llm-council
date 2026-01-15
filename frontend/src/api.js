@@ -174,6 +174,22 @@ export const api = {
   },
 
   /**
+   * Upload an image.
+   */
+  async uploadImage(file) {
+    const formData = new FormData();
+    formData.append("file", file);
+    const response = await fetch(`${API_BASE}/api/upload-image`, {
+      method: "POST",
+      body: formData
+    });
+    if (!response.ok) {
+      throw new Error("Image upload failed");
+    }
+    return response.json(); // Returns { url: "..." }
+  },
+
+  /**
    * Get Stage 3 prompt (Web ChatBot).
    */
   async getStage3Prompt(query, stage1Results, stage2Results, previousMessages = []) {
@@ -313,5 +329,17 @@ export const api = {
       throw new Error('Failed to get scores');
     }
     return response.json();
+  },
+  /**
+   * Get full image URL.
+   */
+  getImageUrl(path) {
+    if (!path) return '';
+    if (path.startsWith('http') || path.startsWith('data:')) {
+      return path;
+    }
+    // Ensure path starts with / if implicit
+    const safePath = path.startsWith('/') ? path : `/${path}`;
+    return `${API_BASE}${safePath}`;
   },
 };

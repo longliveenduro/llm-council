@@ -679,14 +679,24 @@ async def run_ai_studio_automation(prompt: str, model: str, images: list = None,
     
     # Handle single legacy image arg if provided
     if image_base64:
-        path = _save_temp_image(image_base64)
-        if path: temp_image_paths.append(path)
+        if os.path.exists(image_base64):
+            # It's a path
+            args.extend(["--image", image_base64])
+        else:
+            # It's base64
+            path = _save_temp_image(image_base64)
+            if path: temp_image_paths.append(path)
         
     # Handle list of images
     if images:
         for img in images:
-            path = _save_temp_image(img)
-            if path: temp_image_paths.append(path)
+            if os.path.exists(img):
+                # It's a pre-existing path (e.g. from upload)
+                args.extend(["--image", img])
+            else:
+                # It's base64, save to temp
+                path = _save_temp_image(img)
+                if path: temp_image_paths.append(path)
             
     for path in temp_image_paths:
         args.extend(["--image", path])
@@ -858,8 +868,12 @@ async def run_chatgpt_automation(prompt: str, model: str = "auto", images: list 
         
     if images:
         for img in images:
-            path = _save_temp_image(img)
-            if path: temp_image_paths.append(path)
+            if os.path.exists(img):
+                # Pre-existing path (e.g. from upload)
+                args.extend(["--image", img])
+            else:
+                path = _save_temp_image(img)
+                if path: temp_image_paths.append(path)
     
     for path in temp_image_paths:
         args.extend(["--image", path])
@@ -939,8 +953,12 @@ async def run_claude_automation(prompt: str, model: str = "auto", images: list =
         
     if images:
         for img in images:
-            path = _save_temp_image(img)
-            if path: temp_image_paths.append(path)
+            if os.path.exists(img):
+                # Pre-existing path
+                args.extend(["--image", img])
+            else:
+                path = _save_temp_image(img)
+                if path: temp_image_paths.append(path)
             
     for path in temp_image_paths:
         args.extend(["--image", path])
