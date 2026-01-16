@@ -119,6 +119,55 @@ async def get_browser_context() -> tuple[BrowserContext, Page]:
     return context, page
 
 
+async def check_image_upload_quota_error(page: Page) -> bool:
+    """
+    Check if ChatGPT is showing an image upload quota error.
+    This happens when free tier users exceed their daily image upload limit.
+    
+    Returns:
+        True if quota error is detected, False otherwise.
+    """
+    try:
+        # Check for common quota error messages in page content
+        page_text = await page.evaluate('() => document.body.innerText.toLowerCase()')
+        
+        quota_error_patterns = [
+            "you've reached your file upload limit",
+            "reached your file upload limit",
+            "file upload limit",
+            "upload limit reached",
+            "quota exceeded",
+            "user quota exceeded",
+        ]
+        
+        for pattern in quota_error_patterns:
+            if pattern in page_text:
+                return True
+        
+        # Also check for specific error toast/dialog elements
+        error_selectors = [
+            '[data-testid*="error"]',
+            '[role="alert"]',
+            '.error-toast',
+        ]
+        
+        for selector in error_selectors:
+            try:
+                element = await page.query_selector(selector)
+                if element:
+                    text = await element.inner_text()
+                    text_lower = text.lower()
+                    if any(pattern in text_lower for pattern in quota_error_patterns):
+                        return True
+            except:
+                continue
+        
+        return False
+    except Exception as e:
+        print(f"[DEBUG] Error checking quota: {e}")
+        return False
+
+
 async def detect_captcha(page: Page) -> bool:
     """Detect if a captcha or human verification is blocking the page."""
     try:
@@ -277,6 +326,11 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None, image
                         print("Dumped HTML to chatgpt_dump.html")
                     except:
                         pass
+
+        # Check for quota errors after upload attempts
+        await asyncio.sleep(0.5)  # Allow time for error messages to appear
+        if await check_image_upload_quota_error(page):
+            raise Exception("ChatGPT image upload quota exceeded. Free tier users have a daily limit on image uploads. Please wait or upgrade to ChatGPT Plus.")
 
     # Click on the input to focus it
     await page.click(input_selector, timeout=10000)
