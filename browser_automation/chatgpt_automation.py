@@ -698,6 +698,11 @@ async def main():
         else:
             thinking_used = await select_model(page, args.model)
             
+            # Raise error if thinking was requested but couldn't be activated
+            if args.model and ("thinking" in args.model.lower() or "reason" in args.model.lower()):
+                if not thinking_used:
+                    raise Exception("Thinking mode requested but could not be activated. The toggle may not be visible or the ChatGPT UI may have changed.")
+            
             response = await send_prompt(page, args.prompt, image_paths=args.image)
             print(f"\nTHINKING_USED={str(thinking_used).lower()}")
             print("RESULT_START")

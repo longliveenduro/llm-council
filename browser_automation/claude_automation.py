@@ -812,6 +812,8 @@ async def main():
             thinking_used = False
             if args.model and "thinking" in args.model.lower():
                 thinking_used = await select_thinking_mode(page, wants_thinking=True)
+                if not thinking_used:
+                    raise Exception("Extended Thinking requested but could not be activated. The toggle may not be visible or the Claude UI may have changed.")
             
             response = await send_prompt(page, args.prompt, model=args.model, image_paths=args.image)
             print(f"\nTHINKING_USED={str(thinking_used).lower()}")

@@ -309,9 +309,6 @@ Title:`;
 
     const addStage1Response = () => {
         if (currentModel && currentText) {
-            const existingIdx = stage1Responses.findIndex(r => r.model === currentModel);
-            let newResponses;
-
             // Determine the model name to use (potentially with Thinking suffix)
             let modelNameToUse = currentModel;
 
@@ -331,8 +328,12 @@ Title:`;
                 }
             }
 
+            // Check for existing response with EXACT model name (thinking vs non-thinking are different)
+            const existingIdx = stage1Responses.findIndex(r => r.model === modelNameToUse);
+            let newResponses;
+
             if (existingIdx !== -1) {
-                if (!window.confirm(`A response from "${currentModel}" has already been added. Do you want to overwrite the old response with the new one?`)) {
+                if (!window.confirm(`A response from "${modelNameToUse}" has already been added. Do you want to overwrite it?`)) {
                     return;
                 }
                 newResponses = [...stage1Responses];
