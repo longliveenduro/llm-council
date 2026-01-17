@@ -353,8 +353,22 @@ async def web_chatbot_run_automation(request: AutomationRequest):
 @app.post("/api/web-chatbot/stage2-prompt")
 async def web_chatbot_stage2_prompt(request: WebChatBotStage2Request):
     """Generate the Stage 2 prompt and label mapping."""
-    # Create anonymized labels
-    labels = [chr(65 + i) for i in range(len(request.stage1_results))]
+    # Create grouped labels (A1, A2, B1, B2...) based on model names
+    # This matches the frontend label generation logic
+    model_order = []
+    model_counts = {}
+    labels = []
+    
+    for result in request.stage1_results:
+        model_key = result['model']
+        if model_key not in model_counts:
+            model_counts[model_key] = 0
+            model_order.append(model_key)
+        model_counts[model_key] += 1
+        letter_idx = model_order.index(model_key)
+        letter = chr(65 + letter_idx)
+        round_num = model_counts[model_key]
+        labels.append(f"{letter}{round_num}")
     
     # Create mapping
     label_to_model = {

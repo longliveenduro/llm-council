@@ -399,7 +399,7 @@ def build_ranking_prompt(
     Args:
         user_query: The original user query
         stage1_results: Results from Stage 1
-        labels: List of anonymized labels
+        labels: List of anonymized labels (can be A, B, C or A1, A2, B1, B2...)
         context_messages: Optional list of previous messages
 
     Returns:
@@ -411,6 +411,27 @@ def build_ranking_prompt(
     ])
 
     context_section = _format_context(context_messages)
+    
+    # Check if this is a multi-round scenario by looking at the labels
+    # Multi-round labels have format like A1, A2, B1 (letter + number)
+    is_multi_round = len(labels) > 0 and len(labels[0]) > 1 and labels[0][-1].isdigit()
+    
+    multi_round_note = ""
+    if is_multi_round:
+        # Build explanation of which responses are from the same model
+        model_groups = {}
+        for label, result in zip(labels, stage1_results):
+            letter = label[0] if len(label) > 0 else label
+            if letter not in model_groups:
+                model_groups[letter] = []
+            model_groups[letter].append(label)
+        
+        if any(len(group) > 1 for group in model_groups.values()):
+            group_explanations = []
+            for letter, group_labels in sorted(model_groups.items()):
+                if len(group_labels) > 1:
+                    group_explanations.append(f"Responses {', '.join(group_labels)} are from the same model (generated in separate, independent sessions)")
+            multi_round_note = "\n\nNOTE ON RESPONSES:\n" + "\n".join(group_explanations) + "\n\nEach response should be evaluated on its own merits, regardless of which model produced it.\n"
 
     return f"""You are evaluating different responses to the following question:
 
@@ -420,7 +441,7 @@ Question: {user_query}
 Here are the responses from different models (anonymized):
 
 {responses_text}
-
+{multi_round_note}
 Your task:
 1. First, evaluate each response individually. For each response, explain what it does well and what it does poorly.
 2. Then, at the very end of your response, provide a final ranking.
@@ -428,19 +449,19 @@ Your task:
 IMPORTANT: Your final ranking MUST be formatted EXACTLY as follows:
 - Start with the line "FINAL RANKING:" (all caps, with colon)
 - Then list the responses from best to worst as a numbered list
-- Each line should be: number, period, space, then ONLY the response label (e.g., "1. Response A")
+- Each line should be: number, period, space, then ONLY the response label (e.g., "1. Response A1")
 - Do not add any other text or explanations in the ranking section
 
 Example of the correct format for your ENTIRE response:
 
-Response A provides good detail on X but misses Y...
-Response B is accurate but lacks depth on Z...
-Response C offers the most comprehensive answer...
+Response A1 provides good detail on X but misses Y...
+Response A2 is accurate but lacks depth on Z...
+Response B1 offers the most comprehensive answer...
 
 FINAL RANKING:
-1. Response C
-2. Response A
-3. Response B
+1. Response B1
+2. Response A1
+3. Response A2
 
 Now provide your evaluation and ranking:"""
 
@@ -506,12 +527,30 @@ def build_chairman_prompt(
     Returns:
         The complete prompt string
     """
-    # Create anonymized labels matching Stage 2
-    labels = [chr(65 + i) for i in range(len(stage1_results))]  # A, B, C...
+    # Check if this is a multi-round scenario by looking at stage1 model names
+    # Group responses by model to create grouped labels
+    model_order = []
+    model_counts = {}
+    labels = []
+    
+    for result in stage1_results:
+        model_key = result['model']
+        if model_key not in model_counts:
+            model_counts[model_key] = 0
+            model_order.append(model_key)
+        model_counts[model_key] += 1
+        letter_idx = model_order.index(model_key)
+        letter = chr(65 + letter_idx)
+        round_num = model_counts[model_key]
+        labels.append(f"{letter}{round_num}")
+    
+    # Check if multi-round (any model has more than 1 response)
+    is_multi_round = any(count > 1 for count in model_counts.values())
     
     # Map model names to labels for Stage 2 section
     model_to_label = {}
     for label, result in zip(labels, stage1_results):
+        # For multi-round, a model may have multiple labels, just track last one for reviewer matching
         model_to_label[result['model']] = f"Response {label}"
 
     # Format Stage 1 (Anonymized)
@@ -519,9 +558,26 @@ def build_chairman_prompt(
         f"Response {label}:\n{result['response']}"
         for label, result in zip(labels, stage1_results)
     ])
+    
+    # Build multi-round note if applicable
+    multi_round_note = ""
+    if is_multi_round:
+        model_groups = {}
+        for label, result in zip(labels, stage1_results):
+            letter = label[0]
+            if letter not in model_groups:
+                model_groups[letter] = []
+            model_groups[letter].append(label)
+        
+        group_explanations = []
+        for letter, group_labels in sorted(model_groups.items()):
+            if len(group_labels) > 1:
+                group_explanations.append(f"Responses {', '.join(group_labels)} are from the same model (generated in separate, independent sessions)")
+        if group_explanations:
+            multi_round_note = "\n\nNOTE: " + "; ".join(group_explanations) + "\n"
 
     # Format Stage 2 (Anonymized attribution)
-    # We want to show "Response A's Ranking: ..." instead of "Model X's Ranking: ..."
+    # We want to show "Response A1's Ranking: ..." instead of "Model X's Ranking: ..."
     stage2_parts = []
     for result in stage2_results:
         # Find which label corresponds to this model
@@ -539,7 +595,7 @@ Original Question: {user_query}
 
 STAGE 1 - Individual Responses (Anonymized):
 {stage1_text}
-
+{multi_round_note}
 STAGE 2 - Peer Rankings (Anonymized):
 {stage2_text}
 
@@ -560,7 +616,7 @@ def parse_ranking_from_text(ranking_text: str) -> List[str]:
         ranking_text: The full text response from the model
 
     Returns:
-        List of response labels in ranked order
+        List of response labels in ranked order (e.g., ['Response A1', 'Response B1'])
     """
     import re
 
@@ -570,19 +626,19 @@ def parse_ranking_from_text(ranking_text: str) -> List[str]:
         parts = ranking_text.split("FINAL RANKING:")
         if len(parts) >= 2:
             ranking_section = parts[1]
-            # Try to extract numbered list format (e.g., "1. Response A")
-            # This pattern looks for: number, period, optional space, "Response X"
-            numbered_matches = re.findall(r'\d+\.\s*Response [A-Z]', ranking_section)
+            # Try to extract numbered list format with optional round number (e.g., "1. Response A1" or "1. Response A")
+            # This pattern matches: number, period, optional space, "Response X" with optional digit(s)
+            numbered_matches = re.findall(r'\d+\.\s*Response [A-Z]\d*', ranking_section)
             if numbered_matches:
-                # Extract just the "Response X" part
-                return [re.search(r'Response [A-Z]', m).group() for m in numbered_matches]
+                # Extract just the "Response X" or "Response X1" part
+                return [re.search(r'Response [A-Z]\d*', m).group() for m in numbered_matches]
 
-            # Fallback: Extract all "Response X" patterns in order
-            matches = re.findall(r'Response [A-Z]', ranking_section)
+            # Fallback: Extract all "Response X" or "Response X1" patterns in order
+            matches = re.findall(r'Response [A-Z]\d*', ranking_section)
             return matches
 
-    # Fallback: try to find any "Response X" patterns in order
-    matches = re.findall(r'Response [A-Z]', ranking_text)
+    # Fallback: try to find any "Response X" or "Response X1" patterns in order
+    matches = re.findall(r'Response [A-Z]\d*', ranking_text)
     return matches
 
 

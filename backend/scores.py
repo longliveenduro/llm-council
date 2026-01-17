@@ -128,31 +128,43 @@ def _calculate_points_for_review(
     ranked_labels: List[str], 
     reviewer_model: str, 
     label_to_model: Dict[str, str]
-) -> Dict[str, int]:
+) -> Dict[str, float]:
     """
-    Calculate points awarded by a single reviewer, excluding self-ranking.
+    Calculate points awarded by a single reviewer.
+    
+    For multi-round scenarios where a model has multiple responses (A1, A2, A3),
+    we average the ranks of all responses from that model before calculating points.
     
     Args:
-        ranked_labels: List of labels (e.g. ['Response A', 'Response B']) in ranked order.
+        ranked_labels: List of labels (e.g. ['Response A1', 'Response B1']) in ranked order.
         reviewer_model: The name of the model doing the reviewing.
         label_to_model: Mapping from label to model name.
         
     Returns:
         Dict mapping model names to points earned from this review.
     """
-    points_map = {}
+    # First, collect all rank positions (1-indexed) for each model
+    model_ranks = {}  # model_name -> list of rank positions
     
-    # Filter out the reviewer from the ranking (self-ranking exclusion)
-    clean_ranking_models = []
-    
-    for label in ranked_labels:
+    for i, label in enumerate(ranked_labels):
         model_name = label_to_model.get(label)
-        if model_name: 
-            # We treat self-ranked models as VALID votes (since they are anonymized)
-            clean_ranking_models.append(model_name)
-            
-    # Award points based on position in clean list
-    for i, model_name in enumerate(clean_ranking_models):
+        if model_name:
+            rank_position = i + 1  # 1-indexed rank
+            if model_name not in model_ranks:
+                model_ranks[model_name] = []
+            model_ranks[model_name].append(rank_position)
+    
+    # Calculate average rank per model
+    model_avg_ranks = {}
+    for model_name, ranks in model_ranks.items():
+        model_avg_ranks[model_name] = sum(ranks) / len(ranks)
+    
+    # Sort models by their average rank to determine final positions
+    sorted_models = sorted(model_avg_ranks.items(), key=lambda x: x[1])
+    
+    # Award points based on position in the averaged ranking
+    points_map = {}
+    for i, (model_name, avg_rank) in enumerate(sorted_models):
         points = RANKING_POINTS.get(i, 0)
         if points > 0:
             points_map[model_name] = points

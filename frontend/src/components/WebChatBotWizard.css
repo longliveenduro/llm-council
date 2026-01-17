@@ -920,3 +920,31 @@
     border-bottom: 0;
     /* Tabs connect to content area */
 }
+
+/* Rounds per Model Input */
+.rounds-per-model-section {
+    margin-bottom: 12px;
+}
+
+.rounds-input-wrapper {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.rounds-input {
+    width: 60px;
+    padding: 8px;
+    background: var(--input-bg);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    border-radius: 4px;
+    font-size: 14px;
+    text-align: center;
+}
+
+.rounds-hint {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-style: italic;
+}

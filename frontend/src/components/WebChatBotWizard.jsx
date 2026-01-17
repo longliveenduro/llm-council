@@ -164,6 +164,7 @@ export default function WebChatBotWizard({ conversationId, currentTitle, previou
     const [aiStudioModel, setAiStudioModel] = useState(savedDraft.aiStudioModel || (automationModels.ai_studio[0]?.name) || 'Gemini 2.5 Flash');
     const [preselectionReason, setPreselectionReason] = useState(savedDraft.preselectionReason || '');
     const [selectedImages, setSelectedImages] = useState(savedDraft.selectedImages || (savedDraft.selectedImage ? [savedDraft.selectedImage] : []));
+    const [roundsPerModel, setRoundsPerModel] = useState(savedDraft.roundsPerModel || 1); // Number of rounds (responses) per model
 
     // Input State for current item
     const [currentModel, setCurrentModel] = useState(savedDraft.currentModel || llmNames[0] || '');
@@ -223,10 +224,10 @@ export default function WebChatBotWizard({ conversationId, currentTitle, previou
             step, userQuery, stage1Responses, stage2Prompt, labelToModel,
             stage2Responses, stage3Prompt, stage3Response, manualTitle,
             aggregateRankings, aiStudioModel, currentModel, currentText, preselectionReason,
-            selectedImages
+            selectedImages, roundsPerModel
         };
         localStorage.setItem(draftKey, JSON.stringify(draft));
-    }, [draftKey, step, userQuery, stage1Responses, stage2Prompt, labelToModel, stage2Responses, stage3Prompt, stage3Response, manualTitle, aggregateRankings, aiStudioModel, currentModel, currentText, selectedImages]);
+    }, [draftKey, step, userQuery, stage1Responses, stage2Prompt, labelToModel, stage2Responses, stage3Prompt, stage3Response, manualTitle, aggregateRankings, aiStudioModel, currentModel, currentText, selectedImages, roundsPerModel]);
 
     const [isGeneratingTitle, setIsGeneratingTitle] = useState(false);
     const generatingLock = useRef(false);
@@ -344,11 +345,23 @@ Title:`;
 
             setStage1Responses(newResponses);
 
-            // Immediately update mapping so it's visible in Stage 1
+            // Immediately update mapping with grouped labels (A1, A2, B1, B2...)
+            // Group responses by model name to assign letter prefixes
+            const modelOrder = []; // Track order of unique models
+            const modelCounts = {}; // Track count per model for round numbers
+
             const newMapping = {};
-            newResponses.forEach((r, i) => {
-                const label = String.fromCharCode(65 + i);
-                newMapping[`Response ${label}`] = r.model;
+            newResponses.forEach((r) => {
+                const modelKey = r.model;
+                if (!modelCounts[modelKey]) {
+                    modelCounts[modelKey] = 0;
+                    modelOrder.push(modelKey);
+                }
+                modelCounts[modelKey]++;
+                const letterIdx = modelOrder.indexOf(modelKey);
+                const letter = String.fromCharCode(65 + letterIdx);
+                const roundNum = modelCounts[modelKey];
+                newMapping[`Response ${letter}${roundNum}`] = r.model;
             });
             setLabelToModel(newMapping);
 
@@ -411,6 +424,10 @@ Title:`;
         setCurrentText('');
         setLastThinkingUsed(null);
         setLastAutomationProvider(null);
+
+        // In Step 1, run multiple rounds based on roundsPerModel
+        const numRounds = step === 1 ? roundsPerModel : 1;
+
         try {
             let modelToUse = aiStudioModel;
             const norm = (name) => name ? name.toLowerCase().replace(/\s+/g, '') : '';
@@ -438,17 +455,99 @@ Title:`;
                 }
             }
 
-            const data = await api.runAutomation(prompt, modelToUse, provider, null, selectedImages);
-            setCurrentText(data.response);
-            setLastThinkingUsed(data.thinking_used ?? null);
-            setLastAutomationProvider(provider);
-            // Update currentModel to the base model (without thinking suffix for display)
-            if (provider === 'claude' || provider === 'chatgpt') {
-                // Set to base model name (the one from llmNames, not with suffix)
-                const baseModel = (llmNames || []).find(n => norm(n).includes(provider === 'claude' ? 'claude' : 'chatgpt'));
-                if (baseModel) {
-                    setCurrentModel(baseModel);
+            // Check for overwrite if rerunning multi-round
+            if (step === 1 && numRounds > 1) {
+                const existingForModel = stage1Responses.filter(r => norm(r.model) === norm(modelToUse));
+                if (existingForModel.length > 0) {
+                    if (!window.confirm(`Responses from "${modelToUse}" have already been added. Do you want to overwrite all ${existingForModel.length} existing responses for this model with ${numRounds} new ones?`)) {
+                        setIsAutomating(false);
+                        return;
+                    }
+                    // Clear existing responses for this model
+                    setStage1Responses(prev => prev.filter(r => norm(r.model) !== norm(modelToUse)));
                 }
+            }
+
+            // Run automation for each round
+            for (let round = 1; round <= numRounds; round++) {
+                const data = await api.runAutomation(prompt, modelToUse, provider, null, selectedImages);
+                const responseText = data.response;
+                const thinkingUsed = data.thinking_used ?? null;
+
+                if (step === 1 && numRounds > 1) {
+                    // Auto-add response for multi-round mode
+                    // Determine model name with thinking suffix
+                    let modelNameToUse = modelToUse;
+                    // For Claude/ChatGPT, clean and re-add appropriate suffix based on actual thinking used
+                    if (provider === 'claude' || provider === 'chatgpt') {
+                        // Get base model name from llmNames
+                        const baseModel = (llmNames || []).find(n => norm(n).includes(provider === 'claude' ? 'claude' : 'chatgpt'));
+                        if (baseModel) {
+                            modelNameToUse = baseModel;
+                        }
+                        // Add thinking suffix if thinking was used
+                        if (thinkingUsed === true) {
+                            const hasThinkingSuffix = modelNameToUse.toLowerCase().includes('thinking') ||
+                                modelNameToUse.toLowerCase().includes('[ext.');
+                            if (!hasThinkingSuffix) {
+                                if (provider === 'claude') {
+                                    modelNameToUse += ' [Ext. Thinking]';
+                                } else if (provider === 'chatgpt') {
+                                    modelNameToUse += ' Thinking';
+                                }
+                            }
+                        }
+                    }
+
+                    // Add response directly to stage1Responses (no overwrite warning for multi-round)
+                    setStage1Responses(prev => {
+                        const newResponses = [...prev, { model: modelNameToUse, response: responseText }];
+
+                        // Update mapping with grouped labels
+                        const modelOrder = [];
+                        const modelCounts = {};
+                        const newMapping = {};
+                        newResponses.forEach((r) => {
+                            const modelKey = r.model;
+                            if (!modelCounts[modelKey]) {
+                                modelCounts[modelKey] = 0;
+                                modelOrder.push(modelKey);
+                            }
+                            modelCounts[modelKey]++;
+                            const letterIdx = modelOrder.indexOf(modelKey);
+                            const letter = String.fromCharCode(65 + letterIdx);
+                            const roundNum = modelCounts[modelKey];
+                            newMapping[`Response ${letter}${roundNum}`] = r.model;
+                        });
+                        setLabelToModel(newMapping);
+
+                        return newResponses;
+                    });
+                } else if (step === 1 && numRounds === 1) {
+                    // Single round - store in currentText for manual add
+                    setCurrentText(responseText);
+                    setLastThinkingUsed(thinkingUsed);
+                    setLastAutomationProvider(provider);
+                    // Update currentModel to the base model
+                    if (provider === 'claude' || provider === 'chatgpt') {
+                        const baseModel = (llmNames || []).find(n => norm(n).includes(provider === 'claude' ? 'claude' : 'chatgpt'));
+                        if (baseModel) {
+                            setCurrentModel(baseModel);
+                        }
+                    }
+                } else {
+                    // Stage 2 - single run, set text
+                    setCurrentText(responseText);
+                    setLastThinkingUsed(thinkingUsed);
+                    setLastAutomationProvider(provider);
+                }
+            }
+
+            // After multi-round, advance to next model in council
+            if (step === 1 && numRounds > 1) {
+                const nextIdx = llmNames.indexOf(currentModel) + 1;
+                setCurrentModel(nextIdx > 0 && nextIdx < llmNames.length ? llmNames[nextIdx] : '');
+                setCurrentText('');
             }
         } catch (error) {
             alert(`Automation failed: ${error.message}`);
@@ -607,7 +706,7 @@ Title:`;
                 stage1: stage1Responses,
                 stage2: stage2Responses,
                 stage3: { ...stage3Response, model: finalStage3Model },
-                metadata: { label_to_model: labelToModel, aggregate_rankings: aggregateRankings },
+                metadata: { label_to_model: labelToModel, aggregate_rankings: aggregateRankings, rounds_per_model: roundsPerModel },
                 title: manualTitle,
                 images: selectedImages,
                 image: selectedImages.length > 0 ? selectedImages[0] : null // Legacy support
@@ -653,6 +752,22 @@ Title:`;
                             {llmNames.includes(aiStudioModel) ? '✓ In Council' : '+ Add to Council'}
                         </button>
                     </div>
+                </div>
+            </div>
+            <div className="form-group rounds-per-model-section">
+                <label htmlFor="rounds-per-model">Rounds per Model:</label>
+                <div className="rounds-input-wrapper">
+                    <input
+                        type="number"
+                        id="rounds-per-model"
+                        value={roundsPerModel}
+                        onChange={(e) => setRoundsPerModel(Math.max(1, parseInt(e.target.value) || 1))}
+                        min="1"
+                        max="10"
+                        className="rounds-input"
+                        aria-label="Rounds per Model"
+                    />
+                    <span className="rounds-hint">Each model will provide this many independent responses</span>
                 </div>
             </div>
             <div className="form-group">
@@ -707,16 +822,33 @@ Title:`;
             <div className={stage1Responses.length > 0 ? "prompt-col-layout" : ""}>
                 <div className="responses-list" style={stage1Responses.length > 0 ? { flex: 2, marginBottom: 0 } : {}}>
                     {stage1Responses.length === 0 && <div className="no-responses-hint" style={{ color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic', textAlign: 'center', padding: '12px' }}>No responses added yet.</div>}
-                    {stage1Responses.map((r, i) => (
-                        <div key={i} className="response-item clickable-response-item" onClick={() => setViewingResponse(r)} title="Click to view full response">
-                            <div className="response-header">
-                                <span className="response-model-label">Model {String.fromCharCode(65 + i)}:</span> <ModelBadge model={r.model} />:
-                            </div>
-                            <div className="response-preview">
-                                {r.response.substring(0, 50)}...
-                            </div>
-                        </div>
-                    ))}
+                    {(() => {
+                        const modelCounts = {};
+                        const modelOrder = [];
+                        return stage1Responses.map((r, i) => {
+                            const modelKey = r.model;
+                            if (!modelCounts[modelKey]) {
+                                modelCounts[modelKey] = 0;
+                                modelOrder.push(modelKey);
+                            }
+                            modelCounts[modelKey]++;
+                            const letterIdx = modelOrder.indexOf(modelKey);
+                            const letter = String.fromCharCode(65 + letterIdx);
+                            const roundNum = modelCounts[modelKey];
+                            const label = `${letter}${roundNum}`;
+
+                            return (
+                                <div key={i} className="response-item clickable-response-item" onClick={() => setViewingResponse(r)} title="Click to view full response">
+                                    <div className="response-header">
+                                        <span className="response-model-label">Model {label}:</span> <ModelBadge model={r.model} />:
+                                    </div>
+                                    <div className="response-preview">
+                                        {r.response.substring(0, 50)}...
+                                    </div>
+                                </div>
+                            );
+                        });
+                    })()}
                 </div>
                 {stage1Responses.length > 0 && <MappingBox labelToModel={labelToModel} scores={currentScores} />}
             </div>
