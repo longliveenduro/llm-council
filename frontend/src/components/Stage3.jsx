@@ -17,7 +17,7 @@ function getModelLabel(modelName, labelToModel) {
   return null;
 }
 
-export default function Stage3({ finalResponse, labelToModel }) {
+export default function Stage3({ finalResponse, labelToModel, aggregateRankings }) {
   if (!finalResponse) {
     return null;
   }
@@ -57,6 +57,42 @@ export default function Stage3({ finalResponse, labelToModel }) {
 
 
       </div>
+
+      {aggregateRankings && aggregateRankings.length > 0 && (
+        <div className="aggregate-rankings">
+          <h4>Aggregate Rankings (Street Cred)</h4>
+          <p className="stage-description">
+            Combined results across all peer evaluations (lower score is better):
+          </p>
+          <div className="aggregate-list">
+            {aggregateRankings.map((agg, index) => (
+              <div key={index} className="aggregate-item">
+                <span className="rank-position">#{index + 1}</span>
+                <span className="rank-model-container">
+                  {getModelIcon(agg.model) && (
+                    <img
+                      src={getModelIcon(agg.model)}
+                      alt=""
+                      className="rank-model-icon"
+                      style={{ filter: 'var(--icon-filter)' }}
+                      onError={(e) => e.target.style.display = 'none'}
+                    />
+                  )}
+                  <span className="rank-model">
+                    {agg.model.split('/')[1] || agg.model}
+                  </span>
+                </span>
+                <span className="rank-score">
+                  Avg: {agg.average_rank.toFixed(2)}
+                </span>
+                <span className="rank-count">
+                  ({agg.rankings_count} votes)
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

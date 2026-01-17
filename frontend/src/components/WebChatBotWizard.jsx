@@ -34,20 +34,20 @@ const parseRankingFromText = (rankingText) => {
         const parts = rankingText.split("FINAL RANKING:");
         if (parts.length >= 2) {
             const rankingSection = parts[1];
-            // Try to extract numbered list format (e.g., "1. Response A")
-            const numberedMatches = rankingSection.match(/\d+\.\s*Response [A-Z]/g);
+            // Try to extract numbered list format (e.g., "1. Response A" or "1. Response A1")
+            const numberedMatches = rankingSection.match(/\d+\.\s*Response [A-Z]\d*/g);
             if (numberedMatches) {
-                return numberedMatches.map(m => m.match(/Response [A-Z]/)[0]);
+                return numberedMatches.map(m => m.match(/Response [A-Z]\d*/)[0]);
             }
 
             // Fallback: Extract all "Response X" patterns in order
-            const matches = rankingSection.match(/Response [A-Z]/g);
+            const matches = rankingSection.match(/Response [A-Z]\d*/g);
             return matches || [];
         }
     }
 
     // Fallback: try to find any "Response X" patterns in order in the whole text
-    const matches = rankingText.match(/Response [A-Z]/g);
+    const matches = rankingText.match(/Response [A-Z]\d*/g);
     return matches || [];
 };
 
@@ -101,7 +101,8 @@ const calculateCurrentScores = (stage2Responses, labelToModel) => {
         scores[item.model] = {
             avgRank: item.avgRank,
             medal: medal,
-            rankIndex: currentRankIndex
+            rankIndex: currentRankIndex,
+            count: item.count
         };
     });
 
@@ -998,6 +999,30 @@ Title:`;
                     );
                 })}
             </div>
+            {aggregateRankings && aggregateRankings.length > 0 && (
+                <div className="aggregate-rankings-wizard">
+                    <h4>Aggregate Rankings (Street Cred)</h4>
+                    <p className="stage-description">
+                        Combined results across all peer evaluations (lower score is better):
+                    </p>
+                    <div className="aggregate-list">
+                        {aggregateRankings.map((agg, index) => (
+                            <div key={index} className="aggregate-item">
+                                <span className="rank-position">#{index + 1}</span>
+                                <span className="rank-model-container">
+                                    <ModelBadge model={agg.model} />
+                                </span>
+                                <span className="rank-score">
+                                    Avg: {agg.average_rank.toFixed(2)}
+                                </span>
+                                <span className="rank-count">
+                                    ({agg.rankings_count} votes)
+                                </span>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
             <div className="add-response-form">
                 <div className="model-input-group">
                     <select
@@ -1122,6 +1147,30 @@ Title:`;
                         )}
                     </div>
                 </div>
+                {aggregateRankings && aggregateRankings.length > 0 && (
+                    <div className="aggregate-rankings-wizard">
+                        <h4>Aggregate Rankings (Street Cred)</h4>
+                        <p className="stage-description">
+                            Combined results across all peer evaluations (lower score is better):
+                        </p>
+                        <div className="aggregate-list">
+                            {aggregateRankings.map((agg, index) => (
+                                <div key={index} className="aggregate-item">
+                                    <span className="rank-position">#{index + 1}</span>
+                                    <span className="rank-model-container">
+                                        <ModelBadge model={agg.model} />
+                                    </span>
+                                    <span className="rank-score">
+                                        Avg: {agg.average_rank.toFixed(2)}
+                                    </span>
+                                    <span className="rank-count">
+                                        ({agg.rankings_count} votes)
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
             </div>
             <div className="wizard-actions">
                 <div className="left-actions">
