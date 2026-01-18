@@ -457,3 +457,23 @@ input:checked+.slider:before {
   padding: 0;
   background: transparent;
 }
+
+.user-uploaded-images {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.user-msg-image {
+  max-width: 100%;
+  max-height: 300px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.user-msg-image:hover {
+  transform: scale(1.02);
+}

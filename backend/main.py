@@ -453,14 +453,21 @@ async def save_web_chatbot_message(conversation_id: str, request: SaveWebChatBot
         user_metadata["image_urls"] = []
         # Also keep first image in "image_url" for legacy support
         
-        for idx, img_b64 in enumerate(image_list):
+        for idx, img_data_str in enumerate(image_list):
             try:
-                # Expecting "data:image/jpeg;base64,..."
-                if ',' in img_b64:
-                    header, encoded = img_b64.split(',', 1)
+                # If it's already a URL, just use it
+                if img_data_str.startswith("/api/images/"):
+                    user_metadata["image_urls"].append(img_data_str)
+                    if idx == 0:
+                        user_metadata["image_url"] = img_data_str
+                    continue
+                    
+                # Otherwise, expect Base64: "data:image/jpeg;base64,..."
+                if ',' in img_data_str:
+                    header, encoded = img_data_str.split(',', 1)
                     ext = header.split(';')[0].split('/')[1]
                 else:
-                    encoded = img_b64
+                    encoded = img_data_str
                     ext = "jpg" # Default
                 
                 image_data = base64.b64decode(encoded)

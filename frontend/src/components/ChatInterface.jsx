@@ -11,6 +11,7 @@ import Stage2 from './Stage2';
 import Stage3 from './Stage3';
 import WebChatBotWizard from './WebChatBotWizard';
 import Highscores from './Highscores';
+import { api } from '../api';
 import './ChatInterface.css';
 
 export default function ChatInterface({
@@ -168,21 +169,30 @@ export default function ChatInterface({
                     <div className="user-message">
                       <div className="message-label">You</div>
                       <div className="message-content">
-                        {msg.metadata?.image_url && (
-                          <div className="user-uploaded-image">
-                            <img
-                              src={msg.metadata.image_url}
-                              alt="Attached"
-                              style={{
-                                maxWidth: '100%',
-                                maxHeight: '300px',
-                                borderRadius: '8px',
-                                marginBottom: '12px',
-                                border: '1px solid var(--border-color)'
-                              }}
-                              onClick={() => window.open(msg.metadata.image_url, '_blank')}
-                              title="Click to view full size"
-                            />
+                        {(msg.metadata?.image_url || (msg.metadata?.image_urls && msg.metadata.image_urls.length > 0)) && (
+                          <div className="user-uploaded-images">
+                            {/* Support for multiple images */}
+                            {msg.metadata.image_urls && msg.metadata.image_urls.length > 0 ? (
+                              msg.metadata.image_urls.map((url, idx) => (
+                                <img
+                                  key={idx}
+                                  src={api.getImageUrl(url)}
+                                  alt={`Attached ${idx + 1}`}
+                                  className="user-msg-image"
+                                  onClick={() => window.open(api.getImageUrl(url), '_blank')}
+                                  title="Click to view full size"
+                                />
+                              ))
+                            ) : (
+                              /* Legacy support for single image_url */
+                              <img
+                                src={api.getImageUrl(msg.metadata.image_url)}
+                                alt="Attached"
+                                className="user-msg-image"
+                                onClick={() => window.open(api.getImageUrl(msg.metadata.image_url), '_blank')}
+                                title="Click to view full size"
+                              />
+                            )}
                           </div>
                         )}
                         <div className="markdown-content">
