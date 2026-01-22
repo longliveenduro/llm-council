@@ -107,181 +107,76 @@ def clear_automation_session(provider: str) -> bool:
 async def run_interactive_login(provider: str) -> dict:
     """
     Launch a headful browser for the user to log in interactively.
+    This uses the automation scripts with the --login flag.
     
     Returns a dict with status and message.
     """
-    from playwright.async_api import async_playwright
+    script_map = {
+        "chatgpt": Path(__file__).parent.parent / "browser_automation" / "chatgpt_automation.py",
+        "claude": Path(__file__).parent.parent / "browser_automation" / "claude_automation.py",
+        "ai_studio": Path(__file__).parent.parent / "browser_automation" / "ai_studio_automation.py",
+    }
     
-    data_dir = get_browser_data_dir(provider)
-    data_dir.mkdir(exist_ok=True)
+    script_path = script_map.get(provider)
+    if not script_path:
+        return {"success": False, "message": f"Unknown provider: {provider}"}
+        
+    cmd = [sys.executable, str(script_path), "--login"]
     
-    if provider == "chatgpt":
-        url = "https://chatgpt.com/"
-    elif provider == "claude":
-        url = "https://claude.ai/"
+    if provider == "ai_studio":
+        lock = AI_STUDIO_LOCK 
+    elif provider == "chatgpt":
+        lock = CHATGPT_LOCK
     else:
-        url = "https://aistudio.google.com/prompts/new_chat"
-    
-    playwright = None
-    context = None
-    browser_closed = False
-    
-    def on_close():
-        nonlocal browser_closed
-        browser_closed = True
-        print(f"Browser was closed by user for {provider}")
-    
-    try:
-        if provider == "ai_studio":
-            lock = AI_STUDIO_LOCK 
-        elif provider == "chatgpt":
-            lock = CHATGPT_LOCK
-        else:
-            lock = CLAUDE_LOCK
+        lock = CLAUDE_LOCK
+        
+    async with lock:
+        try:
+            print(f"Executing login script for {provider}...")
             
-        # Acquire lock to ensure no other automation is running
-        async with lock:
-            playwright = await async_playwright().start()
-            
-            # Launch persistent context (headful)
-            context = await playwright.chromium.launch_persistent_context(
-                user_data_dir=str(data_dir),
-                headless=False,
-                viewport={"width": 1200, "height": 800},
-                args=["--disable-blink-features=AutomationControlled"],
+            # We want to see the output in real-time or capture it to determine success
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
             )
             
-            # Listen for browser close
-            context.on("close", on_close)
-            
-            page = context.pages[0] if context.pages else await context.new_page()
-            
-            # Navigate to the login page
-            await page.goto(url)
-            
-            print(f"Waiting for user to complete login on {provider}...")
-            print("Please complete the login in the browser window.")
-            
-            max_wait = 300  # 5 minutes max
-            check_interval = 2
-            elapsed = 0
-            logged_in = False
-            
-            async def is_chatgpt_logged_in(page) -> bool:
-                """Check if ChatGPT is actually logged in (no login modal visible)."""
-                try:
-                    # Check for login modal - if it exists, we're NOT logged in
-                    login_modal = await page.query_selector('[data-testid="modal-no-auth-login"]')
-                    if login_modal:
-                        is_visible = await login_modal.is_visible()
-                        if is_visible:
-                            return False
-                    
-                    # Also check for login/signup buttons in the UI
-                    login_btn = await page.query_selector('button:has-text("Log in")')
-                    if login_btn:
-                        is_visible = await login_btn.is_visible()
-                        if is_visible:
-                            return False
-                    
-                    # Check if we can see the chat input (indicates logged in)
-                    chat_input = await page.query_selector('#prompt-textarea')
-                    if chat_input:
-                        is_visible = await chat_input.is_visible()
-                        if is_visible:
-                            return True
-                    
-                    return False
-                except:
-                    return False
-            
-            async def is_ai_studio_logged_in(page) -> bool:
-                """Check if AI Studio is logged in."""
-                try:
-                    current_url = page.url
-                    # If we're on accounts.google.com, still logging in
-                    if "accounts.google.com" in current_url:
-                        return False
-                    # If on AI Studio, check for prompt input
-                    if "aistudio.google.com" in current_url:
-                        # Look for the prompt textarea
-                        prompt_input = await page.query_selector('textarea')
-                        if prompt_input:
-                            return True
-                    return False
-                except:
-                    return False
-
-            async def is_claude_logged_in(page) -> bool:
-                """Check if Claude is logged in."""
-                try:
-                    current_url = page.url
-                    if "claude.ai" in current_url and "login" not in current_url:
-                        # Check for message input
-                        chat_input = await page.query_selector('[contenteditable="true"]')
-                        if chat_input:
-                            return True
-                    return False
-                except:
-                    return False
-            
-            while elapsed < max_wait and not browser_closed:
-                try:
-                    # Check if page is still valid
-                    if page.is_closed():
-                        browser_closed = True
-                        break
-                    
-                    current_url = page.url
-                    
-                    # Provider-specific login checks
-                    if provider == "chatgpt":
-                        if await is_chatgpt_logged_in(page):
-                            # Wait a bit more for session to stabilize
-                            await asyncio.sleep(2)
-                            logged_in = True
-                            break
-                    elif provider == "ai_studio":
-                        if await is_ai_studio_logged_in(page):
-                            await asyncio.sleep(2)
-                            logged_in = True
-                            break
-                    elif provider == "claude":
-                        if await is_claude_logged_in(page):
-                            await asyncio.sleep(2)
-                            logged_in = True
-                            break
-                    
-                    await asyncio.sleep(check_interval)
-                    elapsed += check_interval
-                    
-                except Exception as e:
-                    # Page might be closed/disconnected
-                    print(f"Error checking login state: {e}")
-                    browser_closed = True
-                    break
-            
-            if browser_closed:
-                return {"success": False, "message": "Browser was closed. Login cancelled."}
-            
-            if elapsed >= max_wait:
-                return {"success": False, "message": "Login timed out. Please try again."}
-            
-            if logged_in:
-                return {"success": True, "message": f"Successfully logged in to {provider}"}
-            
-            return {"success": False, "message": "Login was not completed."}
-        
-    except Exception as e:
-        return {"success": False, "message": f"Login failed: {str(e)}"}
-    finally:
-        if context:
+            # Wait for process to complete (it has its own timeout logic)
+            # We enforce a slightly longer timeout here just in case
             try:
-                await context.close()
-            except:
-                pass  # Already closed
-        if playwright:
-            await playwright.stop()
+                stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=320)
+            except asyncio.TimeoutError:
+                process.kill()
+                return {"success": False, "message": "Login script timed out (backend wrapper)."}
+                
+            stdout_str = stdout.decode().strip()
+            stderr_str = stderr.decode().strip()
+            
+            print(f"Login script finished. Return code: {process.returncode}")
+            # print(f"Stdout: {stdout_str}") # Optional debug calling
+            
+            if process.returncode == 0 and "Successfully logged in" in stdout_str:
+                msg = f"Successfully logged in to {provider}"
+                if provider == "chatgpt":
+                    if "Memory turned OFF" in stdout_str:
+                        msg += " (Memory verified: OFF)"
+                    elif "Memory is already OFF" in stdout_str:
+                        msg += " (Memory verified: OFF)"
+                    elif "Failed to turn off Memory" in stdout_str:
+                        msg += " (WARNING: Failed to auto-disable Memory)"
+                        
+                return {"success": True, "message": msg}
+            else:
+                failure_reason = "Unknown error"
+                if "Login timed out" in stdout_str:
+                    failure_reason = "Login timed out via script logic."
+                elif stderr_str:
+                    failure_reason = f"Script error: {stderr_str}"
+                    
+                return {"success": False, "message": f"Login failed. {failure_reason}"}
+                
+        except Exception as e:
+            return {"success": False, "message": f"Login execution failed: {str(e)}"}
 
 
 async def stage1_collect_responses(

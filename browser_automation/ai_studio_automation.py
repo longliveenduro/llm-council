@@ -901,11 +901,55 @@ async def interactive_mode(page: Page):
             print(f"\nError: {e}")
 
 
+async def run_login_mode():
+    """Run in login mode: launch browser, wait for login."""
+    print("Launching AI Studio for login...")
+    context, page = await get_browser_context()
+    
+    print(f"Browser launched. Page: {page.url}")
+    print("Please log in checking the browser window...")
+    
+    # Wait for login to complete
+    max_wait = 300 # 5 minutes
+    elapsed = 0
+    logged_in = False
+    
+    while elapsed < max_wait:
+        if page.is_closed():
+            print("Browser closed by user.")
+            sys.exit(1)
+            
+        try:
+             # Check for chat input or specific logged-in indicator
+            # AI Studio log in usually results in access to the prompt interface
+            await page.wait_for_selector('textarea, [contenteditable="true"], ms-prompt-editor, .prompt-input', timeout=2000)
+            
+            # Double check we are not on the login page
+            if "accounts.google.com" not in page.url:
+                logged_in = True
+                print("Login detected!")
+                break
+        except:
+            pass
+            
+        await asyncio.sleep(2)
+        elapsed += 2
+        
+    if logged_in:
+        print("Successfully logged in.")
+        print("\nLogin complete. You can close the browser or wait for timeout.")
+        await asyncio.sleep(5)
+    else:
+        print("Login timed out.")
+        sys.exit(1)
+
+
 async def main():
     parser = argparse.ArgumentParser(description="Automate Google AI Studio")
     parser.add_argument("prompt", nargs="?", help="The prompt to send")
     parser.add_argument("--interactive", "-i", action="store_true", 
                         help="Run in interactive mode")
+    parser.add_argument("--login", action="store_true", help="Run in login mode")
     parser.add_argument("--model", "-m", default="Gemini 2.5 Flash",
                         help="Model to use (default: Gemini 2.5 Flash)")
     parser.add_argument("--list-models", "-l", action="store_true",
@@ -914,6 +958,28 @@ async def main():
     
     args = parser.parse_args()
     
+    if args.login:
+        await run_login_mode()
+        return
+
+    if args.list_models:
+        context, page = await get_browser_context()
+        try:
+            if 'list_models' in globals():
+                 models = await list_models(page)
+                 print("\nMODELS_BEGIN")
+                 for m in models:
+                     print(f"{m['name']}|{m['id']}")
+                 print("MODELS_END")
+            else:
+                 print("Error: list_models function not found.")
+            return
+        except Exception as e:
+             print(f"Error listing models: {e}")
+        finally:
+            await context.close()
+        return
+
     if not args.prompt and not args.interactive and not args.list_models:
         parser.print_help()
         print("\nError: Please provide a prompt, use --interactive mode, or use --list-models")
@@ -928,7 +994,7 @@ async def main():
         print(f"Ready! Current page: {page.url}")
         
         # Check if we need to log in
-        if "accounts.google.com" in page.url:
+        if "accounts.google.com" in page.url or "Sign in" in await page.title():
             print("\n>>> Please log in to your Google account in the browser <<<")
             print(">>> Press Enter here once you're logged in and on AI Studio <<<")
             input()
@@ -939,15 +1005,7 @@ async def main():
         # Select the requested model
         if args.model:
             await select_model(page, args.model)
-
-        if args.list_models:
-            models = await list_models(page)
-            print("\nMODELS_BEGIN")
-            for m in models:
-                print(f"{m['name']}|{m['id']}")
-            print("MODELS_END")
-            return
-
+            
         if args.interactive:
             await interactive_mode(page)
         else:

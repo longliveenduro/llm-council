@@ -783,16 +783,65 @@ async def select_thinking_mode(page: Page, wants_thinking: bool = True) -> bool:
     return False
 
 
+async def run_login_mode():
+    """Run in login mode: launch browser, wait for login."""
+    print("Launching Claude for login...")
+    context, page = await get_browser_context()
+    
+    print(f"Browser launched. Page: {page.url}")
+    print("Please log in checking the browser window...")
+    
+    # Wait for login to complete
+    max_wait = 300 # 5 minutes
+    elapsed = 0
+    logged_in = False
+    
+    while elapsed < max_wait:
+        if page.is_closed():
+            print("Browser closed by user.")
+            sys.exit(1)
+            
+        is_login_modal = await check_login_required(page)
+        
+        try:
+             # Check for chat input as positive signal
+            await page.wait_for_selector('[contenteditable="true"], div[aria-label*="prompt"]', timeout=2000)
+            chat_input_visible = True
+        except:
+            chat_input_visible = False
+            
+        if not is_login_modal and chat_input_visible:
+            print("Login detected!")
+            logged_in = True
+            break
+            
+        await asyncio.sleep(2)
+        elapsed += 2
+        
+    if logged_in:
+        print("Successfully logged in.")
+        print("\nLogin complete. You can close the browser or wait for timeout.")
+        await asyncio.sleep(5)
+    else:
+        print("Login timed out.")
+        sys.exit(1)
+
+
 async def main():
     parser = argparse.ArgumentParser(description="Automate Claude")
     parser.add_argument("prompt", nargs="?", help="The prompt to send")
     parser.add_argument("--interactive", "-i", action="store_true", 
                         help="Run in interactive mode")
+    parser.add_argument("--login", action="store_true", help="Run in login mode")
     parser.add_argument("--model", "-m", help="Model to use (default: auto)")
     parser.add_argument("--image", "-img", action="append", help="Path to image file to upload (can be used multiple times)", default=[])
     
     args = parser.parse_args()
     
+    if args.login:
+        await run_login_mode()
+        return
+
     if not args.prompt and not args.interactive:
         parser.print_help()
         print("\nError: Please provide a prompt or use --interactive mode")
@@ -806,7 +855,11 @@ async def main():
         print(f"Ready! Current page: {page.url}")
         
         if args.interactive:
-            await interactive_mode(page)
+            # Check if interactive_mode exists, otherwise warn
+            if 'interactive_mode' in globals():
+                await interactive_mode(page)
+            else:
+                 print("Interactive mode not implemented in this script.")
         else:
             # Track if thinking mode was requested and enabled
             thinking_used = False

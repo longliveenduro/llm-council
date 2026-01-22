@@ -719,16 +719,230 @@ async def interactive_mode(page: Page):
             print(f"\nError: {e}")
 
 
+async def ensure_memory_off(page: Page) -> bool:
+    """
+    Ensure that ChatGPT's Memory feature is turned off.
+    Navigates to User Menu -> Personalization -> Memory.
+    """
+    print("Checking Memory settings...")
+    
+    try:
+        # 1. Open User Menu
+        # Try to find the user menu button
+        user_menu_selectors = [
+            '[data-testid="accounts-profile-button"]',
+            '[data-testid="user-menu-button"]',
+            '[data-testid="profile-button"]',
+            'div[role="button"]:has(img[alt="User"])',
+            '.user-menu-button',
+            'button:has(div:has-text("Upgrade plan"))' # Heuristic: User menu usually key sibling
+        ]
+        
+        user_menu = None
+        for selector in user_menu_selectors:
+            try:
+                # We want the button that toggles the menu
+                # Sometimes it's the specific user avatar element
+                user_menu = await page.wait_for_selector(selector, timeout=2000)
+                if user_menu: 
+                    # Check if it looks right (e.g. bottom left) or just click it
+                    break
+            except: continue
+        
+        # Fallback: click the user name/avatar area
+        if not user_menu:
+            user_menu = await page.query_selector('div.group.relative.flex.gap-2') 
+            
+        if user_menu:
+            await user_menu.click(force=True)
+            await asyncio.sleep(0.5)
+            
+            # 2. Click "Personalization" directly from the menu
+            # Ref: User screenshot shows "Personalization" is in the menu
+            personalization_btn = await page.wait_for_selector('div[role="menuitem"]:has-text("Personalization"), a:has-text("Personalization")', timeout=2000)
+            
+            if personalization_btn:
+                print("Found Personalization menu item, clicking...")
+                await personalization_btn.click()
+            else:
+                # Fallback: Try Settings -> Personalization
+                print("Personalization menu item not found, trying Settings...")
+                settings_btn = await page.wait_for_selector('div[role="menuitem"]:has-text("Settings"), a[href*="settings"]', timeout=2000)
+                if settings_btn:
+                    await settings_btn.click()
+                    await asyncio.sleep(0.5)
+                    # Click Personalization tab in Settings
+                    personalization_tab = await page.wait_for_selector('button:has-text("Personalization"), [data-testid="personalization-tab"]', timeout=2000)
+                    if personalization_tab:
+                        await personalization_tab.click()
+                    else:
+                        print("Could not find Personalization tab in Settings.")
+                        await page.keyboard.press("Escape")
+                        return False
+                else:
+                    print("Could not find Settings option.")
+                    await page.keyboard.press("Escape")
+                    return False
+
+            # 3. Wait for Personalization modal to appear
+            await asyncio.sleep(1)
+            
+            # 4. Scroll to "Reference saved memories" and turn it off
+            # The toggle might be off-screen, but usually playwrite handles clicking.
+            # However, user explicitly said "scroll to", so we should ensure it's in view.
+            
+            # Target the specific toggle
+            # Based on common accessible patterns: check for label text, then the switch/control associated with it
+            
+            target_text = "Reference saved memories"
+            
+            # Wait for the text to ensure modal is loaded
+            try:
+                await page.wait_for_selector(f'text="{target_text}"', timeout=3000)
+            except:
+                print(f"Could not find text '{target_text}' in Personalization modal.")
+                # Maybe it's just "Memory"?
+                pass
+                
+            # Locate the switch:
+            # Often it's a sibling of the text or in a row container
+            # We look for a switch role near the text
+            
+            toggle_selector = f':text("{target_text}") >> .. >> button[role="switch"]'
+            
+            # Fallback for complex nesting
+            # Look for the section specifically
+            
+            toggle = await page.query_selector(toggle_selector)
+            
+            if not toggle:
+                # Try locating by aria-label or just nearby switch
+                # Sometimes the text matches the aria-label
+                toggle = await page.query_selector(f'button[role="switch"][aria-label*="{target_text}"]')
+                
+            if not toggle:
+                # Try finding the Manage button's row, maybe the specific toggle is there
+                # Or try generalized "Memory" switch logic
+                # Let's try to get all switches and see which one is closest to our text
+                pass
+
+            if toggle:
+                # Scroll into view just in case
+                await toggle.scroll_into_view_if_needed()
+                
+                is_checked = await toggle.get_attribute("aria-checked") == "true"
+                print(f"Found 'Reference saved memories' toggle. is_checked={is_checked}")
+                
+                if is_checked:
+                    print("Memory is ON. Turning it OFF...")
+                    # Try up to 3 times
+                    for i in range(3):
+                        await toggle.click(force=True)
+                        await asyncio.sleep(1) # Wait for UI update
+                        
+                        # Re-query attribute
+                        if await toggle.get_attribute("aria-checked") == "false":
+                            print("SUCCESS: Memory turned OFF.")
+                            break
+                        else:
+                            print(f"Attempt {i+1}: Clicked toggle but still ON. Retrying...")
+                            
+                    if await toggle.get_attribute("aria-checked") != "false":
+                        print("WARNING: Failed to turn off Memory after 3 attempts.")
+                else:
+                    print("Memory is already OFF.")
+            else:
+                print("Could not find 'Reference saved memories' toggle switch.")
+                
+            # Close settings/modal
+            # Look for close button or press ESC
+            close_btn = await page.query_selector('[role="dialog"] button[aria-label="Close"]')
+            if close_btn:
+                await close_btn.click()
+            else:
+                await page.keyboard.press("Escape")
+                
+            return True
+            
+        else:
+            print("Could not find User Menu.")
+            return False
+            
+    except Exception as e:
+        print(f"Error checking memory: {e}")
+        # Try to close modal just in case
+        try:
+            await page.keyboard.press("Escape")
+        except:
+            pass
+        return False
+
+
+async def run_login_mode():
+    """Run in login mode: launch browser, wait for login, check memory."""
+    print("Launching ChatGPT for login...")
+    context, page = await get_browser_context()
+    
+    print(f"Browser launched. Page: {page.url}")
+    print("Please log in checking the browser window...")
+    
+    # Wait for login to complete
+    # We check if the chat input is visible and login modal is gone
+    max_wait = 300 # 5 minutes
+    elapsed = 0
+    logged_in = False
+    
+    while elapsed < max_wait:
+        if page.is_closed():
+            print("Browser closed by user.")
+            sys.exit(1)
+            
+        is_login_modal = await check_login_required(page)
+        
+        try:
+             # Check for chat input as positive signal
+            await page.wait_for_selector('#prompt-textarea, textarea[placeholder*="Message"]', timeout=2000)
+            chat_input_visible = True
+        except:
+            chat_input_visible = False
+            
+        if not is_login_modal and chat_input_visible:
+            print("Login detected!")
+            logged_in = True
+            break
+            
+        await asyncio.sleep(2)
+        elapsed += 2
+        
+    if logged_in:
+        print("Successfully logged in.")
+        # Perform memory check
+        await asyncio.sleep(2) # Wait for UI to settle
+        await ensure_memory_off(page)
+        
+        print("\nLogin and configuration complete. You can close the browser or wait for timeout.")
+        # Minimal wait to let user read console or see result
+        await asyncio.sleep(5)
+    else:
+        print("Login timed out.")
+        sys.exit(1)
+
+
 async def main():
     parser = argparse.ArgumentParser(description="Automate ChatGPT")
     parser.add_argument("prompt", nargs="?", help="The prompt to send")
     parser.add_argument("--interactive", "-i", action="store_true", 
                         help="Run in interactive mode")
+    parser.add_argument("--login", action="store_true", help="Run in login mode (checks Memory settings)")
     parser.add_argument("--model", "-m", help="Model to use (default: auto)")
     parser.add_argument("--image", "-img", action="append", help="Path to image file to upload (can be used multiple times)", default=[])
     
     args = parser.parse_args()
     
+    if args.login:
+        await run_login_mode()
+        return
+
     if not args.prompt and not args.interactive:
         parser.print_help()
         print("\nError: Please provide a prompt or use --interactive mode")
