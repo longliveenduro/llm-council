@@ -166,6 +166,7 @@ export default function WebChatBotWizard({ conversationId, currentTitle, previou
     const [preselectionReason, setPreselectionReason] = useState(savedDraft.preselectionReason || '');
     const [selectedImages, setSelectedImages] = useState(savedDraft.selectedImages || (savedDraft.selectedImage ? [savedDraft.selectedImage] : []));
     const [roundsPerModel, setRoundsPerModel] = useState(savedDraft.roundsPerModel || 1); // Number of rounds (responses) per model
+    const [showChairmanPrompt, setShowChairmanPrompt] = useState(false); // Step 3 Prompt Toggle
 
     // Input State for current item
     const [currentModel, setCurrentModel] = useState(savedDraft.currentModel || llmNames[0] || '');
@@ -1133,117 +1134,149 @@ Title:`;
 
     const renderStep3 = () => (
         <div className="wizard-step step3-wizard">
-            <h3>Step 3: Synthesis</h3>
-            <div className="prompt-col-layout">
-                <div className="prompt-box">
-                    <label>Chairman Prompt:</label>
-                    <div className="prompt-preview">{stage3Prompt}</div>
-                    <button onClick={() => copyToClipboard(stage3Prompt)} className="copy-btn">Copy Prompt</button>
-                </div>
-                <MappingBox labelToModel={labelToModel} scores={currentScores} showScoreExplanation={true} />
+            <div className="step-header">
+                <h3>Step 3: Synthesis</h3>
             </div>
-            <div className="stage3-synthesis-section">
-                <label>Final Synthesis:</label>
-                <div className="stage3-controls-row">
-                    <div className="model-input-group">
-                        <select
-                            value={stage3Response.model}
-                            onChange={(e) => setStage3Response({ ...stage3Response, model: e.target.value })}
-                            className="model-select"
-                            aria-label="Select Synthesis Model"
-                        >
-                            <option value="">Select Synthesis Model</option>
-                            <option value="Web ChatBot Chairman">Web ChatBot Chairman</option>
-                            {llmNames.map(name => <option key={name} value={name}>{name}</option>)}
-                        </select>
-                        {lastThinkingUsed !== null && (
-                            <span className={`thinking-indicator ${lastThinkingUsed ? 'thinking-on' : 'thinking-off'}`} title={lastThinkingUsed ? 'Thinking was enabled' : 'Thinking was not enabled'}>
-                                {lastThinkingUsed ? '🧠 Thinking' : '💭 No Thinking'}
+
+            <div className="step3-scroll-area">
+                <div className="step3-top-layout">
+                    <div className={`prompt-container-card ${showChairmanPrompt ? 'prompt-expanded' : 'prompt-collapsed'}`}>
+                        <div className="prompt-card-header" onClick={() => setShowChairmanPrompt(!showChairmanPrompt)}>
+                            <span className="prompt-title">
+                                <span className="toggle-icon">{showChairmanPrompt ? '▼' : '▶'}</span>
+                                Chairman Prompt
                             </span>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); copyToClipboard(stage3Prompt); }}
+                                className="copy-prompt-btn-mini"
+                                title="Copy Prompt"
+                            >
+                                Copy
+                            </button>
+                        </div>
+                        {showChairmanPrompt && (
+                            <div className="prompt-preview-content">
+                                {stage3Prompt}
+                            </div>
                         )}
                     </div>
-                    <button
-                        onClick={() => handleRunStage3Automation(stage3Prompt, providerInfo.key)}
-                        className={`automation-btn stage3-auto-btn ${providerInfo.key}-btn`}
-                        disabled={isAutomating || !stage3Prompt || stage3Response.model === 'Web ChatBot Chairman'}
-                        style={providerInfo.color ? { backgroundColor: providerInfo.color } : {}}
-                    >
-                        Run via {providerInfo.label}
-                    </button>
+                    <div className="mapping-container-card">
+                        <MappingBox labelToModel={labelToModel} scores={currentScores} showScoreExplanation={true} />
+                    </div>
                 </div>
-                {preselectionReason && (
-                    <div className="preselection-explanation" style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                        {preselectionReason}
-                    </div>
-                )}
 
-                <div className="input-tabs-container stage3-tabs-container">
-                    <div className="input-tabs">
-                        <button
-                            type="button"
-                            className={`input-tab ${!showStep3Preview ? 'active' : ''}`}
-                            onClick={() => setShowStep3Preview(false)}
-                        >
-                            Write
-                        </button>
-                        <button
-                            type="button"
-                            className={`input-tab ${showStep3Preview ? 'active' : ''}`}
-                            onClick={() => setShowStep3Preview(true)}
-                        >
-                            Preview
-                        </button>
-                    </div>
-                    <div className="input-content-wrapper" key={showStep3Preview ? 'preview' : 'write'}>
-                        {showStep3Preview ? (
-                            <div className="input-preview-content markdown-content">
-                                {stage3Response.response ? (
-                                    <ReactMarkdown
-                                        remarkPlugins={[remarkMath, remarkGfm]}
-                                        rehypePlugins={[rehypeKatex]}
-                                    >
-                                        {stage3Response.response}
-                                    </ReactMarkdown>
-                                ) : (
-                                    <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Nothing to preview</span>
+                <div className="stage3-main-content">
+                    <div className="synthesis-card">
+                        <div className="card-header">
+                            <label>Final Synthesis</label>
+                        </div>
+                        <div className="stage3-controls-row">
+                            <div className="model-input-group">
+                                <select
+                                    value={stage3Response.model}
+                                    onChange={(e) => setStage3Response({ ...stage3Response, model: e.target.value })}
+                                    className="model-select"
+                                    aria-label="Select Synthesis Model"
+                                >
+                                    <option value="">Select Synthesis Model</option>
+                                    <option value="Web ChatBot Chairman">Web ChatBot Chairman</option>
+                                    {llmNames.map(name => <option key={name} value={name}>{name}</option>)}
+                                </select>
+                                {lastThinkingUsed !== null && (
+                                    <span className={`thinking-indicator ${lastThinkingUsed ? 'thinking-on' : 'thinking-off'}`} title={lastThinkingUsed ? 'Thinking was enabled' : 'Thinking was not enabled'}>
+                                        {lastThinkingUsed ? '🧠 Thinking' : '💭 No Thinking'}
+                                    </span>
                                 )}
                             </div>
-                        ) : (
-                            <textarea value={stage3Response.response || ''} onChange={(e) => { setStage3Response({ ...stage3Response, response: e.target.value }); setIsCurrentResponseError(false); }} placeholder="Final answer..." />
-                        )}
-                        {isCurrentResponseError && (
-                            <div className={`error-indicator-box ${currentErrorType}`}>
-                                <span className="error-icon">⚠️</span>
-                                <span className="error-message">Error in automation. Check the synthesis above.</span>
+                            <button
+                                onClick={() => handleRunStage3Automation(stage3Prompt, providerInfo.key)}
+                                className={`automation-btn stage3-auto-btn ${providerInfo.key}-btn`}
+                                disabled={isAutomating || !stage3Prompt || stage3Response.model === 'Web ChatBot Chairman'}
+                                style={providerInfo.color ? { backgroundColor: providerInfo.color } : {}}
+                            >
+                                Run via {providerInfo.label}
+                            </button>
+                        </div>
+                        {preselectionReason && (
+                            <div className="preselection-explanation">
+                                {preselectionReason}
                             </div>
                         )}
-                    </div>
-                </div>
-                {aggregateRankings && aggregateRankings.length > 0 && (
-                    <div className="aggregate-rankings-wizard">
-                        <h4>Aggregate Rankings (Street Cred)</h4>
-                        <p className="stage-description">
-                            Combined results across all peer evaluations (lower score is better):
-                        </p>
-                        <div className="aggregate-list">
-                            {aggregateRankings.map((agg, index) => (
-                                <div key={index} className="aggregate-item">
-                                    <span className="rank-position">#{index + 1}</span>
-                                    <span className="rank-model-container">
-                                        <ModelBadge model={agg.model} />
-                                    </span>
-                                    <span className="rank-score">
-                                        Avg: {agg.average_rank.toFixed(2)}
-                                    </span>
-                                    <span className="rank-count">
-                                        ({agg.rankings_count} votes)
-                                    </span>
-                                </div>
-                            ))}
+
+                        <div className="input-tabs-container stage3-tabs-container">
+                            <div className="input-tabs">
+                                <button
+                                    type="button"
+                                    className={`input-tab ${!showStep3Preview ? 'active' : ''}`}
+                                    onClick={() => setShowStep3Preview(false)}
+                                >
+                                    Write
+                                </button>
+                                <button
+                                    type="button"
+                                    className={`input-tab ${showStep3Preview ? 'active' : ''}`}
+                                    onClick={() => setShowStep3Preview(true)}
+                                >
+                                    Preview
+                                </button>
+                            </div>
+                            <div className="input-content-wrapper" key={showStep3Preview ? 'preview' : 'write'}>
+                                {showStep3Preview ? (
+                                    <div className="input-preview-content markdown-content">
+                                        {stage3Response.response ? (
+                                            <ReactMarkdown
+                                                remarkPlugins={[remarkMath, remarkGfm]}
+                                                rehypePlugins={[rehypeKatex]}
+                                            >
+                                                {stage3Response.response}
+                                            </ReactMarkdown>
+                                        ) : (
+                                            <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Nothing to preview</span>
+                                        )}
+                                    </div>
+                                ) : (
+                                    <textarea
+                                        value={stage3Response.response || ''}
+                                        onChange={(e) => { setStage3Response({ ...stage3Response, response: e.target.value }); setIsCurrentResponseError(false); }}
+                                        placeholder="Enter the final consensus or summary here..."
+                                        rows={12}
+                                    />
+                                )}
+                                {isCurrentResponseError && (
+                                    <div className={`error-indicator-box ${currentErrorType}`}>
+                                        <span className="error-icon">⚠️</span>
+                                        <span className="error-message">Error in automation. Check the synthesis above.</span>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
-                )}
+
+                    {aggregateRankings && aggregateRankings.length > 0 && (
+                        <div className="aggregate-rankings-card">
+                            <div className="card-header">
+                                <h4>Aggregate Rankings (Street Cred)</h4>
+                                <span className="header-hint">Combined results across all peer evaluations (lower score is better)</span>
+                            </div>
+                            <div className="aggregate-list">
+                                {aggregateRankings.map((agg, index) => (
+                                    <div key={index} className="aggregate-item-modern">
+                                        <div className="rank-badge">#{index + 1}</div>
+                                        <div className="rank-model-info">
+                                            <ModelBadge model={agg.model} />
+                                        </div>
+                                        <div className="rank-stats">
+                                            <span className="rank-avg-value">Avg: {agg.average_rank.toFixed(2)}</span>
+                                            <span className="rank-votes-count">{agg.rankings_count} votes</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
             </div>
+
             <div className="wizard-actions">
                 <div className="left-actions">
                     <button onClick={() => setStep(2)} className="secondary-btn">Back</button>
@@ -1252,7 +1285,6 @@ Title:`;
                 <button onClick={handleComplete} className="primary-btn complete-btn" disabled={!stage3Response.response || isCurrentResponseError}>Finish & Save</button>
             </div>
         </div>
-
     );
 
     if (isLoading) return <div className="web-chatbot-wizard-loading">Processing...</div>;

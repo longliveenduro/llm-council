@@ -30,6 +30,238 @@
     min-height: 0;
 }
 
+/* Fix Synthesis Textarea and Preview Height */
+.stage3-tabs-container textarea,
+.stage3-tabs-container .input-preview-content {
+    max-height: 400px;
+    min-height: 200px;
+}
+
+.stage3-wizard {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+}
+
+.step3-scroll-area {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 4px;
+    /* Space for scrollbar */
+}
+
+/* Step 3 Layout Improvements */
+.step3-top-layout {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 16px;
+    margin-bottom: 24px;
+    align-items: start;
+}
+
+.prompt-container-card,
+.mapping-container-card,
+.synthesis-card,
+.aggregate-rankings-card {
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.prompt-card-header {
+    padding: 12px 16px;
+    background: var(--item-hover);
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
+    transition: background-color 0.2s;
+}
+
+.prompt-card-header:hover {
+    background: var(--item-active);
+}
+
+.prompt-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.toggle-icon {
+    font-size: 10px;
+    color: var(--text-muted);
+}
+
+.copy-prompt-btn-mini {
+    padding: 4px 10px;
+    font-size: 11px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-weight: 500;
+}
+
+.copy-prompt-btn-mini:hover {
+    background: var(--item-active);
+    color: var(--text-primary);
+    border-color: var(--accent-color);
+}
+
+.prompt-preview-content {
+    padding: 16px;
+    font-family: monospace;
+    font-size: 12px;
+    white-space: pre-wrap;
+    max-height: 250px;
+    overflow-y: auto;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.5;
+}
+
+.stage3-main-content {
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+    /* Large gap between Synthesis and Rankings */
+    margin-bottom: 24px;
+}
+
+.card-header {
+    padding: 16px;
+    border-bottom: 1px solid var(--border-color);
+    background: rgba(var(--accent-rgb), 0.03);
+}
+
+.card-header label,
+.card-header h4 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.header-hint {
+    display: block;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 4px;
+    font-weight: normal;
+}
+
+.synthesis-card {
+    padding-bottom: 16px;
+}
+
+.synthesis-card .stage3-controls-row,
+.synthesis-card .preselection-explanation,
+.synthesis-card .stage3-tabs-container {
+    padding: 0 16px;
+    margin-top: 16px;
+}
+
+.preselection-explanation {
+    font-size: 13px;
+    color: var(--text-muted);
+    font-style: italic;
+    background: rgba(39, 174, 96, 0.05);
+    padding: 8px 12px;
+    border-radius: 6px;
+    margin-bottom: 8px;
+    border: 1px solid rgba(39, 174, 96, 0.2);
+}
+
+/* Modern Leaderboard Styles */
+.aggregate-rankings-card {
+    border-color: var(--accent-color);
+}
+
+.aggregate-item-modern {
+    display: flex;
+    align-items: center;
+    padding: 16px;
+    border-bottom: 1px solid var(--border-color);
+    gap: 20px;
+    transition: background-color 0.2s;
+}
+
+.aggregate-item-modern:last-child {
+    border-bottom: none;
+}
+
+.aggregate-item-modern:hover {
+    background: rgba(var(--accent-rgb), 0.02);
+}
+
+.rank-badge {
+    width: 36px;
+    height: 36px;
+    background: var(--bg-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 16px;
+    color: var(--accent-color);
+    flex-shrink: 0;
+}
+
+.aggregate-item-modern:nth-child(1) .rank-badge {
+    background: gold;
+    color: #000;
+    border-color: gold;
+    box-shadow: 0 0 10px rgba(255, 215, 0, 0.3);
+}
+
+.aggregate-item-modern:nth-child(2) .rank-badge {
+    background: silver;
+    color: #000;
+    border-color: silver;
+}
+
+.aggregate-item-modern:nth-child(3) .rank-badge {
+    background: #cd7f32;
+    /* Bronze */
+    color: #fff;
+    border-color: #cd7f32;
+}
+
+.rank-model-info {
+    flex: 1;
+}
+
+.rank-stats {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 4px;
+}
+
+.rank-avg-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.rank-votes-count {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
 .stage3-synthesis-section>label {
     display: block;
     margin-bottom: 8px;
@@ -136,6 +368,7 @@
 
 .model-badge-name {
     font-weight: 600;
+    color: var(--text-primary);
 }
 
 .response-item:last-child {
