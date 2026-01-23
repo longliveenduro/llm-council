@@ -8,8 +8,8 @@ from pathlib import Path
 import mimetypes
 
 BASE_URL = "http://localhost:8001"
-TEST_TEXT_FILE = Path("backend/tests/temp_test.txt")
-TEST_LARGE_FILE = Path("backend/tests/temp_test_large.jpg")
+TEST_TEXT_FILE = Path(__file__).parent / "temp_test.txt"
+TEST_LARGE_FILE = Path(__file__).parent / "temp_test_large.jpg"
 
 import pytest
 

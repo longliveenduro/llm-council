@@ -1166,7 +1166,7 @@ Title:`;
                 </div>
 
                 <div className="stage3-main-content">
-                    <div className="synthesis-card">
+                    <div className="synthesis-card stage3-synthesis-section">
                         <div className="card-header">
                             <label>Final Synthesis</label>
                         </div>

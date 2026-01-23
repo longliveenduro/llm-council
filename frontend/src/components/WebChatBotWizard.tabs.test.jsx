@@ -60,7 +60,7 @@ describe('WebChatBotWizard Tab Switching', () => {
 
         // Step 3: Default is Preview = False (Write mode).
         // Should show textarea with value "Response"
-        const textarea = screen.getByPlaceholderText('Final answer...');
+        const textarea = screen.getByPlaceholderText('Enter the final consensus or summary here...');
         expect(textarea).toBeInTheDocument();
         expect(textarea).toHaveValue('Response');
 
@@ -70,6 +70,6 @@ describe('WebChatBotWizard Tab Switching', () => {
 
         // Should show rendered response "Response" via ReactMarkdown
         expect(screen.getByText('Response')).toBeInTheDocument();
-        expect(screen.queryByPlaceholderText('Final answer...')).not.toBeInTheDocument();
+        expect(screen.queryByPlaceholderText('Enter the final consensus or summary here...')).not.toBeInTheDocument();
     });
 });
