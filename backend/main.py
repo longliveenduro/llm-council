@@ -337,15 +337,13 @@ async def web_chatbot_run_automation(request: AutomationRequest):
                 processed_images.append(img)
             
         if request.provider == "chatgpt":
-            response, thinking_used = await run_chatgpt_automation(request.prompt, request.model, images=processed_images)
+            result = await run_chatgpt_automation(request.prompt, request.model, images=processed_images)
         elif request.provider == "claude":
-            response, thinking_used = await run_claude_automation(request.prompt, request.model, images=processed_images)
+            result = await run_claude_automation(request.prompt, request.model, images=processed_images)
         else:
-            # Default to AI Studio - Gemini always has thinking enabled
-            response = await run_ai_studio_automation(request.prompt, request.model, images=processed_images)
-            thinking_used = True  # Gemini thinking is always on by default
+            result = await run_ai_studio_automation(request.prompt, request.model, images=processed_images)
             
-        return {"response": response, "thinking_used": thinking_used}
+        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -580,12 +578,9 @@ async def get_automation_models(provider: str):
         cached = get_cached_models(provider)
         return cached if cached else []
     elif provider == "chatgpt":
-        # For now, just return hardcoded ChatGPT models as we don't have a list script yet
+        # Simplified for ChatGPT 5.2
         return [
-            {"name": "ChatGPT 4o", "id": "gpt-4o"},
-            {"name": "ChatGPT 4o mini", "id": "gpt-4o-mini"},
-            {"name": "ChatGPT o1", "id": "o1"},
-            {"name": "ChatGPT o1 thinking", "id": "o1-preview"},
+            {"name": "ChatGPT 5.2", "id": "gpt-5-2-thinking"},
         ]
     elif provider == "claude":
         return await get_claude_models()
@@ -602,15 +597,10 @@ async def sync_automation_models(provider: str):
             save_cached_models(provider, models)
         return {"success": True, "models": models}
     elif provider == "chatgpt":
-        # No sync implemented for ChatGPT yet, just return the hardcoded ones
         return {"success": True, "models": [
-            {"name": "ChatGPT 4o", "id": "gpt-4o"},
-            {"name": "ChatGPT 4o mini", "id": "gpt-4o-mini"},
-            {"name": "ChatGPT o1", "id": "o1"},
-            {"name": "ChatGPT o1 thinking", "id": "o1-preview"},
+            {"name": "ChatGPT 5.2", "id": "gpt-5-2-thinking"},
         ]}
     elif provider == "claude":
-        # No sync implemented for Claude yet
         models = await get_claude_models()
         return {"success": True, "models": models}
     else:

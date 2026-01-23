@@ -22,6 +22,7 @@ import sys
 import os
 from pathlib import Path
 from playwright.async_api import async_playwright, Page, BrowserContext
+import json
 
 # Directory to store browser profile (keeps you logged in)
 BROWSER_DATA_DIR = Path(__file__).parent / ".claude_browser_data"
@@ -102,6 +103,17 @@ CLAUDE_JS = r'''
     return resultText;
 })()
 '''
+
+
+def print_json_output(response=None, error_msgs=None, error=False, error_type=None):
+    """Print structured JSON output for the backend to parse."""
+    output = {
+        "response": response,
+        "error_msgs": error_msgs,
+        "error": error,
+        "error_type": error_type
+    }
+    print(f"\nJSON_OUTPUT: {json.dumps(output)}")
 
 
 async def get_browser_context() -> tuple[BrowserContext, Page]:
@@ -365,6 +377,14 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None, model
     await asyncio.sleep(0.1)
     
     # Clear and fill
+    # Ensure focus
+    try:
+        await page.click(input_selector)
+        await asyncio.sleep(0.5)
+        await page.focus(input_selector)
+    except Exception as e:
+        print(f"DEBUG: Focus failed: {e}")
+
     try:
         # Grant permissions first (context level)
         try:
@@ -730,56 +750,84 @@ async def select_thinking_mode(page: Page, wants_thinking: bool = True) -> bool:
     """
     print(f"Setting Extended Thinking to: {wants_thinking}")
     
-    # Selectors for the "stop clock" / "timer" button
+    # Selectors for the "stop clock" / "timer" button or the "Extended Thinking" toggle
+    # Updated based on recent Claude UI changes
     thinking_button_selectors = [
-        'button:has(svg path[d*="M12 20"])', # Possible path for the clock/timer
-        'button:has(svg[class*="timer"])',
-        'button:has(svg[class*="clock"])',
-        'button[aria-label*="thinking" i]',
-        'button:has-text("Thinking")',
-        'svg[class*="timer"]', # Sometimes the SVG itself is the target
-        'svg[class*="clock"]',
+        'button[aria-label*="Verify your humanity"]', # Sometimes this is confused but unlikely
+        'button:has-text("Extended Thinking")',
+        'button[aria-label="Enable Extended Thinking"]',
+        'button[aria-label="Disable Extended Thinking"]',
+        'button:has(svg)', # Too broad?
+        'button[class*="thinking"]',
     ]
     
-    # Check current state if possible
-    # This is tricky without knowing the exact DOM, but we can look for "Thinking" text or active class
+    # Specific targeted approach:
+    # The toggle is often inside the model selector or near the input
+    # Recent UI: It's a toggle switch or a "clock" icon button near the file attach button
     
-    for selector in thinking_button_selectors:
+    potential_toggles = [
+         # The 'thinking' toggle is now often integrated into the model selector or a separate button
+         'button[data-testid="thinking-toggle"]',
+         '.thinking-toggle',
+         '[aria-label*="thinking"]',
+         'button:has(svg[data-icon="clock"])',
+         'div[role="switch"]', # Sometimes it's a switch
+    ]
+    
+    # First, wait for chat interface to ensure elements are loaded
+    try:
+        await wait_for_chat_interface(page, timeout=15000)
+    except Exception as e:
+        print(f"Warning: wait_for_chat_interface failed in select_thinking_mode: {e}")
+
+    print("DEBUG: Searching for Extended Thinking toggle...")
+
+    # First, try to see if it's already on/off by text on page
+    is_active_by_text = False
+    try:
+        # "Extended thinking is on" usually appears when active
+        if await page.query_selector('text="Extended thinking is on"'):
+            is_active_by_text = True
+    except:
+        pass
+        
+    if is_active_by_text == wants_thinking:
+        print(f"DEBUG: Thinking state already matches desire ({wants_thinking}) according to page text.")
+        return True
+
+    # Try to find and click the toggle
+    for selector in potential_toggles:
         try:
-            button = await page.query_selector(selector)
-            if button and await button.is_visible():
-                print(f"Found thinking toggle with selector: {selector}")
-                
-                # Check if already active
-                is_active = await page.evaluate('''(el) => {
-                    // Check for active classes or parent state
-                    const btn = el.closest('button') || el;
-                    return btn.getAttribute('aria-pressed') === 'true' || 
-                           btn.classList.contains('active') ||
-                           document.body.innerText.includes('Extended thinking is on');
-                }''', button)
-                
-                if is_active == wants_thinking:
-                    print(f"Extended Thinking is already in state: {wants_thinking}")
-                    return wants_thinking
-                
-                await button.click()
-                print("Clicked thinking toggle.")
-                await asyncio.sleep(1)
-                
-                # Verify the toggle worked
-                is_now_active = await page.evaluate('''(el) => {
-                    const btn = el.closest('button') || el;
-                    return btn.getAttribute('aria-pressed') === 'true' || 
-                           btn.classList.contains('active') ||
-                           document.body.innerText.includes('Extended thinking is on');
-                }''', button)
-                
-                return is_now_active == wants_thinking
-        except Exception as e:
+            elements = await page.query_selector_all(selector)
+            for el in elements:
+                if await el.is_visible():
+                    # Check aria-checked or aria-pressed
+                    checked = await el.get_attribute("aria-checked")
+                    pressed = await el.get_attribute("aria-pressed")
+                    
+                    is_currently_on = (checked == "true" or pressed == "true")
+                    
+                    if is_currently_on != wants_thinking:
+                        print(f"DEBUG: Clicking thinking toggle {selector} (current: {is_currently_on})")
+                        await el.click()
+                        await asyncio.sleep(1)
+                    else:
+                        print(f"DEBUG: Toggle {selector} already in correct state ({is_currently_on})")
+                        
+                    return True
+        except:
             continue
-            
-    print("Warning: Could not find Extended Thinking toggle.")
+
+    print("Warning: Could not definitively find Extended Thinking toggle. detailed debug info below:")
+    # Dump HTML of input area for debugging
+    try:
+        input_area = await page.query_selector('[contenteditable="true"]')
+        if input_area:
+            input_parent = await input_area.evaluate_handle('el => el.parentElement.parentElement')
+            print(await input_parent.evaluate('el => el.outerHTML'))
+    except:
+        pass
+        
     return False
 
 
@@ -869,13 +917,31 @@ async def main():
                     raise Exception("Extended Thinking requested but could not be activated. The toggle may not be visible or the Claude UI may have changed.")
             
             response = await send_prompt(page, args.prompt, model=args.model, image_paths=args.image)
+            
+            # Print legacy markers for safety
             print(f"\nTHINKING_USED={str(thinking_used).lower()}")
             print("RESULT_START")
             print(response)
             print("RESULT_END")
             
+            # Print new structured JSON
+            print_json_output(response=response, error=False)
+            
     except Exception as e:
+        error_str = str(e)
+        error_type = "generic_error"
+        
+        if "extended thinking requested but could not be activated" in error_str.lower():
+            error_type = "thinking_not_activated"
+        elif "login required" in error_str.lower():
+            error_type = "login_required"
+        elif "timeout" in error_str.lower():
+            error_type = "timeout"
+        elif "captcha" in error_str.lower():
+            error_type = "site_unavailable"
+            
         print(f"Error: {e}")
+        print_json_output(error_msgs=error_str, error=True, error_type=error_type)
     finally:
         if context:
             await context.close()

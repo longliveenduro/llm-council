@@ -1,6 +1,7 @@
 """3-stage LLM Council orchestration."""
 
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, TypedDict, Optional
+import json
 from .openrouter import query_models_parallel, query_model
 from .config import COUNCIL_MODELS, CHAIRMAN_MODEL
 from .scores import update_scores
@@ -11,6 +12,13 @@ import sys
 import asyncio
 from pathlib import Path
 import shutil
+
+
+class AutomationResult(TypedDict):
+    response: Optional[str]      # The successful response or null on failure
+    error_msgs: Optional[str]    # Error explanation / cause chain or null on success
+    error: bool                  # Explicit error flag
+    error_type: Optional[str]    # machine-readable error type
 
 
 # Browser data directories for automation sessions
@@ -602,7 +610,7 @@ Question: {user_query}
 Title:"""
 
     # Use AI Studio automation for title generation (using a Flash model)
-    title = await run_ai_studio_automation(title_prompt, model="Gemini 2.5 Flash")
+    title = await run_ai_studio_automation(title_prompt, model="Gemini Flash Latest")
 
     if not title or title.startswith("Error:"):
         # Fallback to a generic title if automation fails
@@ -618,7 +626,7 @@ Title:"""
     return title
 
 
-async def run_ai_studio_automation(prompt: str, model: str, images: list = None, image_base64: str = None) -> str:
+async def run_ai_studio_automation(prompt: str, model: str, images: list = None, image_base64: str = None) -> AutomationResult:
     """
     Run the AI Studio automation script via subprocess.
     """
@@ -672,12 +680,34 @@ async def run_ai_studio_automation(prompt: str, model: str, images: list = None,
                     except:
                         pass
             
-            if process.returncode != 0:
-                error_msg = stderr.decode().strip()
-                print(f"AI Studio Automation Error (Code {process.returncode}): {error_msg}")
-                return f"Error: AI Studio automation script failed. {error_msg}"
-                
             output = stdout.decode().strip()
+            stderr_str = stderr.decode().strip()
+
+            # Initialize result
+            result: AutomationResult = {
+                "response": None,
+                "error_msgs": None,
+                "error": False,
+                "error_type": None
+            }
+
+            if process.returncode != 0 and "JSON_OUTPUT" not in output:
+                print(f"AI Studio Automation Error (Code {process.returncode}): {stderr_str}")
+                result["error"] = True
+                result["error_msgs"] = f"AI Studio automation script failed (Code {process.returncode}). {stderr_str}"
+                result["error_type"] = "generic_error"
+                return result
+
+            # Parse new JSON output
+            if "JSON_OUTPUT: " in output:
+                try:
+                    json_str = output.split("JSON_OUTPUT: ")[1].splitlines()[0]
+                    parsed = json.loads(json_str)
+                    return parsed
+                except Exception as e:
+                    print(f"Error parsing JSON_OUTPUT: {e}")
+            
+            # Legacy parsing as fallback
             # Print full output for debugging
             print("-" * 20 + " AI Studio Automation Output " + "-" * 20)
             print(output)
@@ -686,21 +716,19 @@ async def run_ai_studio_automation(prompt: str, model: str, images: list = None,
             # Use unique delimiters to extract the real response
             if "RESULT_START" in output and "RESULT_END" in output:
                 response = output.split("RESULT_START")[1].split("RESULT_END")[0].strip()
+                result["response"] = response
+                return result
                 
-                # Check for footnotes in the response (format [^1], [^2], etc.)
-                # If they exist, ensure corresponding definitions are present
-                if "[^1]" in response:
-                    # Basic check: if we see footnote markers but no "Sources:" or similar section at end
-                    # We might want to append the raw sources from output if we captured them separately
-                    # But for now, just returning the extraction is good.
-                    pass
-                    
-                return response
-                
-            return output
+            result["response"] = output
+            return result
         except Exception as e:
             print(f"Subprocess Exception: {e}")
-            return f"Error running automation: {str(e)}"
+            return {
+                "response": None,
+                "error_msgs": str(e),
+                "error": True,
+                "error_type": "generic_error"
+            }
 
 
 def sort_gemini_models(models: List[Dict[str, str]]) -> List[Dict[str, str]]:
@@ -715,9 +743,7 @@ def sort_gemini_models(models: List[Dict[str, str]]) -> List[Dict[str, str]]:
         model_id = model.get('id', '').lower()
         score = 0
         
-        # 0. Brand Priority (Highest Priority)
-        # Ensure Gemini models are always preferred over others (like Imagen)
-        # Prefer "Gemini" in the display name over just in the ID
+    # 0. Brand Priority (Highest Priority)
         if "gemini" in name:
             score += 2000000
         elif "gemini" in model_id:
@@ -743,15 +769,15 @@ def sort_gemini_models(models: List[Dict[str, str]]) -> List[Dict[str, str]]:
         elif contains("1.5"):
             score += 15000
             
-        # 2. Tier (Second Priority)
+        # 2. Tier (Second Priority) - STRICT: Ultra > Pro > Flash
         if contains("ultra"):
             score += 5000
         elif contains("pro"):
             score += 3000
         elif contains("flash-lite"):
-            score += 1000
+            score -= 1000 # Penalize lite versions
         elif contains("flash"):
-            score += 2000
+            score += 1000
             
         # 3. "Thinking" preference (Third Priority - tiebreaker within version/tier)
         if contains("thinking") or contains("reasoning"):
@@ -779,12 +805,22 @@ async def get_ai_studio_models() -> List[Dict[str, str]]:
             stdout, stderr = await process.communicate()
             
             if process.returncode != 0:
+                print(f"Error listing AI Studio models: {stderr.decode()}")
                 return []
                 
             output = stdout.decode().strip()
             models = []
             
-            if "MODELS_BEGIN" in output and "MODELS_END" in output:
+            # Legacy/Current Parser: Look for JSON_OUTPUT
+            if "JSON_OUTPUT: " in output:
+                 try:
+                    json_str = output.split("JSON_OUTPUT: ")[1].splitlines()[0]
+                    result = json.loads(json_str)
+                    models = result.get("response", [])
+                 except Exception as e:
+                     print(f"Error parsing JSON model list: {e}")
+
+            elif "MODELS_BEGIN" in output and "MODELS_END" in output:
                 model_section = output.split("MODELS_BEGIN")[1].split("MODELS_END")[0].strip()
                 for line in model_section.split("\n"):
                     if "|" in line:
@@ -800,12 +836,74 @@ async def get_ai_studio_models() -> List[Dict[str, str]]:
             return []
 
 
-async def run_chatgpt_automation(prompt: str, model: str = "auto", images: list = None, image_base64: str = None) -> tuple[str, bool]:
+def sort_claude_models(models: List[Dict[str, str]]) -> List[Dict[str, str]]:
+    """
+    Sort Claude models:
+    1. Version (3.5 > 3)
+    2. Tier (Opus > Sonnet > Haiku)
+    
+    Note: Claude 3.5 Sonnet > Claude 3 Opus
+    """
+    def get_model_score(model):
+        name = model['name'].lower()
+        score = 0
+        
+        def contains(keyword):
+            return keyword in name
+
+        # 1. Version
+        if contains("4.5"):
+            score += 30000
+        elif contains("3.5"):
+            score += 20000
+        elif contains("3"):
+            score += 10000
+            
+        # 2. Tier
+        if contains("sonnet"):
+            score += 5000  # Higher because it's usually the best available in free mode
+        elif contains("opus"):
+            score += 3000
+        elif contains("haiku"):
+            score += 1000
+            
+        return score
+
+    return sorted(models, key=get_model_score, reverse=True)
+
+
+async def get_claude_models() -> List[Dict[str, str]]:
+    """Get Claude models (currently hardcoded as we can't easily list them via script yet)."""
+    # Based on known available models
+    models = [
+        {"name": "Claude 4.5 Sonnet", "id": "claude-4-5-sonnet"},
+        {"name": "Claude 4.5 Opus", "id": "claude-4-5-opus"},
+        {"name": "Claude 4.5 Haiku", "id": "claude-4-5-haiku"},
+        {"name": "Claude 3.5 Sonnet", "id": "claude-3-5-sonnet"},
+        {"name": "Claude 3 Opus", "id": "claude-3-opus"},
+        {"name": "Claude 3 Sonnet", "id": "claude-3-sonnet"},
+        {"name": "Claude 3 Haiku", "id": "claude-3-haiku"},
+    ]
+    return sort_claude_models(models)
+
+
+async def get_best_model(provider: str) -> Optional[Dict[str, str]]:
+    """Get the single best model for a provider."""
+    if provider == "ai_studio":
+        models = await get_ai_studio_models()
+        return models[0] if models else None
+    elif provider == "claude":
+        models = await get_claude_models()
+        return models[0] if models else None
+    elif provider == "chatgpt":
+        # Hardcoded best for ChatGPT as per instructions
+        return {"name": "ChatGPT 5.2", "id": "gpt-5-2-thinking"}
+    return None
+
+
+async def run_chatgpt_automation(prompt: str, model: str = "auto", images: list = None, image_base64: str = None) -> AutomationResult:
     """
     Run the ChatGPT automation script via subprocess.
-    
-    Returns:
-        Tuple of (response_text, thinking_used)
     """
     script_path = Path(__file__).parent.parent / "browser_automation" / "chatgpt_automation.py"
     
@@ -849,47 +947,61 @@ async def run_chatgpt_automation(prompt: str, model: str = "auto", images: list 
                     except:
                         pass
             
-            if process.returncode != 0:
-                error_msg = stderr.decode().strip()
-                print(f"ChatGPT Automation Error (Code {process.returncode}): {error_msg}")
-                return f"Error: ChatGPT automation script failed. {error_msg}", False
-                
             output = stdout.decode().strip()
+            stderr_str = stderr.decode().strip()
+
+            # Initialize result
+            result: AutomationResult = {
+                "response": None,
+                "error_msgs": None,
+                "error": False,
+                "error_type": None
+            }
+
+            if process.returncode != 0 and "JSON_OUTPUT" not in output:
+                print(f"ChatGPT Automation Error (Code {process.returncode}): {stderr_str}")
+                result["error"] = True
+                result["error_msgs"] = f"ChatGPT automation script failed (Code {process.returncode}). {stderr_str}"
+                result["error_type"] = "generic_error"
+                return result
+
+            # Parse new JSON output
+            if "JSON_OUTPUT: " in output:
+                try:
+                    json_str = output.split("JSON_OUTPUT: ")[1].splitlines()[0]
+                    parsed = json.loads(json_str)
+                    return parsed
+                except Exception as e:
+                    print(f"Error parsing JSON_OUTPUT: {e}")
+            
+            # Legacy parsing as fallback
             # Print full output for debugging
             print("-" * 20 + " ChatGPT Automation Output " + "-" * 20)
             print(output)
             print("-" * 67)
             
-            # Parse THINKING_USED marker
-            thinking_used = False
-            if "THINKING_USED=true" in output:
-                thinking_used = True
-            elif "THINKING_USED=false" in output:
-                thinking_used = False
-            
             # Use unique delimiters to extract the real response
             if "RESULT_START" in output and "RESULT_END" in output:
                 response = output.split("RESULT_START")[1].split("RESULT_END")[0].strip()
-                return response, thinking_used
+                result["response"] = response
+                return result
                 
-            # Fallback
-            if "Response:" in output:
-                response = output.split("Response:")[-1].strip()
-                return response, thinking_used
-                
-            return output, thinking_used
+            result["response"] = output
+            return result
         except Exception as e:
             print(f"Subprocess Exception: {e}")
-            return f"Error running automation: {str(e)}", False
+            return {
+                "response": None,
+                "error_msgs": str(e),
+                "error": True,
+                "error_type": "generic_error"
+            }
 
 
 
-async def run_claude_automation(prompt: str, model: str = "auto", images: list = None, image_base64: str = None) -> tuple[str, bool]:
+async def run_claude_automation(prompt: str, model: str = "auto", images: list = None, image_base64: str = None) -> AutomationResult:
     """
     Run the Claude automation script via subprocess.
-    
-    Returns:
-        Tuple of (response_text, thinking_used)
     """
     script_path = Path(__file__).parent.parent / "browser_automation" / "claude_automation.py"
     
@@ -934,46 +1046,57 @@ async def run_claude_automation(prompt: str, model: str = "auto", images: list =
                     except:
                         pass
             
-            if process.returncode != 0:
-                error_msg = stderr.decode().strip()
-                print(f"Claude Automation Error (Code {process.returncode}): {error_msg}")
-                return f"Error: Claude automation script failed. {error_msg}", False
-                
             output = stdout.decode().strip()
+            stderr_str = stderr.decode().strip()
+
+            # Initialize result
+            result: AutomationResult = {
+                "response": None,
+                "error_msgs": None,
+                "error": False,
+                "error_type": None
+            }
+
+            if process.returncode != 0 and "JSON_OUTPUT" not in output:
+                print(f"Claude Automation Error (Code {process.returncode}): {stderr_str}")
+                result["error"] = True
+                result["error_msgs"] = f"Claude automation script failed (Code {process.returncode}). {stderr_str}"
+                result["error_type"] = "generic_error"
+                return result
+
+            # Parse new JSON output
+            if "JSON_OUTPUT: " in output:
+                try:
+                    json_str = output.split("JSON_OUTPUT: ")[1].splitlines()[0]
+                    parsed = json.loads(json_str)
+                    return parsed
+                except Exception as e:
+                    print(f"Error parsing JSON_OUTPUT: {e}")
+            
+            # Legacy parsing as fallback
             # Print full output for debugging
             print("-" * 20 + " Claude Automation Output " + "-" * 20)
             print(output)
             print("-" * 67)
             
-            # Parse THINKING_USED marker
-            thinking_used = False
-            if "THINKING_USED=true" in output:
-                thinking_used = True
-            elif "THINKING_USED=false" in output:
-                thinking_used = False
-            
             # Use unique delimiters to extract the real response
             if "RESULT_START" in output and "RESULT_END" in output:
                 response = output.split("RESULT_START")[1].split("RESULT_END")[0].strip()
-                return response, thinking_used
+                result["response"] = response
+                return result
                 
-            return output, thinking_used
+            result["response"] = output
+            return result
         except Exception as e:
             print(f"Subprocess Exception: {e}")
-            return f"Error running automation: {str(e)}", False
+            return {
+                "response": None,
+                "error_msgs": str(e),
+                "error": True,
+                "error_type": "generic_error"
+            }
 
 
-async def get_claude_models() -> List[Dict[str, str]]:
-    """
-    Get the list of available models for Claude.
-    Currently hardcoded as Claude doesn't easily expose model lists via simple automation.
-    """
-    return [
-        {"name": "Claude 3.5 Sonnet", "id": "claude-3-5-sonnet"},
-        {"name": "Claude 3.5 Sonnet [Ext. Thinking]", "id": "claude-3-5-sonnet-thinking"},
-        {"name": "Claude 3 Opus", "id": "claude-3-opus"},
-        {"name": "Claude 3 Haiku", "id": "claude-3-haiku"}
-    ]
 
 
 

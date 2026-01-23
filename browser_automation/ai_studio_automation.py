@@ -25,6 +25,7 @@ import sys
 import os
 from pathlib import Path
 from playwright.async_api import async_playwright, Page, BrowserContext
+import json
 
 # Directory to store browser profile (keeps you logged in)
 BROWSER_DATA_DIR = Path(__file__).parent / ".ai_studio_browser_data"
@@ -191,6 +192,17 @@ AI_STUDIO_JS = r'''
     return resultText;
 })()
 '''
+
+
+def print_json_output(response=None, error_msgs=None, error=False, error_type=None):
+    """Print structured JSON output for the backend to parse."""
+    output = {
+        "response": response,
+        "error_msgs": error_msgs,
+        "error": error,
+        "error_type": error_type
+    }
+    print(f"\nJSON_OUTPUT: {json.dumps(output)}")
 
 
 async def get_browser_context() -> tuple[BrowserContext, Page]:
@@ -757,12 +769,15 @@ async def select_model(page: Page, model_name: str):
     # Map friendly names to partial IDs
     # IDs based on HTML analysis
     model_map = {
-        "Gemini 3 Flash": "gemini-3-flash-preview",
-        "Gemini 3 Pro": "gemini-3-pro-preview",
+        "Gemini 3 Flash Preview": "gemini-3-flash-preview",
+        "Gemini 3 Pro": "gemini-3-pro-preview", 
         "Gemini 3 Pro Preview": "gemini-3-pro-preview",
+        "Gemini Flash Latest": "gemini-flash-latest",
         "Gemini 2.5 Flash": "gemini-flash-latest",
-        "Gemini 2.5 Flash-Lite": "gemini-flash-lite-latest",
-        "Imagen 3": "imagen-3", # Guessing/Placeholder
+        "Gemini Flash-Lite Latest": "gemini-flash-lite-latest",
+        "Gemini 1.5 Flash": "gemini-1.5-flash",
+        "Gemini 1.5 Pro": "gemini-1.5-pro",
+        "Imagen 4": "imagen-4",
     }
     
     target_id_suffix = model_map.get(model_name)
@@ -794,8 +809,12 @@ async def select_model(page: Page, model_name: str):
             # Construct ID selector: [id*='gemini-3-flash-preview']
             full_id_selector = f"[id*='{target_id_suffix}']"
             print(f"DEBUG: Clicking model with selector {full_id_selector}")
-            await page.wait_for_selector(full_id_selector)
-            await page.click(full_id_selector)
+            try:
+                await page.wait_for_selector(full_id_selector, timeout=2000)
+                await page.click(full_id_selector)
+            except:
+                print(f"DEBUG: ID selector failed, trying text fallback for {model_name}")
+                await page.click(f"text={model_name}")
         else:
             # Text based fallback
             print(f"DEBUG: Clicking model by text: {model_name}")
@@ -803,10 +822,18 @@ async def select_model(page: Page, model_name: str):
             
         # 4. Wait for dropdown to close
         await asyncio.sleep(1)
+        
+        # Verify selection (optional but recommended)
+        new_text = await page.inner_text(selector_btn)
+        if model_name not in new_text:
+             raise Exception(f"Model selection verification failed. Expected '{model_name}', found model in button: '{new_text}'")
+             
         print(f"DEBUG: Selected model {model_name}")
         
     except Exception as e:
         print(f"ERROR: Failed to select model {model_name}: {e}")
+        # Re-raise exception so the script fails and backend knows
+        raise Exception(f"Validation Error: Could not switch to model '{model_name}'. {e}")
 
 
 async def list_models(page: Page):
@@ -967,10 +994,16 @@ async def main():
         try:
             if 'list_models' in globals():
                  models = await list_models(page)
+                 
+                 # Print legacy format (just in case)
                  print("\nMODELS_BEGIN")
                  for m in models:
                      print(f"{m['name']}|{m['id']}")
                  print("MODELS_END")
+                 
+                 # Print standard JSON output for backend
+                 print_json_output(response=models)
+                 
             else:
                  print("Error: list_models function not found.")
             return
@@ -1010,14 +1043,28 @@ async def main():
             await interactive_mode(page)
         else:
             response = await send_prompt(page, args.prompt, image_paths=args.image)
+            
+            # Print legacy markers for safety
             print("\nRESULT_START")
             print(response)
             print("RESULT_END")
+            
+            # Print new structured JSON
+            print_json_output(response=response, error=False)
         
     except Exception as e:
+        error_str = str(e)
+        error_type = "generic_error"
+        
+        if "login required" in error_str.lower() or "accounts.google.com" in page.url:
+            error_type = "login_required"
+        elif "timeout" in error_str.lower():
+            error_type = "timeout"
+        elif "quota" in error_str.lower():
+            error_type = "quota_exceeded"
+            
         print(f"Error: {e}")
-        import traceback
-        traceback.print_exc()
+        print_json_output(error_msgs=error_str, error=True, error_type=error_type)
         sys.exit(1)
     finally:
         if context:

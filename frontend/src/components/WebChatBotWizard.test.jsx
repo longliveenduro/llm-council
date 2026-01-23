@@ -18,11 +18,11 @@ describe('WebChatBotWizard Claude Integration', () => {
     const defaultProps = {
         conversationId: 'conv-123',
         currentTitle: 'New Conversation',
-        llmNames: ['Claude 3.5 Sonnet', 'Gemini 3 Pro'],
+        llmNames: ['Claude 4.5 Sonnet', 'Gemini 3 Pro'],
         automationModels: {
             ai_studio: [{ name: 'Gemini 3 Pro', id: 'gemini-3-pro' }],
             chatgpt: [],
-            claude: [{ name: 'Claude 3.5 Sonnet', id: 'claude-3-5-sonnet' }],
+            claude: [{ name: 'Claude 4.5 Sonnet', id: 'claude-3-5-sonnet' }],
         },
     };
 
@@ -38,9 +38,9 @@ describe('WebChatBotWizard Claude Integration', () => {
         const questionArea = screen.getByLabelText(/Your Question:/i);
         fireEvent.change(questionArea, { target: { value: 'Test query' } });
 
-        // Select Claude 3.5 Sonnet
+        // Select Claude 4.5 Sonnet
         const modelSelect = screen.getByLabelText('Current Model');
-        fireEvent.change(modelSelect, { target: { value: 'Claude 3.5 Sonnet' } });
+        fireEvent.change(modelSelect, { target: { value: 'Claude 4.5 Sonnet' } });
 
         const claudeBtn = screen.getByText('Run via Claude');
         expect(claudeBtn).not.toBeDisabled();
@@ -64,7 +64,7 @@ describe('WebChatBotWizard Claude Integration', () => {
 
         // Select Claude model in the dropdown
         const modelSelect = screen.getByLabelText('Current Model');
-        fireEvent.change(modelSelect, { target: { value: 'Claude 3.5 Sonnet' } });
+        fireEvent.change(modelSelect, { target: { value: 'Claude 4.5 Sonnet' } });
 
         // Click Run via Claude
         const claudeBtn = screen.getByText('Run via Claude');
@@ -73,7 +73,7 @@ describe('WebChatBotWizard Claude Integration', () => {
         await waitFor(() => {
             expect(api.runAutomation).toHaveBeenCalledWith(
                 expect.stringContaining('How are you?'),
-                'Claude 3.5 Sonnet [Ext. Thinking]',
+                'Claude 4.5 Sonnet [Ext. Thinking]',
                 'claude',
                 null,
                 []
@@ -97,9 +97,9 @@ describe('WebChatBotWizard Claude Integration', () => {
         const questionArea = screen.getByLabelText(/Your Question:/i);
         fireEvent.change(questionArea, { target: { value: 'Deep thought query' } });
 
-        // Select Claude 3.5 Sonnet from current model dropdown
+        // Select Claude 4.5 Sonnet from current model dropdown
         const modelSelect = screen.getByLabelText('Current Model');
-        fireEvent.change(modelSelect, { target: { value: 'Claude 3.5 Sonnet' } });
+        fireEvent.change(modelSelect, { target: { value: 'Claude 4.5 Sonnet' } });
 
         // Click Run via Claude
         const claudeBtn = screen.getByText('Run via Claude');
@@ -108,7 +108,7 @@ describe('WebChatBotWizard Claude Integration', () => {
         await waitFor(() => {
             expect(api.runAutomation).toHaveBeenCalledWith(
                 expect.any(String),
-                'Claude 3.5 Sonnet [Ext. Thinking]',
+                'Claude 4.5 Sonnet [Ext. Thinking]',
                 'claude',
                 null,
                 []
@@ -122,13 +122,13 @@ describe('WebChatBotWizard Claude Integration', () => {
         // Add a thinking model to lllmNames for this test
         const propsWithThinking = {
             ...defaultProps,
-            llmNames: ['Claude 3.5 Sonnet [Ext. Thinking]', ...defaultProps.llmNames]
+            llmNames: ['Claude 4.5 Sonnet [Ext. Thinking]', ...defaultProps.llmNames]
         };
         render(<WebChatBotWizard {...propsWithThinking} />);
 
         // Select a model that already has "Thinking" in the name
         const modelSelect = screen.getByLabelText('Current Model');
-        fireEvent.change(modelSelect, { target: { value: 'Claude 3.5 Sonnet [Ext. Thinking]' } });
+        fireEvent.change(modelSelect, { target: { value: 'Claude 4.5 Sonnet [Ext. Thinking]' } });
 
         // Type a question
         const questionArea = screen.getByLabelText(/Your Question:/i);
@@ -141,7 +141,7 @@ describe('WebChatBotWizard Claude Integration', () => {
         await waitFor(() => {
             expect(api.runAutomation).toHaveBeenCalledWith(
                 expect.any(String),
-                'Claude 3.5 Sonnet [Ext. Thinking]',
+                'Claude 4.5 Sonnet [Ext. Thinking]',
                 'claude',
                 null,
                 []
@@ -216,11 +216,11 @@ describe('WebChatBotWizard UI Changes - Thinking Status', () => {
     const defaultProps = {
         conversationId: 'test-conv-123',
         currentTitle: 'New Conversation',
-        llmNames: ['GPT-4o', 'Claude 3.5 Sonnet', 'Gemini 2.5 Flash'],
+        llmNames: ['GPT-4o', 'Claude 4.5 Sonnet', 'Gemini 2.5 Flash'],
         automationModels: {
             ai_studio: [{ name: 'Gemini 2.5 Flash', id: 'gemini-flash' }],
             chatgpt: [{ name: 'GPT-4o', id: 'gpt-4o' }],
-            claude: [{ name: 'Claude 3.5 Sonnet', id: 'claude-sonnet' }],
+            claude: [{ name: 'Claude 4.5 Sonnet', id: 'claude-sonnet' }],
         },
     };
 
@@ -268,7 +268,7 @@ describe('WebChatBotWizard UI Changes - Thinking Status', () => {
 
         // Select Claude model to show Claude button
         const modelSelect = screen.getByLabelText('Current Model');
-        fireEvent.change(modelSelect, { target: { value: 'Claude 3.5 Sonnet' } });
+        fireEvent.change(modelSelect, { target: { value: 'Claude 4.5 Sonnet' } });
 
         // Click the Claude automation button
         const claudeBtn = screen.getByText('Run via Claude');
@@ -293,13 +293,13 @@ describe('WebChatBotWizard UI Changes - Thinking Status', () => {
         const promptInput = screen.getByLabelText(/Your Question:/i);
         fireEvent.change(promptInput, { target: { value: 'Test question' } });
 
-        // Select Claude model to show Claude button
+        // Select Gemini model to show AI Studio button
         const modelSelect = screen.getByLabelText('Current Model');
-        fireEvent.change(modelSelect, { target: { value: 'Claude 3.5 Sonnet' } });
+        fireEvent.change(modelSelect, { target: { value: 'Gemini 2.5 Flash' } });
 
-        // Click the Claude automation button
-        const claudeBtn = screen.getByText('Run via Claude');
-        fireEvent.click(claudeBtn);
+        // Click the AI Studio automation button
+        const aiStudioBtn = screen.getByText('Run via AI Studio');
+        fireEvent.click(aiStudioBtn);
 
         await waitFor(() => {
             // Check for no thinking indicator
@@ -325,7 +325,7 @@ describe('WebChatBotWizard UI Changes - Thinking Status', () => {
 
         // Select Claude model to show Claude button
         const modelSelect = screen.getByLabelText('Current Model');
-        fireEvent.change(modelSelect, { target: { value: 'Claude 3.5 Sonnet' } });
+        fireEvent.change(modelSelect, { target: { value: 'Claude 4.5 Sonnet' } });
 
         // Click the Claude automation button
         const claudeBtn = screen.getByText('Run via Claude');
@@ -342,7 +342,7 @@ describe('WebChatBotWizard UI Changes - Thinking Status', () => {
 
         // Check the responses list for the model name with Thinking suffix
         await waitFor(() => {
-            const elements = screen.getAllByText(/Claude 3.5 Sonnet \[Ext. Thinking\]/i);
+            const elements = screen.getAllByText(/Claude 4.5 Sonnet \[Ext. Thinking\]/i);
             expect(elements.length).toBeGreaterThan(0);
         });
 
@@ -351,7 +351,7 @@ describe('WebChatBotWizard UI Changes - Thinking Status', () => {
 
     it('does not add Thinking suffix when thinking_used is false', async () => {
         api.runAutomation = vi.fn().mockResolvedValue({
-            response: 'Claude response',
+            response: 'Gemini response',
             thinking_used: false
         });
 
@@ -364,17 +364,17 @@ describe('WebChatBotWizard UI Changes - Thinking Status', () => {
         const promptInput = screen.getByLabelText(/Your Question:/i);
         fireEvent.change(promptInput, { target: { value: 'Test question' } });
 
-        // Select Claude model to show Claude button
+        // Select Gemini model
         const modelSelect = screen.getByLabelText('Current Model');
-        fireEvent.change(modelSelect, { target: { value: 'Claude 3.5 Sonnet' } });
+        fireEvent.change(modelSelect, { target: { value: 'Gemini 2.5 Flash' } });
 
-        // Click the Claude automation button
-        const claudeBtn = screen.getByText('Run via Claude');
-        fireEvent.click(claudeBtn);
+        // Click the AI Studio automation button
+        const aiStudioBtn = screen.getByText('Run via AI Studio');
+        fireEvent.click(aiStudioBtn);
 
         await waitFor(() => {
             // Response should be in the response textarea
-            expect(screen.getByDisplayValue('Claude response')).toBeInTheDocument();
+            expect(screen.getByDisplayValue('Gemini response')).toBeInTheDocument();
         });
 
         // Click "Add Response"
@@ -385,7 +385,7 @@ describe('WebChatBotWizard UI Changes - Thinking Status', () => {
         await waitFor(() => {
             const responsesList = document.querySelector('.responses-list');
             expect(responsesList).toBeInTheDocument();
-            expect(responsesList.textContent).toContain('Claude 3.5 Sonnet');
+            expect(responsesList.textContent).toContain('Gemini 2.5 Flash');
             expect(responsesList.textContent).not.toContain('Thinking');
         });
 

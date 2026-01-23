@@ -22,6 +22,7 @@ import sys
 import os
 from pathlib import Path
 from playwright.async_api import async_playwright, Page, BrowserContext
+import json
 
 # Directory to store browser profile (keeps you logged in)
 BROWSER_DATA_DIR = Path(__file__).parent / ".chatgpt_browser_data"
@@ -80,6 +81,17 @@ CHATGPT_JS = r'''
     return resultText;
 })()
 '''
+
+
+def print_json_output(response=None, error_msgs=None, error=False, error_type=None):
+    """Print structured JSON output for the backend to parse."""
+    output = {
+        "response": response,
+        "error_msgs": error_msgs,
+        "error": error,
+        "error_type": error_type
+    }
+    print(f"\nJSON_OUTPUT: {json.dumps(output)}")
 
 
 async def get_browser_context() -> tuple[BrowserContext, Page]:
@@ -330,7 +342,11 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None, image
         # Check for quota errors after upload attempts
         await asyncio.sleep(0.5)  # Allow time for error messages to appear
         if await check_image_upload_quota_error(page):
-            raise Exception("ChatGPT image upload quota exceeded. Free tier users have a daily limit on image uploads. Please wait or upgrade to ChatGPT Plus.")
+            # We use a specific message that the backend can recognize if JSON parsing fails,
+            # but ideally the JSON output will handle it.
+            error_msg = "ChatGPT image upload quota exceeded. Free tier users have a daily limit on image uploads. Please wait or upgrade to ChatGPT Plus."
+            print_json_output(error_msgs=error_msg, error=True, error_type="quota_exceeded")
+            raise Exception(error_msg)
 
     # Click on the input to focus it
     await page.click(input_selector, timeout=10000)
@@ -972,13 +988,31 @@ async def main():
                     raise Exception("Thinking mode requested but could not be activated. The toggle may not be visible or the ChatGPT UI may have changed.")
             
             response = await send_prompt(page, args.prompt, image_paths=args.image)
+            
+            # Print legacy markers for safety
             print(f"\nTHINKING_USED={str(thinking_used).lower()}")
             print("RESULT_START")
             print(response)
             print("RESULT_END")
             
+            # Print new structured JSON
+            print_json_output(response=response, error=False)
+            
     except Exception as e:
+        error_str = str(e)
+        error_type = "generic_error"
+        
+        if "quota exceeded" in error_str.lower():
+            error_type = "quota_exceeded"
+        elif "thinking mode requested but could not be activated" in error_str.lower():
+            error_type = "thinking_not_activated"
+        elif "login required" in error_str.lower():
+            error_type = "login_required"
+        elif "timeout" in error_str.lower():
+            error_type = "timeout"
+        
         print(f"Error: {e}")
+        print_json_output(error_msgs=error_str, error=True, error_type=error_type)
     finally:
         if context:
             await context.close()

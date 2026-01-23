@@ -174,6 +174,8 @@ export default function WebChatBotWizard({ conversationId, currentTitle, previou
     const [showStep3Preview, setShowStep3Preview] = useState(false); // Step 3 Preview Toggle - default to Write mode
     const [lastThinkingUsed, setLastThinkingUsed] = useState(null); // null, true, or false - tracks if last automation used thinking
     const [lastAutomationProvider, setLastAutomationProvider] = useState(null); // tracks which provider was used for last automation
+    const [isCurrentResponseError, setIsCurrentResponseError] = useState(false); // tracks if the current automation result is an error
+    const [currentErrorType, setCurrentErrorType] = useState(null); // tracks the specific machine-readable error type
 
     const currentScores = useMemo(() => {
         return calculateCurrentScores(stage2Responses, labelToModel);
@@ -246,7 +248,11 @@ The title should be concise and descriptive. No quotes or punctuation.
 Question: ${query}
 
 Title:`;
-            const titleData = await api.runAutomation(titlePrompt, 'Gemini 2.5 Flash', 'ai_studio');
+            const titleData = await api.runAutomation(titlePrompt, 'Gemini Flash Latest', 'ai_studio');
+            if (titleData.error || !titleData.response) {
+                console.error('Failed to generate title:', titleData.error_msgs);
+                return;
+            }
             const generatedTitle = titleData.response.trim().replace(/["']/g, '');
             setManualTitle(generatedTitle);
             await api.updateConversationTitle(conversationId, generatedTitle);
@@ -430,27 +436,28 @@ Title:`;
         const numRounds = step === 1 ? roundsPerModel : 1;
 
         try {
-            let modelToUse = aiStudioModel;
+            // Lookup best model for the requested provider
+            let modelToUse = null;
+            if (automationModels[provider] && automationModels[provider].length > 0) {
+                modelToUse = automationModels[provider][0].name;
+            }
+
+            if (!modelToUse) {
+                // Fallback if not loaded yet
+                if (provider === 'ai_studio') modelToUse = 'Gemini 3 Pro Preview';
+                if (provider === 'chatgpt') modelToUse = 'ChatGPT 5.2';
+                if (provider === 'claude') modelToUse = 'Claude 4.5 Sonnet';
+            }
+
             const norm = (name) => name ? name.toLowerCase().replace(/\s+/g, '') : '';
 
             if (provider === 'chatgpt') {
-                if (aiStudioModel && norm(aiStudioModel).includes('chatgpt')) {
-                    modelToUse = aiStudioModel;
-                } else if (currentModel && norm(currentModel).includes('chatgpt')) {
-                    modelToUse = currentModel;
-                } else {
-                    const gpts = (llmNames || []).filter(n => norm(n).includes('chatgpt'));
-                    modelToUse = gpts.find(n => n.toLowerCase().includes('thinking')) || gpts[0] || 'ChatGPT';
-                }
+                // Ensure thinking is requested
                 if (!modelToUse.toLowerCase().includes('thinking') && !modelToUse.toLowerCase().includes('o1')) {
                     modelToUse += ' Thinking';
                 }
             } else if (provider === 'claude') {
-                const claudes = (llmNames || []).filter(n => norm(n).includes('claude'));
-                modelToUse = (currentModel && norm(currentModel).includes('claude'))
-                    ? currentModel
-                    : (claudes.length > 0 ? claudes[0] : 'Claude 3.5 Sonnet');
-
+                // Ensure thinking is requested
                 if (!modelToUse.toLowerCase().includes('thinking')) {
                     modelToUse += ' [Ext. Thinking]';
                 }
@@ -472,11 +479,29 @@ Title:`;
             // Run automation for each round
             for (let round = 1; round <= numRounds; round++) {
                 const data = await api.runAutomation(prompt, modelToUse, provider, null, selectedImages);
-                const responseText = data.response;
-                const thinkingUsed = data.thinking_used ?? null;
+
+                // Track error state
+                setIsCurrentResponseError(data.error);
+                setCurrentErrorType(data.error_type);
+
+                const responseText = data.response || data.error_msgs;
+
+                // Logic to set lastThinkingUsed: If no error and modelName implies thinking, we know it worked.
+                // We use modelToUse here because data.thinking_used is removed.
+                let thinkingUsedEffective = false;
+                if (!data.error) {
+                    thinkingUsedEffective = modelToUse.toLowerCase().includes('thinking') || modelToUse.toLowerCase().includes('o1');
+                }
 
                 if (step === 1 && numRounds > 1) {
-                    // Auto-add response for multi-round mode
+                    // Auto-add response for multi-round mode - ONLY if no error
+                    if (data.error) {
+                        setCurrentText(responseText);
+                        setLastThinkingUsed(false);
+                        alert(`Automation round ${round} failed: ${data.error_msgs}`);
+                        break; // Stop multi-round on error
+                    }
+
                     // Determine model name with thinking suffix
                     let modelNameToUse = modelToUse;
                     // For Claude/ChatGPT, clean and re-add appropriate suffix based on actual thinking used
@@ -487,7 +512,7 @@ Title:`;
                             modelNameToUse = baseModel;
                         }
                         // Add thinking suffix if thinking was used
-                        if (thinkingUsed === true) {
+                        if (thinkingUsedEffective === true) {
                             const hasThinkingSuffix = modelNameToUse.toLowerCase().includes('thinking') ||
                                 modelNameToUse.toLowerCase().includes('[ext.');
                             if (!hasThinkingSuffix) {
@@ -527,7 +552,7 @@ Title:`;
                 } else if (step === 1 && numRounds === 1) {
                     // Single round - store in currentText for manual add
                     setCurrentText(responseText);
-                    setLastThinkingUsed(thinkingUsed);
+                    setLastThinkingUsed(thinkingUsedEffective);
                     setLastAutomationProvider(provider);
                     // Update currentModel to the base model
                     if (provider === 'claude' || provider === 'chatgpt') {
@@ -539,19 +564,21 @@ Title:`;
                 } else {
                     // Stage 2 - single run, set text
                     setCurrentText(responseText);
-                    setLastThinkingUsed(thinkingUsed);
+                    setLastThinkingUsed(thinkingUsedEffective);
                     setLastAutomationProvider(provider);
                 }
             }
 
             // After multi-round, advance to next model in council
-            if (step === 1 && numRounds > 1) {
+            if (step === 1 && numRounds > 1 && !isCurrentResponseError) {
                 const nextIdx = llmNames.indexOf(currentModel) + 1;
                 setCurrentModel(nextIdx > 0 && nextIdx < llmNames.length ? llmNames[nextIdx] : '');
                 setCurrentText('');
             }
         } catch (error) {
-            alert(`Automation failed: ${error.message}`);
+            setCurrentText(`Exception in frontend: ${error.message}`);
+            setIsCurrentResponseError(true);
+            setCurrentErrorType('generic_error');
         } finally {
             setIsAutomating(false);
         }
@@ -564,36 +591,52 @@ Title:`;
         setLastThinkingUsed(null);
         setLastAutomationProvider(null);
         try {
-            let modelToUse = aiStudioModel;
+            // Use the best available model for this provider
+            let modelToUse = null;
+            if (automationModels[provider] && automationModels[provider].length > 0) {
+                modelToUse = automationModels[provider][0].name;
+            }
             const norm = (name) => name ? name.toLowerCase().replace(/\s+/g, '') : '';
 
+            // For Stage 3, we prefer the user's explicit selection if it matches the provider, 
+            // but relying on selectedAutomationModel is safer given the new "best model" paradigm.
+            // If the user selected a model in the Stage 3 dropdown, we might want to respect that?
+            // BUT, the request said "Use the highest available version number". 
+            // So sticking to selectedAutomationModel (which is the Sort-Order best) is correct.
+
             if (provider === 'chatgpt') {
-                const gpts = (llmNames || []).filter(n => norm(n).includes('chatgpt'));
-                modelToUse = (stage3Response.model && norm(stage3Response.model).includes('chatgpt'))
-                    ? stage3Response.model
-                    : (gpts.find(n => n.toLowerCase().includes('thinking')) || gpts[0] || 'ChatGPT');
+                // For ChatGPT, always ensure thinking suffix logic applies if needed
+                if (!modelToUse) modelToUse = 'ChatGPT 5.2';
                 if (!modelToUse.toLowerCase().includes('thinking') && !modelToUse.toLowerCase().includes('o1')) {
                     modelToUse += ' Thinking';
                 }
             } else if (provider === 'claude') {
-                const claudes = (llmNames || []).filter(n => norm(n).includes('claude'));
-                modelToUse = (stage3Response.model && norm(stage3Response.model).includes('claude'))
-                    ? stage3Response.model
-                    : (claudes[0] || 'Claude 3.5 Sonnet');
+                if (!modelToUse) modelToUse = 'Claude 4.5 Sonnet';
                 if (!modelToUse.toLowerCase().includes('thinking')) {
                     modelToUse += ' [Ext. Thinking]';
                 }
             }
 
+
             const data = await api.runAutomation(prompt, modelToUse, provider, null, selectedImages); // Pass images if present (likely only for Step 1, but keeping consistent)
             console.log(`Automation successful for ${provider}, setting response`);
 
-            setLastThinkingUsed(data.thinking_used ?? null);
+            // Track error state
+            setIsCurrentResponseError(data.error);
+            setCurrentErrorType(data.error_type);
+
+            // Logic to set lastThinkingUsed: If no error and modelName implies thinking, we know it worked.
+            let thinkingUsedEffective = false;
+            if (!data.error) {
+                thinkingUsedEffective = modelToUse.toLowerCase().includes('thinking') || modelToUse.toLowerCase().includes('o1');
+            }
+
+            setLastThinkingUsed(thinkingUsedEffective);
             setLastAutomationProvider(provider);
 
             // Clean display model and set response in one update
             let finalDisplayModel = stage3Response.model;
-            if (provider === 'claude' || provider === 'chatgpt') {
+            if (!data.error && (provider === 'claude' || provider === 'chatgpt')) {
                 const baseModel = (llmNames || []).find(n => norm(n).includes(provider === 'claude' ? 'claude' : 'chatgpt'));
                 if (baseModel) {
                     finalDisplayModel = baseModel;
@@ -602,11 +645,16 @@ Title:`;
 
             setStage3Response(prev => ({
                 ...prev,
-                response: data.response,
+                response: data.response || data.error_msgs,
                 model: finalDisplayModel
             }));
         } catch (error) {
-            alert(`Automation failed: ${error.message}`);
+            setStage3Response(prev => ({
+                ...prev,
+                response: `Exception in frontend: ${error.message}`
+            }));
+            setIsCurrentResponseError(true);
+            setCurrentErrorType('generic_error');
         } finally {
             setIsAutomating(false);
         }
@@ -726,33 +774,39 @@ Title:`;
     const [viewingResponse, setViewingResponse] = useState(null);
     const [viewingMode, setViewingMode] = useState('preview'); // 'preview' or 'source'
 
+
     const renderStep1 = () => (
         <div className="wizard-step">
             <h3>{isFollowUp ? 'Step 1: Follow Up Opinions' : 'Step 1: Initial Opinions'}</h3>
             <p className="step-desc">Enter query and add model responses. Click existing response to view full content.</p>
             <div className="automation-settings">
-                <label>Automation Model:</label>
-                <div className="automation-input-row">
-                    <div className="model-select-wrapper">
-                        <select id="automation-model-select" value={aiStudioModel} onChange={(e) => setAiStudioModel(e.target.value)} className="automation-model-select" aria-label="Automation Model">
-                            <optgroup label="AI Studio">
-                                {automationModels.ai_studio.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
-                            </optgroup>
-                            {automationModels.chatgpt?.length > 0 && (
-                                <optgroup label="ChatGPT">
-                                    {automationModels.chatgpt.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
-                                </optgroup>
-                            )}
-                            {automationModels.claude?.length > 0 && (
-                                <optgroup label="Claude">
-                                    {automationModels.claude.map(m => <option key={m.id} value={m.name}>{m.name}</option>)}
-                                </optgroup>
-                            )}
-                        </select>
-                        <button className="sync-council-btn" onClick={() => { if (onAddLlmName) { onAddLlmName(aiStudioModel); setCurrentModel(aiStudioModel); } }} disabled={llmNames.includes(aiStudioModel)}>
-                            {llmNames.includes(aiStudioModel) ? '✓ In Council' : '+ Add to Council'}
-                        </button>
-                    </div>
+                <label>Automation Targets (Best Available):</label>
+                <div className="automation-targets-list">
+                    {Object.entries(automationModels).length === 0 && <span>Loading models...</span>}
+                    {Object.entries(automationModels).map(([provider, models]) => {
+                        if (!models || models.length === 0) return null;
+                        const bestModel = models[0].name;
+                        const providerLabel = provider === 'ai_studio' ? 'Gemini' : (provider === 'chatgpt' ? 'ChatGPT' : 'Claude');
+                        return (
+                            <div key={provider} className="best-model-badge-row">
+                                <span className="provider-name">{providerLabel}:</span>
+                                <span className="c-model-name">{bestModel}</span>
+                                <button
+                                    className="small-add-btn"
+                                    onClick={() => {
+                                        if (onAddLlmName) {
+                                            onAddLlmName(bestModel);
+                                            setCurrentModel(bestModel);
+                                        }
+                                    }}
+                                    disabled={llmNames.includes(bestModel)}
+                                    title="Add to Council"
+                                >
+                                    {llmNames.includes(bestModel) ? '✓' : '+'}
+                                </button>
+                            </div>
+                        );
+                    })}
                 </div>
             </div>
             <div className="form-group rounds-per-model-section">
@@ -898,12 +952,18 @@ Title:`;
                                 )}
                             </div>
                         ) : (
-                            <textarea value={currentText} onChange={(e) => setCurrentText(e.target.value)} rows={8} placeholder="Model Response" />
+                            <textarea value={currentText} onChange={(e) => { setCurrentText(e.target.value); setIsCurrentResponseError(false); }} rows={8} placeholder="Model Response" />
+                        )}
+                        {isCurrentResponseError && (
+                            <div className={`error-indicator-box ${currentErrorType}`}>
+                                <span className="error-icon">⚠️</span>
+                                <span className="error-message">Error in automation. Check the message above.</span>
+                            </div>
                         )}
                     </div>
                 </div>
                 <div className="add-response-actions">
-                    <button onClick={addStage1Response} disabled={!currentModel || !currentText}>Add Response</button>
+                    <button onClick={addStage1Response} disabled={!currentModel || !currentText || isCurrentResponseError}>Add Response</button>
                     <div className="automation-row">
                         <button
                             onClick={() => handleRunAutomation(isFollowUp ? getContextText() : userQuery, providerInfo.key)}
@@ -1040,9 +1100,15 @@ Title:`;
                         </span>
                     )}
                 </div>
-                <textarea value={currentText} onChange={(e) => setCurrentText(e.target.value)} rows={8} placeholder="Paste Ranking" />
+                <textarea value={currentText} onChange={(e) => { setCurrentText(e.target.value); setIsCurrentResponseError(false); }} rows={8} placeholder="Paste Ranking" />
+                {isCurrentResponseError && (
+                    <div className={`error-indicator-box ${currentErrorType}`}>
+                        <span className="error-icon">⚠️</span>
+                        <span className="error-message">Error in automation. Check the ranking above.</span>
+                    </div>
+                )}
                 <div className="add-response-actions">
-                    <button onClick={addStage2Response} disabled={!currentModel || !currentText}>Add Ranking</button>
+                    <button onClick={addStage2Response} disabled={!currentModel || !currentText || isCurrentResponseError}>Add Ranking</button>
                     <div className="automation-row">
                         <button
                             onClick={() => handleRunAutomation(stage2Prompt, providerInfo.key)}
@@ -1143,7 +1209,13 @@ Title:`;
                                 )}
                             </div>
                         ) : (
-                            <textarea value={stage3Response.response || ''} onChange={(e) => setStage3Response({ ...stage3Response, response: e.target.value })} placeholder="Final answer..." />
+                            <textarea value={stage3Response.response || ''} onChange={(e) => { setStage3Response({ ...stage3Response, response: e.target.value }); setIsCurrentResponseError(false); }} placeholder="Final answer..." />
+                        )}
+                        {isCurrentResponseError && (
+                            <div className={`error-indicator-box ${currentErrorType}`}>
+                                <span className="error-icon">⚠️</span>
+                                <span className="error-message">Error in automation. Check the synthesis above.</span>
+                            </div>
                         )}
                     </div>
                 </div>
@@ -1177,7 +1249,7 @@ Title:`;
                     <button onClick={() => setStep(2)} className="secondary-btn">Back</button>
                     <button onClick={() => { if (window.confirm('Reset?')) { localStorage.removeItem(draftKey); window.location.reload(); } }} className="secondary-btn discard-btn">Discard</button>
                 </div>
-                <button onClick={handleComplete} className="primary-btn complete-btn" disabled={!stage3Response.response}>Finish & Save</button>
+                <button onClick={handleComplete} className="primary-btn complete-btn" disabled={!stage3Response.response || isCurrentResponseError}>Finish & Save</button>
             </div>
         </div>
 
