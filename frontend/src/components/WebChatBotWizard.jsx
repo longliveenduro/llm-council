@@ -54,7 +54,7 @@ const parseRankingFromText = (rankingText) => {
 const calculateCurrentScores = (stage2Responses, labelToModel) => {
     if (!stage2Responses || stage2Responses.length === 0) return {};
 
-    const modelPositions = {}; // modelName -> list of positions
+    const labelPositions = {}; // label -> list of positions (per-response scoring)
     const labelToModelMap = labelToModel || {};
 
     stage2Responses.forEach(r => {
@@ -62,20 +62,19 @@ const calculateCurrentScores = (stage2Responses, labelToModel) => {
         const parsedRanking = parseRankingFromText(rankingText);
 
         parsedRanking.forEach((label, index) => {
-            const modelName = labelToModelMap[label];
-            if (modelName) {
-                if (!modelPositions[modelName]) modelPositions[modelName] = [];
-                modelPositions[modelName].push(index + 1);
+            if (label in labelToModelMap) {
+                if (!labelPositions[label]) labelPositions[label] = [];
+                labelPositions[label].push(index + 1);
             }
         });
     });
 
     const aggregate = [];
-    Object.entries(modelPositions).forEach(([model, positions]) => {
+    Object.entries(labelPositions).forEach(([label, positions]) => {
         if (positions.length > 0) {
             const avgRank = positions.reduce((a, b) => a + b, 0) / positions.length;
             aggregate.push({
-                model,
+                label,
                 avgRank: Math.round(avgRank * 10) / 10,
                 count: positions.length
             });
@@ -98,7 +97,7 @@ const calculateCurrentScores = (stage2Responses, labelToModel) => {
         else if (currentRankIndex === 1) medal = '🥈';
         else if (currentRankIndex === 2) medal = '🥉';
 
-        scores[item.model] = {
+        scores[item.label] = {
             avgRank: item.avgRank,
             medal: medal,
             rankIndex: currentRankIndex,
@@ -119,7 +118,7 @@ const MappingBox = ({ labelToModel, scores = {}, showScoreExplanation = false })
             </div>
             <div className="mapping-list">
                 {Object.entries(labelToModel).map(([l, m]) => {
-                    const score = scores[m];
+                    const score = scores[l];
                     return (
                         <div key={l} className="mapping-item">
                             <div className="mapping-item-main">
@@ -710,9 +709,10 @@ Title:`;
             setAggregateRankings(processed.aggregate_rankings);
 
             const scores = calculateCurrentScores(processed.stage2_results, labelToModel);
+            // Scores are now keyed by label (e.g., "Response A1"), find the winners
             const winners = Object.entries(scores)
                 .filter(([_, score]) => score.rankIndex === 0)
-                .map(([model, _]) => model);
+                .map(([label, _]) => labelToModel[label]); // Convert label to model name
 
             if (winners.length > 0) {
                 const winner = winners[0];
@@ -1047,7 +1047,9 @@ Title:`;
             </div>
             <div className="responses-list">
                 {stage2Responses.map((r, i) => {
-                    const label = Object.entries(labelToModel).find(([_, m]) => m === r.model)?.[0]?.replace('Response ', '') || '?';
+                    // For reviews, use letter only (no number) since there's one review per LLM
+                    const fullLabel = Object.entries(labelToModel).find(([_, m]) => m === r.model)?.[0]?.replace('Response ', '') || '?';
+                    const label = fullLabel.replace(/\d+$/, ''); // Remove trailing numbers
                     return (
                         <div key={i} className="response-item">
                             <div className="response-header">

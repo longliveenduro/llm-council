@@ -66,20 +66,19 @@ describe('WebChatBotWizard Scores and Parsing', () => {
 
         fireEvent.click(screen.getByText('Add Ranking'));
 
-        // The "Mapping" box should now show the scores
+        // The "Mapping" box should now show the scores per response (not averaged)
         await waitFor(() => {
-            // Model B was 1st, Model A was 2nd and 3rd
-            // Model B avg: 1.0, Model A avg: (2+3)/2 = 2.5
+            // B1 was 1st (score 1), A1 was 2nd (score 2), A2 was 3rd (score 3)
 
             // Labels in MappingBox strip 'Response ' so 'Response B1' becomes 'Model B1'
             const modelBItem = screen.getByText('Model B1').closest('.mapping-item');
             expect(modelBItem.textContent).toContain('1');
 
             const modelA1Item = screen.getByText('Model A1').closest('.mapping-item');
-            expect(modelA1Item.textContent).toContain('2.5');
+            expect(modelA1Item.textContent).toContain('2'); // Per-response score, not averaged
 
             const modelA2Item = screen.getByText('Model A2').closest('.mapping-item');
-            expect(modelA2Item.textContent).toContain('2.5');
+            expect(modelA2Item.textContent).toContain('3'); // Per-response score, not averaged
         });
     });
 
