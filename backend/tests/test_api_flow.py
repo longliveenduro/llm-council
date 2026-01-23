@@ -21,9 +21,9 @@ async def test_run_automation_passes_image():
          patch("backend.main.run_claude_automation", new_callable=AsyncMock) as mock_claude, \
          patch("backend.main.run_ai_studio_automation", new_callable=AsyncMock) as mock_ai_studio:
         
-        mock_chatgpt.return_value = ("Response", False)
-        mock_claude.return_value = ("Response", False)
-        mock_ai_studio.return_value = "Response"
+        mock_chatgpt.return_value = {"response": "Response", "error": False, "error_msgs": None, "error_type": None}
+        mock_claude.return_value = {"response": "Response", "error": False, "error_msgs": None, "error_type": None}
+        mock_ai_studio.return_value = {"response": "Response", "error": False, "error_msgs": None, "error_type": None}
         
         image_data = "data:image/png;base64,TEST_DATA"
         
@@ -74,7 +74,7 @@ async def test_run_automation_passes_image():
 @patch("backend.main.run_ai_studio_automation", new_callable=AsyncMock)
 async def test_run_automation_multiple_images(mock_run):
     """Test that multiple images are correctly passed from the API to the automation function."""
-    mock_run.return_value = "Response with multiple images"
+    mock_run.return_value = {"response": "Response with multiple images", "error": False, "error_msgs": None, "error_type": None}
     
     test_images = ["data:image/png;base64,img1...", "data:image/jpeg;base64,img2..."]
     
@@ -89,9 +89,39 @@ async def test_run_automation_multiple_images(mock_run):
     )
     
     assert response.status_code == 200
-    assert response.json() == {"response": "Response with multiple images", "thinking_used": True}
+    assert response.json() == {"response": "Response with multiple images", "error": False, "error_msgs": None, "error_type": None}
     
     # Verify that run_ai_studio_automation was called with the images list
     mock_run.assert_called_once()
     args, kwargs = mock_run.call_args
     assert kwargs["images"] == test_images
+
+@pytest.mark.asyncio
+@patch("backend.main.run_chatgpt_automation", new_callable=AsyncMock)
+async def test_run_automation_thinking_failure(mock_run):
+    """Test that thinking mode activation failure returns the correct error JSON."""
+    mock_run.return_value = {
+        "response": None,
+        "error": True,
+        "error_msgs": "Thinking mode requested but could not be activated.",
+        "error_type": "thinking_not_activated"
+    }
+    
+    response = client.post(
+        "/api/web-chatbot/run-automation",
+        json={
+            "prompt": "Test thinking failure",
+            "model": "gpt-4o-thinking",
+            "provider": "chatgpt"
+        }
+    )
+    
+    assert response.status_code == 200
+    assert response.json() == {
+        "response": None,
+        "error": True,
+        "error_msgs": "Thinking mode requested but could not be activated.",
+        "error_type": "thinking_not_activated"
+    }
+    
+    mock_run.assert_called_once()

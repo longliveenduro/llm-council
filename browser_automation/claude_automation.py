@@ -919,7 +919,6 @@ async def main():
             response = await send_prompt(page, args.prompt, model=args.model, image_paths=args.image)
             
             # Print legacy markers for safety
-            print(f"\nTHINKING_USED={str(thinking_used).lower()}")
             print("RESULT_START")
             print(response)
             print("RESULT_END")
