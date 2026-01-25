@@ -181,6 +181,32 @@ export default function WebChatBotWizard({ conversationId, currentTitle, previou
         return calculateCurrentScores(stage2Responses, labelToModel);
     }, [stage2Responses, labelToModel]);
 
+    const failedProviderInfo = useMemo(() => {
+        if (lastAutomationProvider === 'chatgpt') return { label: 'ChatGPT', key: 'chatgpt' };
+        if (lastAutomationProvider === 'claude') return { label: 'Claude', key: 'claude' };
+        return { label: 'AI Studio', key: 'ai_studio' };
+    }, [lastAutomationProvider]);
+
+    // Derived mapping for Step 1 to prevent sync issues
+    const step1Mapping = useMemo(() => {
+        const modelOrder = [];
+        const modelCounts = {};
+        const mapping = {};
+        stage1Responses.forEach((r) => {
+            const modelKey = r.model;
+            if (!modelCounts[modelKey]) {
+                modelCounts[modelKey] = 0;
+                modelOrder.push(modelKey);
+            }
+            modelCounts[modelKey]++;
+            const letterIdx = modelOrder.indexOf(modelKey);
+            const letter = String.fromCharCode(65 + letterIdx);
+            const roundNum = modelCounts[modelKey];
+            mapping[`Response ${letter}${roundNum}`] = r.model;
+        });
+        return mapping;
+    }, [stage1Responses]);
+
     // Sync aiStudioModel with available models
     useEffect(() => {
         const fallbacks = ['Gemini 3 Flash', 'Gemini 2.5 Flash', 'Gemini 1.5 Flash'];
@@ -430,7 +456,7 @@ Title:`;
         setIsAutomating(true);
         setCurrentText('');
         setLastThinkingUsed(null);
-        setLastAutomationProvider(null);
+        setLastAutomationProvider(provider);
 
         // In Step 1, run multiple rounds based on roundsPerModel
         const numRounds = step === 1 ? roundsPerModel : 1;
@@ -498,6 +524,7 @@ Title:`;
                     if (data.error) {
                         setCurrentText(responseText);
                         setLastThinkingUsed(false);
+                        setLastAutomationProvider(provider);
                         alert(`Automation round ${round} failed: ${data.error_msgs}`);
                         break; // Stop multi-round on error
                     }
@@ -589,7 +616,7 @@ Title:`;
         setIsAutomating(true);
         setStage3Response(prev => ({ ...prev, response: '' }));
         setLastThinkingUsed(null);
-        setLastAutomationProvider(null);
+        setLastAutomationProvider(provider);
         try {
             // Use the best available model for this provider
             let modelToUse = null;
@@ -906,7 +933,7 @@ Title:`;
                         });
                     })()}
                 </div>
-                {stage1Responses.length > 0 && <MappingBox labelToModel={labelToModel} scores={currentScores} />}
+                {stage1Responses.length > 0 && <MappingBox labelToModel={step1Mapping} scores={currentScores} />}
             </div>
             <div className="add-response-form">
                 <div className="model-input-group">
@@ -958,7 +985,30 @@ Title:`;
                         {isCurrentResponseError && (
                             <div className={`error-indicator-box ${currentErrorType}`}>
                                 <span className="error-icon">⚠️</span>
-                                <span className="error-message">Error in automation. Check the message above.</span>
+                                <div className="error-message-content">
+                                    <span className="error-message">{currentText}</span>
+                                    {currentErrorType === 'quota_exceeded' && (
+                                        <div className="quota-suggestion">
+                                            <strong>Tip:</strong> Try logging out of {failedProviderInfo.label} and logging in with a different free account to continue.
+                                            <button
+                                                className="error-action-btn"
+                                                onClick={async () => {
+                                                    if (window.confirm(`Logout from ${failedProviderInfo.label}? This will clear your current browser session.`)) {
+                                                        try {
+                                                            await api.logoutAutomation(failedProviderInfo.key);
+                                                            alert('Logged out! You can now run the automation again to log in with a different account.');
+                                                            setIsCurrentResponseError(false);
+                                                        } catch (err) {
+                                                            alert('Logout failed: ' + err.message);
+                                                        }
+                                                    }
+                                                }}
+                                            >
+                                                Logout of {failedProviderInfo.label}
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
                         )}
                     </div>

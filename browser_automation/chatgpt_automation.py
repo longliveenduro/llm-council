@@ -150,6 +150,9 @@ async def check_image_upload_quota_error(page: Page) -> bool:
             "upload limit reached",
             "quota exceeded",
             "user quota exceeded",
+            "upgrade to go for more uploads",
+            "wait", # "wait 16 hours" etc. - a bit broad but safe if combined with context or if it appears in error dialogs
+            "upgrade to plus",
         ]
         
         for pattern in quota_error_patterns:
@@ -285,14 +288,70 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None, image
     if image_paths:
         print(f"[DEBUG] Processing {len(image_paths)} images for ChatGPT...")
         attached_direct = False
-        # 1. Try direct upload via hidden input first
+        # 1. Plus Menu Check (Most robust way to detect quota)
+        print("[DEBUG] Opening Plus menu to check for upload quota...")
+        try:
+            # Open menu
+            plus_btn = await page.wait_for_selector('button[data-testid="composer-plus-btn"], button[aria-label*="Add files"], button[aria-label*="Attach"]', timeout=5000)
+            if plus_btn:
+                await plus_btn.click(force=True)
+                await asyncio.sleep(1.0) # Wait for menu
+                
+                # Inspect items
+                menu_items = await page.query_selector_all('[role="menuitem"], [role="option"], button, div, li')
+                has_upgrade = False
+                has_upload = False
+                upload_item = None
+                
+                for item in menu_items:
+                    try:
+                        if not await item.is_visible(): continue
+                        text = await item.inner_text()
+                        if not text: continue
+                        
+                        text_lower = text.lower()
+                        if "upgrade to go" in text_lower or "wait" in text_lower and "hour" in text_lower:
+                            print(f"[DEBUG] Found quota limit in menu: '{text.strip()}'")
+                            has_upgrade = True
+                        if "add photos & files" in text_lower or "attach files" in text_lower:
+                            has_upload = True
+                            upload_item = item
+                    except: continue
+                
+                # Check results
+                if has_upgrade:
+                    error_msg = "ChatGPT image upload quota exceeded. Free tier users have a daily limit on image uploads. Please wait, upgrade to ChatGPT Plus, or try logging out and back in with a different free account for more uploads."
+                    print_json_output(error_msgs=error_msg, error=True, error_type="quota_exceeded")
+                    raise Exception(error_msg)
+                
+                if not has_upload:
+                    # Double check if maybe it's actually there but text changed, but usually it should be there.
+                    # If we don't even see the upgrade message, maybe it's a different UI state.
+                    # But per user report, "Add photos & files" is missing.
+                    print("[WARNING] 'Add photos & files' option is missing from the menu.")
+                    # We'll do a quick check of body text just in case
+                    if await check_image_upload_quota_error(page):
+                         error_msg = "ChatGPT image upload quota exceeded. Free tier users have a daily limit on image uploads. Please wait, upgrade to ChatGPT Plus, or try logging out and back in with a different free account for more uploads."
+                         print_json_output(error_msgs=error_msg, error=True, error_type="quota_exceeded")
+                         raise Exception(error_msg)
+            
+            # Close menu if we aren't using the file chooser path immediately
+            # (If we use hidden input, we don't need the menu open, but keeping it open doesn't hurt much if we find the input)
+            await page.keyboard.press("Escape")
+            await asyncio.sleep(0.3)
+        except Exception as e:
+            if "quota exceeded" in str(e).lower():
+                raise
+            print(f"[DEBUG] Menu check failed or timed out: {e}")
+
+        # 2. Try direct upload via hidden input
         try:
             file_input = await page.query_selector('input[type="file"]')
             if file_input:
                 print("[DEBUG] Found hidden file input in ChatGPT, setting all files...")
                 await file_input.set_input_files(image_paths)
                 # Wait for any thumbnail
-                await page.wait_for_selector('button[aria-label="Remove attachment"], [data-testid="attachment-thumbnail"], [data-testid="bubble-file"], div[class*="attachment"]', timeout=10000)
+                await page.wait_for_selector('button[aria-label="Remove attachment"], [data-testid="attachment-thumbnail"], [data-testid="bubble-file"], div[class*="attachment"]', timeout=15000)
                 print("[DEBUG] Images attached via hidden input in ChatGPT.")
                 attached_direct = True
             else:
@@ -300,30 +359,36 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None, image
         except Exception as e:
             print(f"[DEBUG] Direct upload attempt in ChatGPT failed: {e}")
 
-        # 2. Sequential fallback (only if direct didn't work)
+        # 3. Sequential fallback (only if direct didn't work)
         if not attached_direct:
             for image_path in image_paths:
                 if not image_path: continue
                 
                 print(f"Uploading image to ChatGPT: {image_path}")
                 try:
-                    # Try to find attachment button
-                    attach_btn = await page.wait_for_selector('button[aria-label="Add photos and files"], button[aria-label="Attach files"], [data-testid="attach-button"]', timeout=5000)
-                    
-                    if attach_btn:
-                         async with page.expect_file_chooser() as fc_info:
-                             await attach_btn.click()
-                         file_chooser = await fc_info.value
-                         await file_chooser.set_files(image_path)
-                         print("[DEBUG] Image set via file chooser.")
-                    else:
-                        # Fallback to direct input inside loop
-                        file_input = await page.query_selector('input[type="file"]')
-                        if file_input:
-                            await file_input.set_input_files(image_path)
-                            print("[DEBUG] Image set via hidden input in loop.")
-                        else:
-                            print("[ERROR] Could not find attachment mechanism.")
+                    # Try to find attachment button - we just checked this in the menu path above
+                    plus_btn = await page.wait_for_selector('button[data-testid="composer-plus-btn"], button[aria-label*="Add files"], button[aria-label*="Attach"]', timeout=5000)
+                    if plus_btn:
+                         await plus_btn.click(force=True)
+                         await asyncio.sleep(1.0)
+                         
+                         # Find the specific "Add photos & files" item
+                         attach_btn = await page.wait_for_selector('div[role="menuitem"]:has-text("Add photos & files"), button:has-text("Add photos & files"), [role="menuitem"]:has-text("Attach files")', timeout=5000)
+                         
+                         if attach_btn:
+                             async with page.expect_file_chooser() as fc_info:
+                                 await attach_btn.click()
+                             file_chooser = await fc_info.value
+                             await file_chooser.set_files(image_path)
+                             print("[DEBUG] Image set via file chooser.")
+                         else:
+                             # Fallback to direct input inside loop if menu item specifically not found
+                             file_input = await page.query_selector('input[type="file"]')
+                             if file_input:
+                                 await file_input.set_input_files(image_path)
+                                 print("[DEBUG] Image set via hidden input in loop.")
+                             else:
+                                 raise Exception("Could not find attachment mechanism in menu or hidden input.")
                     
                     # Wait for upload to complete
                     await page.wait_for_selector('button[aria-label="Remove attachment"], [data-testid="attachment-thumbnail"], [data-testid="bubble-file"], div[class*="attachment"]', timeout=30000)
@@ -331,22 +396,32 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None, image
                     
                 except Exception as e:
                     print(f"[ERROR] Failed to upload image {image_path}: {e}")
-                    try:
-                        html = await page.content()
-                        with open("chatgpt_dump.html", "w") as f:
-                            f.write(html)
-                        print("Dumped HTML to chatgpt_dump.html")
-                    except:
-                        pass
+                    # FINAL CHECK: if it failed, it might be quota
+                    if await check_image_upload_quota_error(page):
+                         error_msg = f"ChatGPT image upload quota exceeded. Free tier users have a daily limit on image uploads. Please wait, upgrade to ChatGPT Plus, or try logging out and back in with a different free account for more uploads."
+                         print_json_output(error_msgs=error_msg, error=True, error_type="quota_exceeded")
+                         raise Exception(error_msg)
+                    
+                    # If not quota, it's a hard failure
+                    raise Exception(f"Failed to upload image {image_path}. Check logs or connection.")
 
-        # Check for quota errors after upload attempts
-        await asyncio.sleep(0.5)  # Allow time for error messages to appear
-        if await check_image_upload_quota_error(page):
-            # We use a specific message that the backend can recognize if JSON parsing fails,
-            # but ideally the JSON output will handle it.
-            error_msg = "ChatGPT image upload quota exceeded. Free tier users have a daily limit on image uploads. Please wait or upgrade to ChatGPT Plus."
-            print_json_output(error_msgs=error_msg, error=True, error_type="quota_exceeded")
-            raise Exception(error_msg)
+        # FINAL VERIFICATION: Ensure images are actually attached
+        try:
+             # Look for thumbnail or remove button
+             attached = await page.query_selector('button[aria-label="Remove attachment"], [data-testid="attachment-thumbnail"], [data-testid="bubble-file"], div[class*="attachment"]')
+             if not attached:
+                  # One last check for quick quota message
+                  if await check_image_upload_quota_error(page):
+                      raise Exception("Quota exceeded")
+                  raise Exception("No attachment detected after upload process.")
+        except Exception as e:
+             if "Quota exceeded" in str(e):
+                  error_msg = "ChatGPT image upload quota exceeded. Free tier users have a daily limit on image uploads. Please wait, upgrade to ChatGPT Plus, or try logging out and back in with a different free account for more uploads."
+                  print_json_output(error_msgs=error_msg, error=True, error_type="quota_exceeded")
+                  raise Exception(error_msg)
+             else:
+                  raise Exception(f"Image upload verification failed: {e}")
+
 
     # Click on the input to focus it
     await page.click(input_selector, timeout=10000)
