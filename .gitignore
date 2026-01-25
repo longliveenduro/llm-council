@@ -18,6 +18,9 @@ data/
 # lock files
 uv.lock
 
+# log files
+*.log
+
 # Frontend
 frontend/node_modules/
 frontend/dist/
