@@ -139,14 +139,14 @@ describe('WebChatBotWizard Resume Logic', () => {
         fireEvent.click(screen.getByText('Write'));
 
         // 2. Enter response
-        const responseArea = screen.getByPlaceholderText('Model Response');
+        const responseArea = screen.getByPlaceholderText('Paste Model Response here...');
         fireEvent.change(responseArea, { target: { value: 'Test Response Content' } });
 
         // 3. Add response
         fireEvent.click(screen.getByText('Add Response'));
 
         // 4. Click Next
-        const nextBtn = screen.getByText('Next: Peer Review');
+        const nextBtn = screen.getByText('Next: Peer Review →');
         fireEvent.click(nextBtn);
 
         await waitFor(() => {

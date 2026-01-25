@@ -50,12 +50,12 @@ describe('WebChatBotWizard Title Generation', () => {
 
         // Manual entry or automation (mocked)
         fireEvent.click(screen.getByText('Write'));
-        const responseArea = screen.getByPlaceholderText('Model Response');
+        const responseArea = screen.getByPlaceholderText('Paste Model Response here...');
         fireEvent.change(responseArea, { target: { value: 'Test response' } });
         fireEvent.click(screen.getByText('Add Response'));
 
         // Click Peer Review
-        const nextBtn = screen.getByText('Next: Peer Review');
+        const nextBtn = screen.getByText('Next: Peer Review →');
         fireEvent.click(nextBtn);
 
         await waitFor(() => {

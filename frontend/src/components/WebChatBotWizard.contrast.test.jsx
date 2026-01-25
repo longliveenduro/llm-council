@@ -34,7 +34,7 @@ describe('WebChatBotWizard Contrast', () => {
         expect(screen.getByText(/Your Question:/i)).toBeInTheDocument();
         const questionLabel = screen.getByText(/Your Question:/i);
         const questionGroupStyle = window.getComputedStyle(questionLabel.closest('.form-group'));
-        expect(questionGroupStyle.marginBottom).toBe('16px');
+        expect(questionGroupStyle.marginBottom).toBe('20px');
 
         // Verify "Rounds per Council Member" section
         expect(screen.getByText(/Rounds per Council Member:/i)).toBeInTheDocument();

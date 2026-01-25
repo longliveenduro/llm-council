@@ -36,7 +36,7 @@ describe('WebChatBotWizard Tab Switching', () => {
         // Clicking Preview should show "Nothing to preview"
         fireEvent.click(previewBtn);
         expect(screen.getByText('Nothing to preview')).toBeInTheDocument();
-        expect(screen.queryByPlaceholderText('Model Response')).not.toBeInTheDocument();
+        expect(screen.queryByPlaceholderText('Paste Model Response here...')).not.toBeInTheDocument();
 
         // Clicking Write should show Textarea again
         fireEvent.click(writeBtn);
