@@ -1,10 +1,12 @@
 import base64
 import os
+from pathlib import Path
 from fastapi.testclient import TestClient
 from backend.main import app
 
 # Use a real image from the environment for testing
-TEST_IMAGE_PATH = "/home/chris/prj/llm-council/frontend/public/header.jpg"
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+TEST_IMAGE_PATH = str(PROJECT_ROOT / "frontend" / "public" / "header.jpg")
 
 def test_image_save_integration():
     client = TestClient(app)
@@ -35,7 +37,7 @@ def test_image_save_integration():
     assert resp.status_code == 200
     
     # 4. Verify image exists in backend/data/images
-    images_dir = "/home/chris/prj/llm-council/backend/data/images"
+    images_dir = PROJECT_ROOT / "backend" / "data" / "images"
     files = os.listdir(images_dir)
     assert len(files) > 0
     
