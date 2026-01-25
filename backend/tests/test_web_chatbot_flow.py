@@ -1,4 +1,3 @@
-import asyncio
 from fastapi.testclient import TestClient
 from backend.main import app
 
@@ -6,7 +5,6 @@ def test_web_chatbot_flow():
     client = TestClient(app)
     
     # 1. Test Stage 2 Prompt Generation
-    print("\n--- Testing Stage 2 Prompt Generation ---")
     query = "What is the capital of France?"
     stage1_results = [
         {"model": "Model A", "response": "Paris"},
@@ -19,19 +17,16 @@ def test_web_chatbot_flow():
     )
     assert response.status_code == 200
     data = response.json()
-    print("Stage 2 Prompt generated successfully.")
-    print(f"Prompt length: {len(data['prompt'])}")
-    assert "Response A" in data["prompt"]
-    assert "Response B" in data["prompt"]
-    assert "Model A" == data["label_to_model"]["Response A"]
+    assert "Response A1" in data["prompt"]
+    assert "Response B1" in data["prompt"]
+    assert "Model A" == data["label_to_model"]["Response A1"]
     
     label_to_model = data["label_to_model"]
 
     # 2. Test Processing Rankings
-    print("\n--- Testing Ranking Processing ---")
     stage2_results = [
-        {"model": "Model A", "ranking": "FINAL RANKING:\n1. Response B\n2. Response A"},
-        {"model": "Model B", "ranking": "FINAL RANKING: 1. Response A. 2. Response B"}
+        {"model": "Model A", "ranking": "FINAL RANKING:\n1. Response B1\n2. Response A1"},
+        {"model": "Model B", "ranking": "FINAL RANKING: 1. Response A1. 2. Response B1"}
     ]
     
     response = client.post(
@@ -40,18 +35,15 @@ def test_web_chatbot_flow():
     )
     assert response.status_code == 200
     data = response.json()
-    print("Rankings processed successfully.")
     
     processed = data["stage2_results"]
     assert len(processed) == 2
-    assert processed[0]["parsed_ranking"] == ["Response B", "Response A"]
+    assert processed[0]["parsed_ranking"] == ["Response B1", "Response A1"]
     
     aggregate = data["aggregate_rankings"]
-    print("Aggregate Rankings:", aggregate)
     assert len(aggregate) == 2
 
     # 3. Test Stage 3 Prompt Generation
-    print("\n--- Testing Stage 3 Prompt Generation ---")
     response = client.post(
         "/api/web-chatbot/stage3-prompt",
         json={
@@ -62,12 +54,10 @@ def test_web_chatbot_flow():
     )
     assert response.status_code == 200
     data = response.json()
-    print("Stage 3 Prompt generated successfully.")
     assert "STAGE 1" in data["prompt"]
     assert "STAGE 2" in data["prompt"]
 
     # 4. Test Saving Web ChatBot Message with Title
-    print("\n--- Testing Save Web ChatBot Message ---")
     # First create a conversation
     resp = client.post("/api/conversations", json={})
     conv_id = resp.json()["id"]
@@ -87,7 +77,6 @@ def test_web_chatbot_flow():
         json=manual_message_data
     )
     assert response.status_code == 200
-    print("Manual message saved successfully.")
     
     # Verify it's in the conversation AND title is set
     resp = client.get(f"/api/conversations/{conv_id}")
@@ -98,9 +87,3 @@ def test_web_chatbot_flow():
     assert messages[1]["role"] == "assistant"
     assert messages[1]["stage3"]["response"] == "Final Answer is Paris."
     assert conv_data["title"] == manual_title
-    print("Verified message content and manual title in storage.")
-
-    print("\n✓ All Web ChatBot backend tests passed!")
-
-if __name__ == "__main__":
-    test_web_chatbot_flow()
