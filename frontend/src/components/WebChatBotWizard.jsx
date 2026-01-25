@@ -964,7 +964,7 @@ Title:`;
                                     )}
                                 </div>
                             ) : (
-                                <textarea value={currentText} onChange={(e) => { setCurrentText(e.target.value); setIsCurrentResponseError(false); }} rows={6} placeholder="Paste Model Response here..." />
+                                <textarea value={currentText} onChange={(e) => { setCurrentText(e.target.value); setIsCurrentResponseError(false); }} rows={6} placeholder="Response by LLM will go here..." />
                             )}
                             {isCurrentResponseError && (
                                 <div className={`error-indicator-box ${currentErrorType}`}>
@@ -1016,16 +1016,7 @@ Title:`;
 
             <div className="wizard-actions stage1-actions">
                 <div className="left-actions">
-                    <button onClick={onCancel} className="secondary-btn cancel-btn" title="Exit wizard without saving">Cancel & Exit</button>
-                    {(userQuery || stage1Responses.length > 0) && (
-                        <button
-                            onClick={() => { if (window.confirm('Clear all inputs and responses? This cannot be undone.')) { localStorage.removeItem(draftKey); window.location.reload(); } }}
-                            className="secondary-btn discard-btn"
-                            title="Discard current draft and reset everything"
-                        >
-                            Discard Draft
-                        </button>
-                    )}
+                    <button onClick={onCancel} className="primary-btn next-btn" title="Save current state and exit wizard">Save & Exit</button>
                 </div>
                 <button onClick={handleGoToStep2} className="primary-btn next-btn" disabled={!userQuery || stage1Responses.length === 0}>Next: Peer Review →</button>
             </div>
@@ -1171,7 +1162,6 @@ Title:`;
                 <div className="wizard-actions">
                     <div className="left-actions">
                         <button onClick={() => setStep(1)} className="secondary-btn">Back</button>
-                        <button onClick={() => { if (window.confirm('Reset?')) { localStorage.removeItem(draftKey); window.location.reload(); } }} className="secondary-btn discard-btn">Discard</button>
                     </div>
                     <button onClick={handleGoToStep3} className="primary-btn" disabled={stage2Responses.length === 0}>Next: Synthesis</button>
                 </div>
@@ -1327,7 +1317,6 @@ Title:`;
             <div className="wizard-actions">
                 <div className="left-actions">
                     <button onClick={() => setStep(2)} className="secondary-btn">Back</button>
-                    <button onClick={() => { if (window.confirm('Reset?')) { localStorage.removeItem(draftKey); window.location.reload(); } }} className="secondary-btn discard-btn">Discard</button>
                 </div>
                 <button onClick={handleComplete} className="primary-btn complete-btn" disabled={!stage3Response.response || isCurrentResponseError}>Finish & Save</button>
             </div>
