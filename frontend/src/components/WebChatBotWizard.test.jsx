@@ -84,7 +84,7 @@ describe('WebChatBotWizard Claude Integration', () => {
         fireEvent.click(screen.getByText('Write'));
 
         // Check if response is displayed
-        const responseArea = screen.getByPlaceholderText('Model Response');
+        const responseArea = screen.getByPlaceholderText('Paste Model Response here...');
         expect(responseArea).toHaveValue('Claude says hello');
     });
 
@@ -430,7 +430,7 @@ describe('WebChatBotWizard Gemini Reference Display', () => {
 
         await waitFor(() => {
             // Check in the Write tab first (textarea)
-            const textArea = screen.getByPlaceholderText('Model Response');
+            const textArea = screen.getByPlaceholderText('Paste Model Response here...');
             expect(textArea.value).toContain('---');
             expect(textArea.value).toContain('#### Sources');
         });

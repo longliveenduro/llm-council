@@ -807,203 +807,227 @@ Title:`;
         <div className="wizard-step">
             <h3>{isFollowUp ? 'Step 1: Follow Up Opinions' : 'Step 1: Initial Opinions'}</h3>
             <p className="step-desc">Enter query and add model responses. Click existing response to view full content.</p>
-            <div className="form-group">
-                <label htmlFor="user-query">Your Question:</label>
-                <textarea id="user-query" value={userQuery} onChange={(e) => setUserQuery(e.target.value)} rows={4} />
-            </div>
-            <div className="form-group rounds-per-model-section">
-                <label htmlFor="rounds-per-model">Rounds per Council Member:</label>
-                <div className="rounds-input-wrapper">
-                    <input
-                        type="number"
-                        id="rounds-per-model"
-                        value={roundsPerModel}
-                        onChange={(e) => setRoundsPerModel(Math.max(1, parseInt(e.target.value) || 1))}
-                        min="1"
-                        max="10"
-                        className="rounds-input"
-                        aria-label="Rounds per Council Member"
-                    />
-                    <span className="rounds-hint">Each model will provide this many independent responses</span>
-                </div>
-            </div>
 
-            {/* Image Upload Section */}
-            <div className="form-group image-upload-section">
-                <label>Attach Images (Optional):</label>
-                <div className="image-input-wrapper">
-                    <input
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        onChange={(e) => {
-                            const files = Array.from(e.target.files);
-                            if (files.length > 0) {
-                                // Upload multiple files immediately
-                                Promise.all(files.map(file => {
-                                    return api.uploadImage(file)
-                                        .then(data => data.url)
-                                        .catch(err => {
-                                            console.error("Error uploading file", err);
-                                            alert(`Failed to upload ${file.name}`);
-                                            return null;
-                                        });
-                                })).then(results => {
-                                    // Filter out failures
-                                    const validUrls = results.filter(url => url !== null);
-                                    setSelectedImages(prev => [...prev, ...validUrls]);
-                                    // Reset input
-                                    e.target.value = null;
-                                });
-                            }
-                        }}
-                        style={{ display: 'none' }}
-                        id="image-upload-input"
-                    />
-                    <label htmlFor="image-upload-input" className="image-upload-btn secondary-btn">
-                        {selectedImages.length > 0 ? 'Add More Images' : '📷 Add Images'}
-                    </label>
-                    {selectedImages.map((img, idx) => (
-                        <div key={idx} className="image-preview-container">
-                            <img src={api.getImageUrl(img)} alt={`Preview ${idx}`} className="image-preview-thumb" />
-                            <button className="remove-image-btn" onClick={() => setSelectedImages(prev => prev.filter((_, i) => i !== idx))} title="Remove Image">×</button>
-                        </div>
-                    ))}
-                </div>
-            </div>
-
-            <div className={stage1Responses.length > 0 ? "prompt-col-layout" : ""}>
-                <div className="responses-list" style={stage1Responses.length > 0 ? { flex: 2, marginBottom: 0 } : {}}>
-                    {stage1Responses.length === 0 && <div className="no-responses-hint" style={{ color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic', textAlign: 'center', padding: '12px' }}>No responses added yet.</div>}
-                    {(() => {
-                        const modelCounts = {};
-                        const modelOrder = [];
-                        return stage1Responses.map((r, i) => {
-                            const modelKey = r.model;
-                            if (!modelCounts[modelKey]) {
-                                modelCounts[modelKey] = 0;
-                                modelOrder.push(modelKey);
-                            }
-                            modelCounts[modelKey]++;
-                            const letterIdx = modelOrder.indexOf(modelKey);
-                            const letter = String.fromCharCode(65 + letterIdx);
-                            const roundNum = modelCounts[modelKey];
-                            const label = `${letter}${roundNum}`;
-
-                            return (
-                                <div key={i} className="response-item clickable-response-item" onClick={() => setViewingResponse(r)} title="Click to view full response">
-                                    <div className="response-header">
-                                        <span className="response-model-label">Model {label}:</span> <ModelBadge model={r.model} />:
-                                    </div>
-                                    <div className="response-preview">
-                                        {r.response.substring(0, 50)}...
-                                    </div>
-                                </div>
-                            );
-                        });
-                    })()}
-                </div>
-                {stage1Responses.length > 0 && <MappingBox labelToModel={step1Mapping} scores={currentScores} />}
-            </div>
-            <div className="add-response-form">
-                <div className="model-input-group">
-                    <select id="current-model-select" value={currentModel} onChange={(e) => setCurrentModel(e.target.value)} className="model-select" aria-label="Current Model">
-                        <option value="">Select Model...</option>
-                        {llmNames.map(name => <option key={name} value={name}>{name}</option>)}
-                    </select>
-                    {lastThinkingUsed !== null && (
-                        <span className={`thinking-indicator ${lastThinkingUsed ? 'thinking-on' : 'thinking-off'}`} title={lastThinkingUsed ? 'Thinking was enabled' : 'Thinking was not enabled'}>
-                            {lastThinkingUsed ? '🧠 Thinking' : '💭 No Thinking'}
-                        </span>
-                    )}
-                </div>
-
-                <div className="input-tabs-container">
-                    <div className="input-tabs">
-                        <button
-                            type="button"
-                            className={`input-tab ${!showPreview ? 'active' : ''}`}
-                            onClick={() => setShowPreview(false)}
-                        >
-                            Write
-                        </button>
-                        <button
-                            type="button"
-                            className={`input-tab ${showPreview ? 'active' : ''}`}
-                            onClick={() => setShowPreview(true)}
-                        >
-                            Preview
-                        </button>
-                    </div>
-                    <div className="input-content-wrapper" key={showPreview ? 'preview' : 'write'}>
-                        {showPreview ? (
-                            <div className="input-preview-content markdown-content">
-                                {currentText ? (
-                                    <ReactMarkdown
-                                        remarkPlugins={[remarkMath, remarkGfm]}
-                                        rehypePlugins={[rehypeKatex]}
-                                    >
-                                        {currentText}
-                                    </ReactMarkdown>
-                                ) : (
-                                    <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Nothing to preview</span>
-                                )}
-                            </div>
-                        ) : (
-                            <textarea value={currentText} onChange={(e) => { setCurrentText(e.target.value); setIsCurrentResponseError(false); }} rows={8} placeholder="Model Response" />
-                        )}
-                        {isCurrentResponseError && (
-                            <div className={`error-indicator-box ${currentErrorType}`}>
-                                <span className="error-icon">⚠️</span>
-                                <div className="error-message-content">
-                                    <span className="error-message">Error in automation. Check the summary above.</span>
-                                    <span className="error-message">{currentText}</span>
-                                    {currentErrorType === 'quota_exceeded' && (
-                                        <div className="quota-suggestion">
-                                            <strong>Tip:</strong> Try logging out of {failedProviderInfo.label} and logging in with a different free account to continue.
-                                            <button
-                                                className="error-action-btn"
-                                                onClick={async () => {
-                                                    if (window.confirm(`Logout from ${failedProviderInfo.label}? This will clear your current browser session.`)) {
-                                                        try {
-                                                            await api.logoutAutomation(failedProviderInfo.key);
-                                                            alert('Logged out! You can now run the automation again to log in with a different account.');
-                                                            setIsCurrentResponseError(false);
-                                                        } catch (err) {
-                                                            alert('Logout failed: ' + err.message);
-                                                        }
-                                                    }
-                                                }}
-                                            >
-                                                Logout of {failedProviderInfo.label}
-                                            </button>
+            <div className="query-section">
+                <div className="form-group query-input-group">
+                    <label htmlFor="user-query">Your Question:</label>
+                    <div className="query-textarea-container">
+                        <textarea
+                            id="user-query"
+                            value={userQuery}
+                            onChange={(e) => setUserQuery(e.target.value)}
+                            placeholder="Type your question here..."
+                            rows={4}
+                        />
+                        <div className="query-textarea-footer">
+                            <div className="image-attachment-area">
+                                <input
+                                    type="file"
+                                    accept="image/*"
+                                    multiple
+                                    onChange={(e) => {
+                                        const files = Array.from(e.target.files);
+                                        if (files.length > 0) {
+                                            Promise.all(files.map(file => {
+                                                return api.uploadImage(file)
+                                                    .then(data => data.url)
+                                                    .catch(err => {
+                                                        console.error("Error uploading file", err);
+                                                        alert(`Failed to upload ${file.name}`);
+                                                        return null;
+                                                    });
+                                            })).then(results => {
+                                                const validUrls = results.filter(url => url !== null);
+                                                setSelectedImages(prev => [...prev, ...validUrls]);
+                                                e.target.value = null;
+                                            });
+                                        }
+                                    }}
+                                    style={{ display: 'none' }}
+                                    id="image-upload-input"
+                                />
+                                <label htmlFor="image-upload-input" className="mini-image-upload-btn" title="Add Images">
+                                    📷 Add Images
+                                </label>
+                                <div className="attached-images-strip">
+                                    {selectedImages.map((img, idx) => (
+                                        <div key={idx} className="mini-image-preview">
+                                            <img src={api.getImageUrl(img)} alt={`Preview ${idx}`} />
+                                            <button className="mini-remove-btn" onClick={() => setSelectedImages(prev => prev.filter((_, i) => i !== idx))} title="Remove">×</button>
                                         </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="form-group rounds-per-model-section">
+                    <label htmlFor="rounds-per-model">Rounds per Council Member:</label>
+                    <div className="rounds-input-wrapper">
+                        <input
+                            type="number"
+                            id="rounds-per-model"
+                            value={roundsPerModel}
+                            onChange={(e) => setRoundsPerModel(Math.max(1, parseInt(e.target.value) || 1))}
+                            min="1"
+                            max="10"
+                            className="rounds-input"
+                            aria-label="Rounds per Council Member"
+                        />
+                        <span className="rounds-hint">Each model will provide this many independent responses</span>
+                    </div>
+                </div>
+            </div>
+
+            <div className="responses-generation-block">
+                <div className="block-header">
+                    <div className="block-title">Model Responses & Generation</div>
+                </div>
+
+                <div className={stage1Responses.length > 0 ? "prompt-col-layout" : ""}>
+                    <div className="responses-list" style={stage1Responses.length > 0 ? { flex: 2, marginBottom: 0 } : {}}>
+                        {stage1Responses.length === 0 && <div className="no-responses-hint" style={{ color: 'var(--text-muted)', fontSize: '13px', fontStyle: 'italic', textAlign: 'center', padding: '12px' }}>No responses added yet.</div>}
+                        {(() => {
+                            const modelCounts = {};
+                            const modelOrder = [];
+                            return stage1Responses.map((r, i) => {
+                                const modelKey = r.model;
+                                if (!modelCounts[modelKey]) {
+                                    modelCounts[modelKey] = 0;
+                                    modelOrder.push(modelKey);
+                                }
+                                modelCounts[modelKey]++;
+                                const letterIdx = modelOrder.indexOf(modelKey);
+                                const letter = String.fromCharCode(65 + letterIdx);
+                                const roundNum = modelCounts[modelKey];
+                                const label = `${letter}${roundNum}`;
+
+                                return (
+                                    <div key={i} className="response-item clickable-response-item" onClick={() => setViewingResponse(r)} title="Click to view full response">
+                                        <div className="response-header">
+                                            <span className="response-model-label">Model {label}:</span> <ModelBadge model={r.model} />:
+                                        </div>
+                                        <div className="response-preview">
+                                            {r.response.substring(0, 50)}...
+                                        </div>
+                                    </div>
+                                );
+                            });
+                        })()}
+                    </div>
+                    {stage1Responses.length > 0 && <MappingBox labelToModel={step1Mapping} scores={currentScores} />}
+                </div>
+
+                <div className="add-response-form">
+                    <div className="model-input-group">
+                        <select id="current-model-select" value={currentModel} onChange={(e) => setCurrentModel(e.target.value)} className="model-select" aria-label="Current Model">
+                            <option value="">Select Model...</option>
+                            {llmNames.map(name => <option key={name} value={name}>{name}</option>)}
+                        </select>
+                        {lastThinkingUsed !== null && (
+                            <span className={`thinking-indicator ${lastThinkingUsed ? 'thinking-on' : 'thinking-off'}`} title={lastThinkingUsed ? 'Thinking was enabled' : 'Thinking was not enabled'}>
+                                {lastThinkingUsed ? '🧠 Thinking' : '💭 No Thinking'}
+                            </span>
+                        )}
+                    </div>
+
+                    <div className="input-tabs-container">
+                        <div className="input-tabs">
+                            <button
+                                type="button"
+                                className={`input-tab ${!showPreview ? 'active' : ''}`}
+                                onClick={() => setShowPreview(false)}
+                            >
+                                Write
+                            </button>
+                            <button
+                                type="button"
+                                className={`input-tab ${showPreview ? 'active' : ''}`}
+                                onClick={() => setShowPreview(true)}
+                            >
+                                Preview
+                            </button>
+                        </div>
+                        <div className="input-content-wrapper" key={showPreview ? 'preview' : 'write'}>
+                            {showPreview ? (
+                                <div className="input-preview-content markdown-content">
+                                    {currentText ? (
+                                        <ReactMarkdown
+                                            remarkPlugins={[remarkMath, remarkGfm]}
+                                            rehypePlugins={[rehypeKatex]}
+                                        >
+                                            {currentText}
+                                        </ReactMarkdown>
+                                    ) : (
+                                        <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Nothing to preview</span>
                                     )}
                                 </div>
-                            </div>
-                        )}
+                            ) : (
+                                <textarea value={currentText} onChange={(e) => { setCurrentText(e.target.value); setIsCurrentResponseError(false); }} rows={6} placeholder="Paste Model Response here..." />
+                            )}
+                            {isCurrentResponseError && (
+                                <div className={`error-indicator-box ${currentErrorType}`}>
+                                    <span className="error-icon">⚠️</span>
+                                    <div className="error-message-content">
+                                        <span className="error-message">Error in automation. Check the summary above.</span>
+                                        <span className="error-message">{currentText}</span>
+                                        {currentErrorType === 'quota_exceeded' && (
+                                            <div className="quota-suggestion">
+                                                <strong>Tip:</strong> Try logging out of {failedProviderInfo.label} and logging in with a different free account to continue.
+                                                <button
+                                                    className="error-action-btn"
+                                                    onClick={async () => {
+                                                        if (window.confirm(`Logout from ${failedProviderInfo.label}? This will clear your current browser session.`)) {
+                                                            try {
+                                                                await api.logoutAutomation(failedProviderInfo.key);
+                                                                alert('Logged out! You can now run the automation again to log in with a different account.');
+                                                                setIsCurrentResponseError(false);
+                                                            } catch (err) {
+                                                                alert('Logout failed: ' + err.message);
+                                                            }
+                                                        }
+                                                    }}
+                                                >
+                                                    Logout of {failedProviderInfo.label}
+                                                </button>
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                    <div className="add-response-actions">
+                        <button onClick={addStage1Response} disabled={!currentModel || !currentText || isCurrentResponseError} className="add-btn">Add Response</button>
+                        <div className="automation-row">
+                            <button
+                                onClick={() => handleRunAutomation(isFollowUp ? getContextText() : userQuery, providerInfo.key)}
+                                className={`automation-btn ${providerInfo.key}-btn`}
+                                disabled={isAutomating || !userQuery || !currentModel}
+                                style={providerInfo.color ? { backgroundColor: providerInfo.color } : {}}
+                            >
+                                Run via {providerInfo.label}
+                            </button>
+                        </div>
                     </div>
                 </div>
-                <div className="add-response-actions">
-                    <button onClick={addStage1Response} disabled={!currentModel || !currentText || isCurrentResponseError}>Add Response</button>
-                    <div className="automation-row">
+            </div>
+
+            <div className="wizard-actions stage1-actions">
+                <div className="left-actions">
+                    <button onClick={onCancel} className="secondary-btn cancel-btn" title="Exit wizard without saving">Cancel & Exit</button>
+                    {(userQuery || stage1Responses.length > 0) && (
                         <button
-                            onClick={() => handleRunAutomation(isFollowUp ? getContextText() : userQuery, providerInfo.key)}
-                            className={`automation-btn ${providerInfo.key}-btn`}
-                            disabled={isAutomating || !userQuery || !currentModel}
-                            style={providerInfo.color ? { backgroundColor: providerInfo.color } : {}}
+                            onClick={() => { if (window.confirm('Clear all inputs and responses? This cannot be undone.')) { localStorage.removeItem(draftKey); window.location.reload(); } }}
+                            className="secondary-btn discard-btn"
+                            title="Discard current draft and reset everything"
                         >
-                            Run via {providerInfo.label}
+                            Discard Draft
                         </button>
-                    </div>
+                    )}
                 </div>
-                <div className="wizard-actions">
-                    <div className="left-actions">
-                        <button onClick={onCancel} className="secondary-btn">Cancel</button>
-                        {(userQuery || stage1Responses.length > 0) && <button onClick={() => { if (window.confirm('Reset?')) { localStorage.removeItem(draftKey); window.location.reload(); } }} className="secondary-btn discard-btn">Discard</button>}
-                    </div>
-                    <button onClick={handleGoToStep2} className="primary-btn" disabled={!userQuery || stage1Responses.length === 0}>Next: Peer Review</button>
-                </div>
+                <button onClick={handleGoToStep2} className="primary-btn next-btn" disabled={!userQuery || stage1Responses.length === 0}>Next: Peer Review →</button>
             </div>
 
             {/* Response Viewer Modal */}
