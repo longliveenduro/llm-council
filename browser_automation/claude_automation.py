@@ -28,15 +28,9 @@ import json
 BROWSER_DATA_DIR = Path(__file__).parent / ".claude_browser_data"
 
 # Combined JS script for extraction
-try:
-    from browser_automation.js_utils import HTML_TO_MARKDOWN_JS
-except ImportError:
-    from js_utils import HTML_TO_MARKDOWN_JS
-
-# Combined JS script for extraction
-CLAUDE_JS = HTML_TO_MARKDOWN_JS + r'''
-(function() {
-    // Strategy: Find the last Top-Level Message
+CLAUDE_JS = r'''
+(() => {
+    // Find potential message containers
     const candidates = Array.from(document.querySelectorAll('.font-claude-message, .font-claude-response'));
     if (candidates.length === 0) return null;
     
@@ -49,33 +43,65 @@ CLAUDE_JS = HTML_TO_MARKDOWN_JS + r'''
     
     const lastMessage = topLevelMessages[topLevelMessages.length - 1];
     
-    // Pre-processing: Remove "Thinking" blocks before extraction if we don't want them
-    // The previous logic removed them. Let's replicate that simply.
-    // Clone to manipulate safely
+    // Clone to avoid side effects
     const clone = lastMessage.cloneNode(true);
-    
-    const thinkingSelectors = [
-        'details',
-        '[class*="thinking"]',
-        '[class*="Thinking"]',
-        '[data-testid*="thinking"]',
-        'summary',
-        '.border-border-300.rounded-lg',
-    ];
-    
-    for (const selector of thinkingSelectors) {
-        const elements = clone.querySelectorAll(selector);
-        elements.forEach(el => el.remove());
-    }
 
-    // Extraction using Shared Utility
-    // Claude messages are usually inside a .prose container or just the message itself
-    const content = clone.querySelector('.prose') || clone;
+    // 1. Process Math Elements
+    // Claude uses KaTeX. LaTeX source is usually in <annotation encoding="application/x-tex">
+    const mathElements = clone.querySelectorAll('.katex, .math, .math-inline, .math-display');
+    mathElements.forEach(el => {
+        const annotation = el.querySelector('annotation[encoding="application/x-tex"]');
+        if (annotation) {
+            const latex = annotation.textContent;
+            const isBlock = el.classList.contains('math-display') || el.closest('.math-display');
+            el.textContent = isBlock ? `\n$$\n${latex}\n$$\n` : `$${latex}$`;
+        }
+    });
+
+    // 2. Hidden Append Strategy for Correct line breaks (innerText needs layout)
+    clone.style.position = 'absolute';
+    clone.style.left = '-9999px';
+    clone.style.whiteSpace = 'pre-wrap'; // Ensure whitespace is preserved
+    document.body.appendChild(clone);
     
-    const markdown = window.domToMarkdown(content);
+    let resultText = null;
     
-    return markdown;
-})();
+    try {
+        // Strategy 1: Look for the standard markdown container
+        const allMarkdown = clone.querySelectorAll('.standard-markdown');
+        if (allMarkdown.length > 0) {
+            const lastMarkdown = allMarkdown[allMarkdown.length - 1];
+            resultText = lastMarkdown.innerText.trim();
+        } else {
+            // Strategy 2: Remove thinking sections and return clean text (fallback)
+            const thinkingSelectors = [
+                'details',
+                '[class*="thinking"]',
+                '[class*="Thinking"]',
+                '[data-testid*="thinking"]',
+                'summary',
+                '.border-border-300.rounded-lg',
+            ];
+            
+            for (const selector of thinkingSelectors) {
+                const elements = clone.querySelectorAll(selector);
+                elements.forEach(el => el.remove());
+            }
+            
+            const prose = clone.querySelector('.prose');
+            if (prose) {
+                resultText = prose.innerText.trim();
+            } else {
+                resultText = clone.innerText.trim();
+            }
+        }
+    } finally {
+        // Cleanup
+        document.body.removeChild(clone);
+    }
+    
+    return resultText;
+})()
 '''
 
 
