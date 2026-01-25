@@ -36,9 +36,9 @@ def test_image_save_integration():
     resp = client.post(f"/api/conversations/{created_id}/message/web-chatbot", json=payload)
     assert resp.status_code == 200
     
-    # 4. Verify image exists in backend/data/images
-    images_dir = PROJECT_ROOT / "backend" / "data" / "images"
-    files = os.listdir(images_dir)
+    # 4. Verify image exists in IMAGES_DIR
+    from backend.main import IMAGES_DIR
+    files = os.listdir(IMAGES_DIR)
     assert len(files) > 0
     
     # 5. Fetch conversation history to verify metadata
