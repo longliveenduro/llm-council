@@ -806,7 +806,6 @@ Title:`;
     const renderStep1 = () => (
         <div className="wizard-step">
             <h3>{isFollowUp ? 'Step 1: Follow Up Opinions' : 'Step 1: Initial Opinions'}</h3>
-            <p className="step-desc">Enter query and add model responses. Click existing response to view full content.</p>
 
             <div className="query-section">
                 <div className="form-group query-input-group">
@@ -883,6 +882,7 @@ Title:`;
             <div className="responses-generation-block">
                 <div className="block-header">
                     <div className="block-title">Model Responses & Generation</div>
+                    {stage1Responses.length > 0 && <div className="block-subtitle">Click existing response to view full content</div>}
                 </div>
 
                 <div className={stage1Responses.length > 0 ? "prompt-col-layout" : ""}>

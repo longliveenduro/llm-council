@@ -1355,6 +1355,9 @@
     border-bottom: 1px solid var(--border-color);
     margin-bottom: 16px;
     padding-bottom: 12px;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
 }
 
 .responses-generation-block .block-header .block-title {
@@ -1364,6 +1367,13 @@
     font-weight: 700;
     text-transform: uppercase;
     letter-spacing: 0.5px;
+}
+
+.responses-generation-block .block-header .block-subtitle {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-style: italic;
+    font-weight: 500;
 }
 
 .add-btn {
