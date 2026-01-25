@@ -807,38 +807,12 @@ Title:`;
         <div className="wizard-step">
             <h3>{isFollowUp ? 'Step 1: Follow Up Opinions' : 'Step 1: Initial Opinions'}</h3>
             <p className="step-desc">Enter query and add model responses. Click existing response to view full content.</p>
-            <div className="automation-settings">
-                <label>Automation Targets (Best Available):</label>
-                <div className="automation-targets-list">
-                    {Object.entries(automationModels).length === 0 && <span>Loading models...</span>}
-                    {Object.entries(automationModels).map(([provider, models]) => {
-                        if (!models || models.length === 0) return null;
-                        const bestModel = models[0].name;
-                        const providerLabel = provider === 'ai_studio' ? 'Gemini' : (provider === 'chatgpt' ? 'ChatGPT' : 'Claude');
-                        return (
-                            <div key={provider} className="best-model-badge-row">
-                                <span className="provider-name">{providerLabel}:</span>
-                                <span className="c-model-name">{bestModel}</span>
-                                <button
-                                    className="small-add-btn"
-                                    onClick={() => {
-                                        if (onAddLlmName) {
-                                            onAddLlmName(bestModel);
-                                            setCurrentModel(bestModel);
-                                        }
-                                    }}
-                                    disabled={llmNames.includes(bestModel)}
-                                    title="Add to Council"
-                                >
-                                    {llmNames.includes(bestModel) ? '✓' : '+'}
-                                </button>
-                            </div>
-                        );
-                    })}
-                </div>
+            <div className="form-group">
+                <label htmlFor="user-query">Your Question:</label>
+                <textarea id="user-query" value={userQuery} onChange={(e) => setUserQuery(e.target.value)} rows={4} />
             </div>
             <div className="form-group rounds-per-model-section">
-                <label htmlFor="rounds-per-model">Rounds per Model:</label>
+                <label htmlFor="rounds-per-model">Rounds per Council Member:</label>
                 <div className="rounds-input-wrapper">
                     <input
                         type="number"
@@ -848,14 +822,10 @@ Title:`;
                         min="1"
                         max="10"
                         className="rounds-input"
-                        aria-label="Rounds per Model"
+                        aria-label="Rounds per Council Member"
                     />
                     <span className="rounds-hint">Each model will provide this many independent responses</span>
                 </div>
-            </div>
-            <div className="form-group">
-                <label htmlFor="user-query">Your Question:</label>
-                <textarea id="user-query" value={userQuery} onChange={(e) => setUserQuery(e.target.value)} rows={4} />
             </div>
 
             {/* Image Upload Section */}
@@ -986,6 +956,7 @@ Title:`;
                             <div className={`error-indicator-box ${currentErrorType}`}>
                                 <span className="error-icon">⚠️</span>
                                 <div className="error-message-content">
+                                    <span className="error-message">Error in automation. Check the summary above.</span>
                                     <span className="error-message">{currentText}</span>
                                     {currentErrorType === 'quota_exceeded' && (
                                         <div className="quota-suggestion">

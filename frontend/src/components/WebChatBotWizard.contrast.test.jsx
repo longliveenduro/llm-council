@@ -16,7 +16,7 @@ describe('WebChatBotWizard Contrast', () => {
         },
     };
 
-    it('Automation Targets have correct styling for light and dark modes', () => {
+    it('Stage 1 form groups have correct layout and labels', () => {
         // Inject CSS
         const cssPath = path.resolve(__dirname, 'WebChatBotWizard.css');
         const cssContent = fs.readFileSync(cssPath, 'utf8');
@@ -27,31 +27,22 @@ describe('WebChatBotWizard Contrast', () => {
 
         const { container } = render(<WebChatBotWizard {...defaultProps} />);
 
-        const badgeRows = container.querySelectorAll('.best-model-badge-row');
-        expect(badgeRows.length).toBeGreaterThan(0);
+        const formGroups = container.querySelectorAll('.form-group');
+        expect(formGroups.length).toBeGreaterThan(0);
 
-        const firstRow = badgeRows[0];
-        const rowStyle = window.getComputedStyle(firstRow);
+        // Verify "Your Question" section
+        expect(screen.getByText(/Your Question:/i)).toBeInTheDocument();
+        const questionLabel = screen.getByText(/Your Question:/i);
+        const questionGroupStyle = window.getComputedStyle(questionLabel.closest('.form-group'));
+        expect(questionGroupStyle.marginBottom).toBe('16px');
 
-        // Check baseline styles
-        expect(rowStyle.display).toBe('flex');
-        expect(rowStyle.borderRadius).toBe('8px');
-
-        // Dark mode simulation (if the app or parent has .dark-mode)
-        container.closest('body').classList.add('dark-mode');
-        // JSDOM might not perfectly reflect media queries/complex selectors but it should catch basic ones if we added .dark-mode .best-model-badge-row
-
-        const darkRowStyle = window.getComputedStyle(firstRow);
-        // We defined: background: rgba(255, 255, 255, 0.07);
-        // In JSDOM this might not update unless we force a style re-calc or if it's simple enough.
-        // Actually, JSDOM getComputedStyle is limited.
-
-        // But we can at least check if the class exists and the elements are in the DOM
-        expect(screen.getByText('Gemini:')).toBeInTheDocument();
-        expect(screen.getByText('Gemini 3 Pro Preview')).toBeInTheDocument();
+        // Verify "Rounds per Council Member" section
+        expect(screen.getByText(/Rounds per Council Member:/i)).toBeInTheDocument();
+        const roundsLabel = screen.getByText(/Rounds per Council Member:/i);
+        const roundsGroupStyle = window.getComputedStyle(roundsLabel.closest('.form-group'));
+        expect(roundsGroupStyle.marginBottom).toBe('12px'); // .rounds-per-model-section has 12px
 
         // Cleanup
         document.head.removeChild(style);
-        container.closest('body').classList.remove('dark-mode');
     });
 });

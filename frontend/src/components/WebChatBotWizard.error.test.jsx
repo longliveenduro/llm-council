@@ -64,7 +64,7 @@ describe('WebChatBotWizard Error Handling', () => {
 
         // Wait for automation to "complete" with error
         await waitFor(() => {
-            expect(screen.getByText(/Quota exceeded for file uploads/i)).toBeInTheDocument();
+            expect(screen.getAllByText(/Quota exceeded for file uploads/i).length).toBeGreaterThan(0);
         });
 
         // Check if error indicator is visible
@@ -97,7 +97,7 @@ describe('WebChatBotWizard Error Handling', () => {
         fireEvent.click(runBtn);
 
         await waitFor(() => {
-            expect(screen.getByText(/Some error/i)).toBeInTheDocument();
+            expect(screen.getAllByText(/Some error/i).length).toBeGreaterThan(0);
         });
 
         const textarea = screen.getByPlaceholderText(/Model Response/i);

@@ -688,21 +688,7 @@
 }
 
 /* Automation Integration Styles */
-.automation-settings {
-    background: var(--bg-secondary);
-    padding: 12px;
-    border-radius: 6px;
-    margin-bottom: 16px;
-    border: 1px solid var(--border-color);
-}
 
-.automation-settings label {
-    display: block;
-    font-size: 13px;
-    font-weight: 600;
-    margin-bottom: 6px;
-    color: var(--text-secondary);
-}
 
 .automation-input-row {
     display: flex;
@@ -1235,68 +1221,4 @@
     background: rgba(52, 152, 219, 0.1);
     border: 1px solid rgba(52, 152, 219, 0.3);
     color: #3498db;
-}
-
-.automation-targets-list {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    margin-top: 12px;
-}
-
-.best-model-badge-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 8px 14px;
-    background: rgba(0, 0, 0, 0.05);
-    border-radius: 8px;
-    border: 1px solid var(--border-color);
-    transition: all 0.2s ease;
-}
-
-.dark-mode .best-model-badge-row {
-    background: rgba(255, 255, 255, 0.07);
-}
-
-.provider-name {
-    font-weight: 600;
-    font-size: 13px;
-    color: var(--text-secondary);
-    min-width: 65px;
-    letter-spacing: 0.5px;
-}
-
-.c-model-name {
-    font-size: 14px;
-    color: var(--text-primary);
-    flex: 1;
-    font-family: 'Inter', system-ui, sans-serif;
-}
-
-.small-add-btn {
-    padding: 4px 10px;
-    font-size: 13px;
-    background: var(--bg-primary);
-    color: var(--text-primary);
-    border: 1px solid var(--border-color);
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.2s;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 32px;
-}
-
-.small-add-btn:hover:not(:disabled) {
-    background: var(--hover-color);
-    border-color: var(--accent-primary);
-    transform: translateY(-1px);
-}
-
-.small-add-btn:disabled {
-    opacity: 0.4;
-    cursor: default;
-    background: transparent;
 }

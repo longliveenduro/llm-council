@@ -40,7 +40,7 @@ describe('WebChatBotWizard Multi-Round Automation', () => {
         fireEvent.change(questionArea, { target: { value: 'Compare these rounds' } });
 
         // Set Rounds per Model to 2
-        const roundsInput = screen.getByLabelText(/Rounds per Model/i);
+        const roundsInput = screen.getByLabelText(/Rounds per Council Member/i);
         fireEvent.change(roundsInput, { target: { value: '2' } });
         expect(roundsInput.value).toBe('2');
 
@@ -91,7 +91,7 @@ describe('WebChatBotWizard Multi-Round Automation', () => {
         render(<WebChatBotWizard {...simpleProps} />);
 
         // Setup: Run 2 rounds
-        fireEvent.change(screen.getByLabelText(/Rounds per Model/i), { target: { value: '2' } });
+        fireEvent.change(screen.getByLabelText(/Rounds per Council Member/i), { target: { value: '2' } });
         fireEvent.change(screen.getByLabelText(/Your Question:/i), { target: { value: 'Test' } });
         fireEvent.change(screen.getByLabelText('Current Model'), { target: { value: 'UniqueClaude' } });
 
@@ -134,7 +134,7 @@ describe('WebChatBotWizard Multi-Round Automation', () => {
         render(<WebChatBotWizard {...stopProps} />);
 
         // Setup: Run 2 rounds
-        fireEvent.change(screen.getByLabelText(/Rounds per Model/i), { target: { value: '2' } });
+        fireEvent.change(screen.getByLabelText(/Rounds per Council Member/i), { target: { value: '2' } });
         fireEvent.change(screen.getByLabelText(/Your Question:/i), { target: { value: 'Test' } });
         fireEvent.change(screen.getByLabelText('Current Model'), { target: { value: 'StopClaude' } });
 
