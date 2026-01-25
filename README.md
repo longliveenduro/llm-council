@@ -1,6 +1,6 @@
 # LLM Council
 
-![llmcouncil](header.png)
+![llmcouncil](frontend/public/header-dark.png)
 
 LLM Council is a local web app that lets you query multiple LLMs simultaneously, have them peer-review and rank each other's responses, and then have a "Chairman" LLM synthesize a final answer. 
 

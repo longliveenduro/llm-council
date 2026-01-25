@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 from backend.main import app
 
 # Use a real image from the environment for testing
-TEST_IMAGE_PATH = "/home/chris/prj/llm-council/header.png"
+TEST_IMAGE_PATH = "/home/chris/prj/llm-council/frontend/public/header.jpg"
 
 def test_image_save_integration():
     client = TestClient(app)
