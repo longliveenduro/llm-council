@@ -28,58 +28,63 @@ import json
 BROWSER_DATA_DIR = Path(__file__).parent / ".chatgpt_browser_data"
 
 # Combined JS script for extraction
-CHATGPT_JS = r'''
-(() => {
+try:
+    from browser_automation.js_utils import HTML_TO_MARKDOWN_JS
+except ImportError:
+    from js_utils import HTML_TO_MARKDOWN_JS
+
+# Combined JS script for extraction
+CHATGPT_JS = HTML_TO_MARKDOWN_JS + r'''
+(function() {
+    // Helper to find the last assistant message
     const assistantMessages = document.querySelectorAll('[data-message-author-role="assistant"]');
     if (assistantMessages.length === 0) return null;
     
+    // Check if the last message is just "..." (thinking/streaming)
+    // ChatGPT sometimes has a placeholder
     const lastMessage = assistantMessages[assistantMessages.length - 1];
     
-    // Clone to avoid side effects
+    // Clone to avoid side effects (though domToMarkdown is read-only mostly, cloning is safer for potential cleanup)
+    // Actually, domToMarkdown handles noise removal by ignoring tags, but we might want to be extra safe
+    // and remove specific ChatGPT citations first if they are not handled well.
+    // Our shared script ignores .citation if they don't contain brackets, but ChatGPT citations are weird.
+    // Let's use the clone strategy to pre-clean.
+    
     const clone = lastMessage.cloneNode(true);
     
-    // 1. Process Math Elements (KaTeX)
-    const mathContainers = clone.querySelectorAll('.katex-display, .math-display, :not(.katex-display) > .katex, :not(.math-display) > .math');
-    mathContainers.forEach(container => {
-        const annotation = container.querySelector('annotation[encoding="application/x-tex"]');
-        if (annotation) {
-            const latex = annotation.textContent.trim();
-            const isBlock = container.classList.contains('katex-display') || container.classList.contains('math-display');
-            container.textContent = isBlock ? `\n$$\n${latex}\n$$\n` : `$${latex}$`;
+    // ChatGPT Specific Pre-cleaning
+    // Remove "Citation" buttons/popups
+    const citations = clone.querySelectorAll('button, .cit-button, [data-testid*="citation"]');
+    citations.forEach(el => {
+        // If it looks like a footnote [1], keep it?
+        // ChatGPT often has [1] as a button.
+        // Let's rely on domToMarkdown to extract text if it's text content.
+        // But if it's a popup button we might want to ensure it renders as a number.
+        // Actually, domToMarkdown skips 'button'.
+        // So we should convert citation buttons to text spans if we want to keep them.
+        
+        const text = el.textContent.trim();
+        if (/^\[?\+\d+\]?$/.test(text) || /^\[\d+\]$/.test(text) || /^\d+$/.test(text)) {
+            const span = document.createElement('span');
+            span.textContent = `[${text.replace(/[\[\]]/g, '')}]`; 
+            el.replaceWith(span);
+        } else {
+            el.remove();
         }
     });
-    
-    clone.querySelectorAll('.katex, .math').forEach(el => {
-        if (el.textContent.includes('$')) return;
-        const ann = el.querySelector('annotation');
-        if (ann) el.textContent = ann.textContent;
-    });
 
-    const allElements = clone.querySelectorAll('button, span, .cit-button, [data-testid*="citation"]');
-    allElements.forEach(el => {
-        const text = (el.textContent || "").trim();
-        if (/^\[?\+\d+\]?$/.test(text) || /^\[\d+\]$/.test(text)) el.remove();
-        if (el.getAttribute('data-testid') && el.getAttribute('data-testid').includes('citation')) el.remove();
-    });
-
+    // Remove artifacts
     const artifacts = clone.querySelectorAll('.flex.items-center.justify-between.mt-2, .sr-only, .mt-2.flex.gap-3');
     artifacts.forEach(a => a.remove());
 
-    clone.style.position = 'absolute';
-    clone.style.left = '-9999px';
-    clone.style.whiteSpace = 'pre-wrap';
-    document.body.appendChild(clone);
+    // Use shared utility
+    // ChatGPT messages often have a .markdown container inside
+    const content = clone.querySelector('.markdown, .prose') || clone;
     
-    let resultText = null;
-    try {
-        const content = clone.querySelector('.markdown, .prose') || clone;
-        resultText = content.innerText.trim();
-    } finally {
-        document.body.removeChild(clone);
-    }
+    const markdown = window.domToMarkdown(content);
     
-    return resultText;
-})()
+    return markdown;
+})();
 '''
 
 

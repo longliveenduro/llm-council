@@ -31,105 +31,72 @@ import json
 BROWSER_DATA_DIR = Path(__file__).parent / ".ai_studio_browser_data"
 
 # Combined JS script for extraction
-AI_STUDIO_JS = r'''
-(() => {
+try:
+    from browser_automation.js_utils import HTML_TO_MARKDOWN_JS
+except ImportError:
+    from js_utils import HTML_TO_MARKDOWN_JS
+
+# Combined JS script for extraction
+# We inject the library, then use it.
+AI_STUDIO_JS = HTML_TO_MARKDOWN_JS + r'''
+(function() {
     const lastTurn = document.querySelector('ms-chat-turn:last-of-type');
     if (!lastTurn) return null;
     
-    const clone = lastTurn.cloneNode(true);
+    // Use the shared domToMarkdown utility
+    // AI Studio specific: target the content containers if they exist
+    const contentEls = lastTurn.querySelectorAll('ms-markdown-block, ms-text-chunk, .text-content');
     
-    // 1. Process Math Elements
-    const mathElements = clone.querySelectorAll('ms-katex, ms-math-block, .math, .math-inline, .math-display, [latex]');
+    let resultText = "";
     
-    mathElements.forEach(el => {
-        let latex = el.getAttribute('latex') || el.getAttribute('data-latex');
-        if (!latex) {
-            const annotation = el.querySelector('annotation[encoding="application/x-tex"]');
-            if (annotation) latex = annotation.textContent.trim();
-        }
-        
-        if (latex) {
-            const isDisplay = el.classList.contains('display') || 
-                              el.classList.contains('math-display') || 
-                              el.tagName === 'MS-MATH-BLOCK' ||
-                              el.closest('ms-math-block');
-            
-            el.textContent = isDisplay ? `\n$$\n${latex}\n$$\n` : `$${latex}$`;
-        }
-    });
-
-    // 2. Remove UI noise (but keep footnotes)
-    const noise = clone.querySelectorAll('button, .mat-icon, ms-copy-button, ms-feedback-button, .sr-only');
-    noise.forEach(el => {
-        if (el.tagName === 'BUTTON') {
-            const text = el.textContent.trim();
-            // Preserve [1], [1][2], [+1] style footnotes, or plain numbers like "1"
-            // If it's a plain number, wrap it in brackets for consistent Markdown formatting
-            if (/^\[?(\+?\d+)\]?$/.test(text)) {
-                if (!text.startsWith('[')) {
-                    el.textContent = `[${text}]`;
-                }
-                return;
-            }
-        }
-        el.remove();
-    });
-
-    clone.style.position = 'absolute';
-    clone.style.left = '-9999px';
-    clone.style.whiteSpace = 'pre-wrap';
-    document.body.appendChild(clone);
+    if (contentEls.length > 0) {
+        let chunks = [];
+        contentEls.forEach(el => {
+            // domToMarkdown is attached to window/scope by the shared script
+            chunks.push(window.domToMarkdown(el));
+        });
+        resultText = chunks.filter(c => c).join('\n\n');
+    } else {
+        resultText = window.domToMarkdown(lastTurn);
+    }
     
-    let resultText = null;
+    // --- Reference Processing (Specific to AI Studio UI) ---
+    // Extract metadata links which might not be inline
     try {
-        const contentEls = clone.querySelectorAll('ms-markdown-block, ms-text-chunk, .text-content');
-        if (contentEls.length > 0) {
-            resultText = Array.from(contentEls).map(el => el.innerText).join('\n').trim();
-        } else {
-            resultText = clone.innerText.trim();
-        }
-
-        // 3. Extract and Refine Reference Links (URLs)
-        // AI Studio's innerText flattens links to just their text. We want their URLs too.
-        // We also want to ensure a very clean [n] format both in-text and at the bottom.
-        
         let bodyText = resultText;
-        let rawRefs = [];
-        let headerTitle = "Sources";
+        let finalPart = "";
         
-        // Find the split point if "Sources", "References", or "Footnotes" is in the text
+        // Find existing text references
         const refHeaderRegex = /\n+(Sources|References|Footnotes)\b/i;
         const headerMatch = resultText.match(refHeaderRegex);
+        
+        let headerTitle = "Sources";
         
         if (headerMatch) {
             bodyText = resultText.substring(0, headerMatch.index).trim();
             headerTitle = headerMatch[1];
-            const refsSection = resultText.substring(headerMatch.index).trim();
-            rawRefs = refsSection.split('\n').slice(1).map(line => line.trim()).filter(l => l);
         }
-
-        const sourcesHeader = Array.from(clone.querySelectorAll('h1, h2, h3, h4, h5, .author-label, b, .grounding-sources-container-title'))
-            .find(el => /Sources|References|Footnotes/i.test(el.textContent.trim()));
         
-        const groundingSources = clone.querySelector('ms-grounding-sources');
+        // Find UI links that might be hidden or separate
+        const sourcesHeader = Array.from(lastTurn.querySelectorAll('h1, h2, h3, h4, h5, .author-label, b, .grounding-sources-container-title'))
+            .find(el => /Sources|References|Footnotes/i.test(el.textContent.trim()));
+            
+        const groundingSources = lastTurn.querySelector('ms-grounding-sources');
         const uiLinks = [];
         const uniqueUrls = new Set();
-
-        // Process UI-based grounding sources
+        
         if (sourcesHeader || groundingSources) {
             const container = groundingSources || sourcesHeader.parentElement;
             const links = Array.from(container.querySelectorAll('a[href]'));
-            
             links.forEach(a => {
-                let url = a.href;
-                if (url && !url.startsWith('javascript:')) {
+                 let url = a.href;
+                 if (url && !url.startsWith('javascript:')) {
                     if (url.includes('google.com/url?sa=E&q=')) {
                         try {
                             const match = url.match(/q=([^&]+)/);
                             if (match) url = decodeURIComponent(match[1]);
                         } catch (e) {}
                     }
-                    
                     if (!uniqueUrls.has(url)) {
                         const linkText = a.textContent.trim();
                         if (linkText && linkText.length > 1 && !/^(Copy|Share|Edit)$/i.test(linkText)) {
@@ -137,60 +104,34 @@ AI_STUDIO_JS = r'''
                             uniqueUrls.add(url);
                         }
                     }
-                }
+                 }
             });
             if (sourcesHeader) headerTitle = sourcesHeader.textContent.trim();
         }
-
-        // Build final section with Attempt 4 logic: Clean & Numbered
-        if (rawRefs.length > 0 || uiLinks.length > 0) {
-            let finalPart = `\n\n---\n#### ${headerTitle}\n`;
-            let nextNum = 1;
-            const usedUrls = new Set();
+        
+        // Append UI links if they exist and aren't already well-integrated (a simple append strategy)
+        if (uiLinks.length > 0) {
+            // Check if we already have a sources section
+            if (!headerMatch) {
+                finalPart += `\n\n---\n#### ${headerTitle}\n`;
+            } else {
+                finalPart += `\n\n`; // Just append to existing
+            }
             
-            // 1. Process existing text refs
-            rawRefs.forEach(line => {
-                // Extract number from start or first bracket
-                const numMatch = line.match(/^(\d+)[\.\s]+|\[(\d+)\]/);
-                const n = numMatch ? (numMatch[1] || numMatch[2]) : nextNum;
-                if (!numMatch) nextNum++;
-                else nextNum = Math.max(nextNum, parseInt(n) + 1);
-
-                // Clean the text: remove leading numbers, bracketed citations, and trailing citations
-                let clean = line.replace(/^\d+[\.\s]+|\[\d+\]/g, '').trim();
-                clean = clean.replace(/(\[\d+\])+$/g, '').trim();
-                
-                // Attempt to merge UI links into this line if they match the hostname or text
-                uiLinks.forEach(link => {
-                    if (!usedUrls.has(link.url)) {
-                        const hostname = new URL(link.url).hostname.replace('www.', '');
-                        if (clean.toLowerCase().includes(hostname.toLowerCase()) || 
-                            clean.toLowerCase().includes(link.text.toLowerCase())) {
-                            clean += ` [${link.text}](${link.url})`;
-                            usedUrls.add(link.url);
-                        }
-                    }
-                });
-
-                finalPart += `[${n}] ${clean}\n\n`;
+            uiLinks.forEach((link, idx) => {
+                // Determine logic for numbering or bullets (simple bullet for now)
+                finalPart += `- [${link.text}](${link.url})\n`;
             });
-            
-            // 2. Add remaining UI links that weren't merged
-            uiLinks.forEach(link => {
-                if (!usedUrls.has(link.url)) {
-                    finalPart += `[${nextNum++}] [${link.text}](${link.url})\n\n`;
-                    usedUrls.add(link.url);
-                }
-            });
-            
-            resultText = bodyText + finalPart;
         }
-    } finally {
-        document.body.removeChild(clone);
+        
+        resultText = bodyText + (headerMatch ? resultText.substring(headerMatch.index) : "") + finalPart;
+        
+    } catch(e) {
+        // Ignore specific reference processing errors
     }
-    
+
     return resultText;
-})()
+})();
 '''
 
 
