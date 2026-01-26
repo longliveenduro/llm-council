@@ -100,7 +100,7 @@ describe('WebChatBotWizard Error Handling', () => {
             expect(screen.getAllByText(/Some error/i).length).toBeGreaterThan(0);
         });
 
-        const textarea = screen.getByPlaceholderText(/Paste Model Response here.../i);
+        const textarea = screen.getByPlaceholderText(/Response by LLM will go here.../i);
         const addBtn = screen.getByText(/Add Response/i);
 
         expect(addBtn).toBeDisabled();

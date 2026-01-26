@@ -26,7 +26,7 @@ describe('WebChatBotWizard Tab Switching', () => {
 
         // Step 1: Default is Preview = False (Write mode).
         // Textarea should be visible by default
-        const textarea = screen.getByPlaceholderText('Paste Model Response here...');
+        const textarea = screen.getByPlaceholderText('Response by LLM will go here...');
         expect(textarea).toBeInTheDocument();
 
         // Write tab should exist
@@ -36,11 +36,11 @@ describe('WebChatBotWizard Tab Switching', () => {
         // Clicking Preview should show "Nothing to preview"
         fireEvent.click(previewBtn);
         expect(screen.getByText('Nothing to preview')).toBeInTheDocument();
-        expect(screen.queryByPlaceholderText('Paste Model Response here...')).not.toBeInTheDocument();
+        expect(screen.queryByPlaceholderText('Response by LLM will go here...')).not.toBeInTheDocument();
 
         // Clicking Write should show Textarea again
         fireEvent.click(writeBtn);
-        expect(screen.getByPlaceholderText('Paste Model Response here...')).toBeInTheDocument();
+        expect(screen.getByPlaceholderText('Response by LLM will go here...')).toBeInTheDocument();
         expect(screen.queryByText('Nothing to preview')).not.toBeInTheDocument();
     });
 

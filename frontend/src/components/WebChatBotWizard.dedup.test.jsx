@@ -64,7 +64,7 @@ describe('WebChatBotWizard Stage 1 Deduplication', () => {
         });
 
         await waitFor(() => {
-            const responseArea = screen.getByPlaceholderText('Paste Model Response here...');
+            const responseArea = screen.getByPlaceholderText('Response by LLM will go here...');
             expect(responseArea.value).toBe('First Claude response');
         });
 
@@ -93,7 +93,7 @@ describe('WebChatBotWizard Stage 1 Deduplication', () => {
         });
 
         await waitFor(() => {
-            const responseArea = screen.getByPlaceholderText('Paste Model Response here...');
+            const responseArea = screen.getByPlaceholderText('Response by LLM will go here...');
             expect(responseArea.value).toBe('Second Claude response');
         });
 
@@ -139,7 +139,7 @@ describe('WebChatBotWizard Stage 1 Deduplication', () => {
 
         fireEvent.click(screen.getByText('Run via Claude'));
         await waitFor(() => {
-            expect(screen.getByPlaceholderText('Paste Model Response here...').value).toBe('Claude response');
+            expect(screen.getByPlaceholderText('Response by LLM will go here...').value).toBe('Claude response');
         });
         fireEvent.click(screen.getByText('Add Response'));
 
@@ -147,7 +147,7 @@ describe('WebChatBotWizard Stage 1 Deduplication', () => {
         fireEvent.change(modelSelect, { target: { value: 'Gemini 3 Pro' } });
         fireEvent.click(screen.getByText('Run via AI Studio'));
         await waitFor(() => {
-            expect(screen.getByPlaceholderText('Paste Model Response here...').value).toBe('Gemini response');
+            expect(screen.getByPlaceholderText('Response by LLM will go here...').value).toBe('Gemini response');
         });
         fireEvent.click(screen.getByText('Add Response'));
 
