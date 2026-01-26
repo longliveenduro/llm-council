@@ -372,6 +372,7 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None, image
     
     # Find and click the send/run button
     send_button_selectors = [
+        'button.ctrl-enter-submits',
         'button[aria-label*="run" i]',
         'button[aria-label*="send" i]',
         'button[aria-label*="submit" i]',
@@ -392,11 +393,17 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None, image
             continue
     
     if not send_button:
-        # Try pressing Enter as fallback
-        print("No send button found, trying Enter key...")
-        await page.keyboard.press("Enter")
+        # Try pressing Control+Enter as primary fallback (standard for AI Studio)
+        print("No send button found via selectors, trying Control+Enter...")
+        await page.keyboard.press("Control+Enter")
     else:
-        await send_button.click()
+        # Even if button is found, sometimes a direct click fails in complex UIs.
+        # But let's try click first as it's more explicit.
+        try:
+            await send_button.click()
+        except:
+            print("Click failed, trying Control+Enter fallback...")
+            await page.keyboard.press("Control+Enter")
     
     print("Prompt sent, waiting for response...")
     
@@ -1024,25 +1031,42 @@ async def main():
         print("(First run: Log in to Google when prompted. Your login will be saved.)")
         context, page = await get_browser_context()
         
-        print(f"Ready! Current page: {page.url}")
-        
-        # Check if we need to log in
-        if "accounts.google.com" in page.url or "Sign in" in await page.title():
-            print("\n>>> Please log in to your Google account in the browser <<<")
-            print(">>> Press Enter here once you're logged in and on AI Studio <<<")
-            input()
-            # Navigate to AI Studio after login
-            await page.goto("https://aistudio.google.com/prompts/new_chat")
-            await page.wait_for_load_state("networkidle")
-        
-        # Select the requested model
+        # Determine target model URL suffix
+        model_url_param = ""
         if args.model:
-            await select_model(page, args.model)
-            
+            model_map = {
+                "Gemini 3 Flash Preview": "gemini-3-flash-preview",
+                "Gemini 3 Pro": "gemini-3-pro-preview", 
+                "Gemini 3 Pro Preview": "gemini-3-pro-preview",
+                "Gemini Flash Latest": "gemini-flash-latest",
+                "Gemini 2.5 Flash": "gemini-flash-latest",
+                "Gemini Flash-Lite Latest": "gemini-flash-lite-latest",
+                "Gemini 1.5 Flash": "gemini-1.5-flash",
+                "Gemini 1.5 Pro": "gemini-1.5-pro",
+                "Imagen 4": "imagen-4",
+            }
+            target_suffix = model_map.get(args.model)
+            if target_suffix:
+                model_url_param = f"?model={target_suffix}"
+
+        # Navigate to AI Studio with model selection via URL (more reliable than clicking)
+        url = f"https://aistudio.google.com/prompts/new_chat{model_url_param}"
+        print(f"Navigating to {url}...")
+        await page.goto(url)
+        await page.wait_for_load_state("networkidle")
+        
+        # Check if we need to log in (again, in case redirect happened)
+        if "accounts.google.com" in page.url:
+            print("\n>>> Redirected to login. Please log in in the browser <<<")
+            await page.wait_for_selector('textarea, [contenteditable="true"]', timeout=300000)
+        
+        # Wait for interface
+        input_selector = await wait_for_chat_interface(page)
+        
         if args.interactive:
             await interactive_mode(page)
         else:
-            response = await send_prompt(page, args.prompt, image_paths=args.image)
+            response = await send_prompt(page, args.prompt, input_selector=input_selector, image_paths=args.image)
             
             # Print legacy markers for safety
             print("\nRESULT_START")
