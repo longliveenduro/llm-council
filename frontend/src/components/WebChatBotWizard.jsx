@@ -1075,7 +1075,7 @@ Title:`;
             <div className="wizard-title-display"><strong>Title:</strong> {manualTitle || 'Generating...'}</div>
             <div className="prompt-col-layout">
                 <div className="prompt-box">
-                    <label>Stage 2 Prompt:</label>
+                    <label>Stage 2 Review Prompt:</label>
                     <div className="prompt-preview">{stage2Prompt}</div>
                     <button onClick={() => copyToClipboard(stage2Prompt)} className="copy-btn">Copy Prompt</button>
                 </div>
@@ -1139,7 +1139,7 @@ Title:`;
                         </span>
                     )}
                 </div>
-                <textarea value={currentText} onChange={(e) => { setCurrentText(e.target.value); setIsCurrentResponseError(false); }} rows={8} placeholder="Paste Ranking" />
+                <textarea value={currentText} onChange={(e) => { setCurrentText(e.target.value); setIsCurrentResponseError(false); }} rows={8} placeholder="Review by LLM will go here" />
                 {isCurrentResponseError && (
                     <div className={`error-indicator-box ${currentErrorType}`}>
                         <span className="error-icon">⚠️</span>
@@ -1161,183 +1161,184 @@ Title:`;
                 </div>
                 <div className="wizard-actions">
                     <div className="left-actions">
-                        <button onClick={() => setStep(1)} className="secondary-btn">Back</button>
+                        <button onClick={() => setStep(1)} className="secondary-btn next-btn">Back</button>
                     </div>
-                    <button onClick={handleGoToStep3} className="primary-btn" disabled={stage2Responses.length === 0}>Next: Synthesis</button>
+                    <button onClick={handleGoToStep3} className="primary-btn next-btn" disabled={stage2Responses.length === 0}>Next: Synthesis</button>
                 </div>
             </div>
         </div>
     );
 
     const renderStep3 = () => (
-        <div className="wizard-step step3-wizard">
-            <div className="step-header">
-                <h3>Step 3: Synthesis</h3>
-            </div>
+        ssName = "wizard-step step3-wizard" >
+        ssName= "step-header" >
+        3: Synthesis</h3>
 
-            <div className="step3-scroll-area">
-                <div className="step3-top-layout">
-                    <div className={`prompt-container-card ${showChairmanPrompt ? 'prompt-expanded' : 'prompt-collapsed'}`}>
-                        <div className="prompt-card-header" onClick={() => setShowChairmanPrompt(!showChairmanPrompt)}>
-                            <span className="prompt-title">
-                                <span className="toggle-icon">{showChairmanPrompt ? '▼' : '▶'}</span>
-                                Chairman Prompt
-                            </span>
-                            <button
-                                onClick={(e) => { e.stopPropagation(); copyToClipboard(stage3Prompt); }}
-                                className="copy-prompt-btn-mini"
-                                title="Copy Prompt"
+
+            ssName="step3-scroll-area" >
+                ssName="step3-top-layout" >
+                    ssName={ `prompt-container-card ${showChairmanPrompt ? 'prompt-expanded' : 'prompt-collapsed'}` }>
+                        ssName="prompt-card-header" onClick = {() => setShowChairmanPrompt(!showChairmanPrompt)
+}>
+    assName="prompt-title" >
+        assName="toggle-icon" > { showChairmanPrompt? '▼': '▶' }</span >
+            Prompt
+
+
+{ (e) => { e.stopPropagation(); copyToClipboard(stage3Prompt); } }
+e = "copy-prompt-btn-mini"
+                                opy Prompt"
+
+
+    >
+
+    irmanPrompt && (
+        ssName = "prompt-preview-content" >
+        rompt}
+
+
+
+ssName = "mapping-container-card" >
+    Box labelToModel = { labelToModel } scores = { currentScores } showScoreExplanation = { true} />
+
+
+
+        ssName="stage3-main-content" >
+            ssName="synthesis-card stage3-synthesis-section" >
+                ssName="card-header" >
+                    inal Synthesis</label >
+
+                        ssName="stage3-controls-row" >
+                            ssName="model-input-group" >
+
+                                tage3Response.model}
+                                    ={ (e) => setStage3Response({ ...stage3Response, model: e.target.value }) }
+e = "model-select"
+el = "Select Synthesis Model"
+
+value = "" > Select Synthesis Model</option >
+    value="Web ChatBot Chairman" > Web ChatBot Chairman</option >
+        s.map(name => <option key={name} value={name}>{name}</option>)}
+                                >
+    nkingUsed !== null && (
+        assName = {`thinking-indicator ${lastThinkingUsed ? 'thinking-on' : 'thinking-off'}`} title = { lastThinkingUsed? 'Thinking was enabled': 'Thinking was not enabled' } >
+            nkingUsed ? '🧠 Thinking' : '💭 No Thinking'}
+
+
+
+
+{ () => handleRunStage3Automation(stage3Prompt, providerInfo.key) }
+e = {`automation-btn stage3-auto-btn ${providerInfo.key}-btn`}
+                                ={ isAutomating || !stage3Prompt || stage3Response.model === 'Web ChatBot Chairman' }
+roviderInfo.color ? { backgroundColor: providerInfo.color } : {}}
+
+{ providerInfo.label }
                             >
-                                Copy
-                            </button>
-                        </div>
-                        {showChairmanPrompt && (
-                            <div className="prompt-preview-content">
-                                {stage3Prompt}
-                            </div>
-                        )}
-                    </div>
-                    <div className="mapping-container-card">
-                        <MappingBox labelToModel={labelToModel} scores={currentScores} showScoreExplanation={true} />
-                    </div>
-                </div>
 
-                <div className="stage3-main-content">
-                    <div className="synthesis-card stage3-synthesis-section">
-                        <div className="card-header">
-                            <label>Final Synthesis</label>
-                        </div>
-                        <div className="stage3-controls-row">
-                            <div className="model-input-group">
-                                <select
-                                    value={stage3Response.model}
-                                    onChange={(e) => setStage3Response({ ...stage3Response, model: e.target.value })}
-                                    className="model-select"
-                                    aria-label="Select Synthesis Model"
+    ctionReason && (
+        ssName = "preselection-explanation" >
+        ctionReason}
+
+
+
+ssName = "input-tabs-container stage3-tabs-container" >
+    ssName="input-tabs" >
+
+        tton"
+e = {`input-tab ${!showStep3Preview ? 'active' : ''}`}
+{ () => setShowStep3Preview(false) }
+                                
+                                    
                                 >
-                                    <option value="">Select Synthesis Model</option>
-                                    <option value="Web ChatBot Chairman">Web ChatBot Chairman</option>
-                                    {llmNames.map(name => <option key={name} value={name}>{name}</option>)}
-                                </select>
-                                {lastThinkingUsed !== null && (
-                                    <span className={`thinking-indicator ${lastThinkingUsed ? 'thinking-on' : 'thinking-off'}`} title={lastThinkingUsed ? 'Thinking was enabled' : 'Thinking was not enabled'}>
-                                        {lastThinkingUsed ? '🧠 Thinking' : '💭 No Thinking'}
-                                    </span>
-                                )}
-                            </div>
-                            <button
-                                onClick={() => handleRunStage3Automation(stage3Prompt, providerInfo.key)}
-                                className={`automation-btn stage3-auto-btn ${providerInfo.key}-btn`}
-                                disabled={isAutomating || !stage3Prompt || stage3Response.model === 'Web ChatBot Chairman'}
-                                style={providerInfo.color ? { backgroundColor: providerInfo.color } : {}}
-                            >
-                                Run via {providerInfo.label}
-                            </button>
-                        </div>
-                        {preselectionReason && (
-                            <div className="preselection-explanation">
-                                {preselectionReason}
-                            </div>
-                        )}
 
-                        <div className="input-tabs-container stage3-tabs-container">
-                            <div className="input-tabs">
-                                <button
-                                    type="button"
-                                    className={`input-tab ${!showStep3Preview ? 'active' : ''}`}
-                                    onClick={() => setShowStep3Preview(false)}
+    tton"
+e = {`input-tab ${showStep3Preview ? 'active' : ''}`}
+{ () => setShowStep3Preview(true) }
+                                
+                                    
                                 >
-                                    Write
-                                </button>
-                                <button
-                                    type="button"
-                                    className={`input-tab ${showStep3Preview ? 'active' : ''}`}
-                                    onClick={() => setShowStep3Preview(true)}
-                                >
-                                    Preview
-                                </button>
-                            </div>
-                            <div className="input-content-wrapper" key={showStep3Preview ? 'preview' : 'write'}>
-                                {showStep3Preview ? (
-                                    <div className="input-preview-content markdown-content">
-                                        {stage3Response.response ? (
-                                            <ReactMarkdown
-                                                remarkPlugins={[remarkMath, remarkGfm]}
-                                                rehypePlugins={[rehypeKatex]}
-                                            >
-                                                {stage3Response.response}
-                                            </ReactMarkdown>
-                                        ) : (
-                                            <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Nothing to preview</span>
-                                        )}
-                                    </div>
-                                ) : (
-                                    <textarea
-                                        value={stage3Response.response || ''}
-                                        onChange={(e) => { setStage3Response({ ...stage3Response, response: e.target.value }); setIsCurrentResponseError(false); }}
-                                        placeholder="Enter the final consensus or summary here..."
-                                        rows={12}
-                                    />
-                                )}
-                                {isCurrentResponseError && (
-                                    <div className={`error-indicator-box ${currentErrorType}`}>
-                                        <span className="error-icon">⚠️</span>
-                                        <span className="error-message">Error in automation. Check the synthesis above.</span>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-                    </div>
 
-                    {aggregateRankings && aggregateRankings.length > 0 && (
-                        <div className="aggregate-rankings-card">
-                            <div className="card-header">
-                                <h4>Aggregate Rankings (Street Cred)</h4>
-                                <span className="header-hint">Combined results across all peer evaluations (lower score is better)</span>
-                            </div>
-                            <div className="aggregate-list">
-                                {aggregateRankings.map((agg, index) => (
-                                    <div key={index} className="aggregate-item-modern">
-                                        <div className="rank-badge">#{index + 1}</div>
-                                        <div className="rank-model-info">
-                                            <ModelBadge model={agg.model} />
-                                        </div>
-                                        <div className="rank-stats">
-                                            <span className="rank-avg-value">Avg: {agg.average_rank.toFixed(2)}</span>
-                                            <span className="rank-votes-count">{agg.rankings_count} votes</span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </div>
-            </div>
+    ssName="input-content-wrapper" key = { showStep3Preview? 'preview': 'write' } >
+        p3Preview ? (
+        ssName = "input-preview-content markdown-content" >
+            esponse.response ? (
+            rkdown
+                                                ugins = { [remarkMath, remarkGfm]}
+ugins = { [rehypeKatex]}
 
-            <div className="wizard-actions">
-                <div className="left-actions">
-                    <button onClick={() => setStep(2)} className="secondary-btn">Back</button>
-                </div>
-                <button onClick={handleComplete} className="primary-btn complete-btn" disabled={!stage3Response.response || isCurrentResponseError}>Finish & Save</button>
-            </div>
-        </div>
-    );
+esponse.response}
+arkdown >
 
-    if (isLoading) return <div className="web-chatbot-wizard-loading">Processing...</div>;
+    yle={ { color: 'var(--text-muted)', fontStyle: 'italic' } }> Nothing to preview</span >
 
-    return (
-        <div className="web-chatbot-wizard">
-            {(isGeneratingTitle || isAutomating) && (
-                <div className="modal-overlay">
-                    <div className="modal-content">
-                        <div className="modal-spinner" />
-                        <div className="modal-text">{isGeneratingTitle ? 'Generating title...' : 'Running automation...'}</div>
-                    </div>
-                </div>
-            )}
-            {step === 1 && renderStep1()}
-            {step === 2 && renderStep2()}
-            {step === 3 && renderStep3()}
-        </div>
-    );
+
+
+        a
+tage3Response.response || ''}
+                                        ={ (e) => { setStage3Response({ ...stage3Response, response: e.target.value }); setIsCurrentResponseError(false); } }
+der = "Enter the final consensus or summary here..."
+                                        }
+
+
+ntResponseError && (
+    ssName = {`error-indicator-box ${currentErrorType}`}>
+        assName="error-icon" >⚠️</span >
+            assName="error-message" > Error in automation.Check the synthesis above.</span >
+
+
+
+
+
+
+                teRankings && aggregateRankings.length > 0 && (
+                    ssName = "aggregate-rankings-card" >
+                    ssName="card-header" >
+                        egate Rankings(Street Cred)</h4 >
+                            assName="header-hint" > Combined results across all peer evaluations(lower score is better)</span >
+
+                                ssName="aggregate-list" >
+                                    teRankings.map((agg, index) => (
+                                    = { index } className = "aggregate-item-modern" >
+                                    ssName="rank-badge" >#{ index + 1}</div >
+                                    ssName="rank-model-info" >
+                                    dge model = { agg.model } />
+
+                                    ssName="rank-stats" >
+                                    assName="rank-avg-value" > Avg: { agg.average_rank.toFixed(2) }</span >
+                                    assName="rank-votes-count" > { agg.rankings_count } votes</span >
+
+
+
+
+
+
+
+
+
+                                    ssName="wizard-actions" >
+                                    ssName="left-actions" >
+                                    onClick={() => setStep(2)} className = "secondary-btn" > Back</button >
+
+                                    onClick={ handleComplete } className = "primary-btn complete-btn" disabled = {!stage3Response.response || isCurrentResponseError}> Finish & Save</button >
+
+
+
+
+                                    g) return <div className="web-chatbot-wizard-loading">Processing...</div>;
+
+
+ssName = "web-chatbot-wizard" >
+    ratingTitle || isAutomating) && (
+        ssName = "modal-overlay" >
+        ssName="modal-content" >
+            ssName="modal-spinner" />
+                ssName="modal-text" > { isGeneratingTitle? 'Generating title...': 'Running automation...' }</div >
+                    
+                
+            
+            = 1 && renderStep1()}
+            = 2 && renderStep2()}
+            = 3 && renderStep3()}
+        
+    
 }

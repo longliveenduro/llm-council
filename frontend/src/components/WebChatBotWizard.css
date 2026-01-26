@@ -478,6 +478,14 @@
     margin-bottom: 16px;
 }
 
+.prompt-box label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 500;
+    font-size: 14px;
+    color: var(--text-primary);
+}
+
 .prompt-preview,
 .context-preview {
     background: var(--bg-secondary);
