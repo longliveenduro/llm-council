@@ -469,23 +469,19 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None, image
                     raise Exception(f"Failed to upload image {image_path}. Check logs or connection.")
 
         # FINAL VERIFICATION: Ensure images are actually attached
-        try:
-             # Look for thumbnail or remove button
-             attached = await page.query_selector('button[aria-label="Remove attachment"], [data-testid="attachment-thumbnail"], [data-testid="bubble-file"], div[class*="attachment"]')
-             if not attached:
-                  # One last check for quick quota message
-                  if await check_image_upload_quota_error(page):
-                       raise Exception("Quota exceeded")
-                  # IF we didn't find them, but we might have dismissed a modal that said "already uploaded", 
-                  # we should still try to proceed with the prompt.
-                  print("[WARNING] No attachment detected after upload process. Attempting to proceed anyway.")
-        except Exception as e:
-             if "Quota exceeded" in str(e):
+        # Look for thumbnail or remove button
+        attached = await page.query_selector('button[aria-label="Remove attachment"], [data-testid="attachment-thumbnail"], [data-testid="bubble-file"], div[class*="attachment"]')
+        if not attached:
+             # One last check for quick quota message
+             if await check_image_upload_quota_error(page):
                   error_msg = "ChatGPT image upload quota exceeded. Free tier users have a daily limit on image uploads. Please wait, upgrade to ChatGPT Plus, or try logging out and back in with a different free account for more uploads."
                   print_json_output(error_msgs=error_msg, error=True, error_type="quota_exceeded")
                   raise Exception(error_msg)
-             else:
-                  print(f"[WARNING] Image upload verification warning: {e}")
+             # IF we didn't find them, we must fail.
+             print("[WARNING] No attachment detected after upload process.")
+             raise Exception("No attachment detected after upload process. This may be due to a quota limit or UI change.")
+
+    # Click on the input to focus it
 
 
     # Click on the input to focus it

@@ -90,6 +90,11 @@ async def test_send_prompt_fails_if_no_thumbnail(monkeypatch):
     mock_plus_btn = AsyncMock()
     mock_page.wait_for_selector.return_value = mock_plus_btn
     
+    # Mock expect_file_chooser to return an AsyncMock (as an async context manager)
+    # Using MagicMock for the method itself to avoid the 'unawaited coroutine' warning
+    mock_page.expect_file_chooser = MagicMock()
+    mock_page.expect_file_chooser.return_value = AsyncMock()
+    
     # Mock Menu items - Upload button IS present
     mock_item_upload = AsyncMock()
     mock_item_upload.is_visible.return_value = True
@@ -100,18 +105,31 @@ async def test_send_prompt_fails_if_no_thumbnail(monkeypatch):
     mock_file_input = AsyncMock()
     mock_page.query_selector.side_effect = lambda s: mock_file_input if 'input[type="file"]' in s else None
     
-    # Mock thumbnail wait - FAIL (returns None)
+    # Mock evaluate to return a string to avoid extraction errors
+    mock_page.evaluate.return_value = "Test response"
 
-    def wait_side_effect(selector, **kwargs):
+    # Mock thumbnail wait - FAIL (returns None)
+    async def wait_side_effect(selector, **kwargs):
         if "attachment" in selector or "thumbnail" in selector:
             return None # Simulate not appearing
         return AsyncMock()
 
     mock_page.wait_for_selector.side_effect = wait_side_effect
     
+    # Mock query_selector_all to return lists
+    def qsa_side_effect(selector):
+        if "attachment" in selector or "bubble-file" in selector:
+            return []
+        if "menuitem" in selector or "option" in selector or "button" in selector:
+            return [mock_item_upload]
+        return []
+
+    mock_page.query_selector_all.side_effect = qsa_side_effect
+    
     with pytest.raises(Exception) as excinfo:
         await send_prompt(mock_page, "Hello", image_paths=["test.png"])
     
-    assert "No attachment detected" in str(excinfo.value) or "Failed to upload" in str(excinfo.value)
+    val = str(excinfo.value).lower()
+    assert "no attachment detected" in val or "failed to upload" in val
 
 
