@@ -1075,7 +1075,7 @@ Title:`;
             <div className="wizard-title-display"><strong>Title:</strong> {manualTitle || 'Generating...'}</div>
             <div className="prompt-col-layout">
                 <div className="prompt-box">
-                    <label>Stage 2 Prompt:</label>
+                    <label>Review Prompt:</label>
                     <div className="prompt-preview">{stage2Prompt}</div>
                     <button onClick={() => copyToClipboard(stage2Prompt)} className="copy-btn">Copy Prompt</button>
                 </div>
@@ -1098,30 +1098,6 @@ Title:`;
                     );
                 })}
             </div>
-            {aggregateRankings && aggregateRankings.length > 0 && (
-                <div className="aggregate-rankings-wizard">
-                    <h4>Aggregate Rankings (Street Cred)</h4>
-                    <p className="stage-description">
-                        Combined results across all peer evaluations (lower score is better):
-                    </p>
-                    <div className="aggregate-list">
-                        {aggregateRankings.map((agg, index) => (
-                            <div key={index} className="aggregate-item">
-                                <span className="rank-position">#{index + 1}</span>
-                                <span className="rank-model-container">
-                                    <ModelBadge model={agg.model} />
-                                </span>
-                                <span className="rank-score">
-                                    Avg: {agg.average_rank.toFixed(2)}
-                                </span>
-                                <span className="rank-count">
-                                    ({agg.rankings_count} votes)
-                                </span>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            )}
             <div className="add-response-form">
                 <div className="model-input-group">
                     <select
@@ -1139,7 +1115,7 @@ Title:`;
                         </span>
                     )}
                 </div>
-                <textarea value={currentText} onChange={(e) => { setCurrentText(e.target.value); setIsCurrentResponseError(false); }} rows={8} placeholder="Paste Ranking" />
+                <textarea value={currentText} onChange={(e) => { setCurrentText(e.target.value); setIsCurrentResponseError(false); }} rows={8} placeholder="Review by LLM will go here" />
                 {isCurrentResponseError && (
                     <div className={`error-indicator-box ${currentErrorType}`}>
                         <span className="error-icon">⚠️</span>
@@ -1159,12 +1135,12 @@ Title:`;
                         </button>
                     </div>
                 </div>
-                <div className="wizard-actions">
-                    <div className="left-actions">
-                        <button onClick={() => setStep(1)} className="secondary-btn">Back</button>
-                    </div>
-                    <button onClick={handleGoToStep3} className="primary-btn" disabled={stage2Responses.length === 0}>Next: Synthesis</button>
+            </div>
+            <div className="wizard-actions">
+                <div className="left-actions">
+                    <button onClick={() => setStep(1)} className="primary-btn next-btn">Back</button>
                 </div>
+                <button onClick={handleGoToStep3} className="primary-btn next-btn" disabled={stage2Responses.length === 0}>Next: Synthesis &rarr;</button>
             </div>
         </div>
     );
@@ -1316,9 +1292,9 @@ Title:`;
 
             <div className="wizard-actions">
                 <div className="left-actions">
-                    <button onClick={() => setStep(2)} className="secondary-btn">Back</button>
+                    <button onClick={() => setStep(2)} className="primary-btn next-btn">Back</button>
                 </div>
-                <button onClick={handleComplete} className="primary-btn complete-btn" disabled={!stage3Response.response || isCurrentResponseError}>Finish & Save</button>
+                <button onClick={handleComplete} className="primary-btn next-btn complete-btn" disabled={!stage3Response.response || isCurrentResponseError}>Finish & Save</button>
             </div>
         </div>
     );

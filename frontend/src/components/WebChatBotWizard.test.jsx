@@ -192,7 +192,7 @@ describe('WebChatBotWizard Stage 3 Preselection', () => {
         render(<WebChatBotWizard {...defaultProps} />);
 
         // Click "Next: Synthesis"
-        const nextBtn = screen.getByText('Next: Synthesis');
+        const nextBtn = screen.getByText(/Next: Synthesis/);
         fireEvent.click(nextBtn);
 
         await waitFor(() => {

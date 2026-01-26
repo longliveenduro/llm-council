@@ -61,7 +61,7 @@ describe('WebChatBotWizard Scores and Parsing', () => {
         fireEvent.change(modelSelect, { target: { value: 'Model A' } });
 
         const rankingText = "FINAL RANKING:\n1. Response B1\n2. Response A1\n3. Response A2";
-        const pasteArea = screen.getByPlaceholderText('Paste Ranking');
+        const pasteArea = screen.getByPlaceholderText('Review by LLM will go here');
         fireEvent.change(pasteArea, { target: { value: rankingText } });
 
         fireEvent.click(screen.getByText('Add Ranking'));
@@ -82,7 +82,7 @@ describe('WebChatBotWizard Scores and Parsing', () => {
         });
     });
 
-    it('shows the Aggregate Rankings (Street Cred) box in Stage 2', async () => {
+    it('does NOT show the Aggregate Rankings (Street Cred) box in Stage 2', async () => {
         const savedDraft = {
             step: 2,
             userQuery: 'Test query',
@@ -98,9 +98,7 @@ describe('WebChatBotWizard Scores and Parsing', () => {
 
         render(<WebChatBotWizard {...defaultProps} />);
 
-        expect(screen.getByText('Aggregate Rankings (Street Cred)')).toBeInTheDocument();
-        expect(screen.getByText('Avg: 1.00')).toBeInTheDocument();
-        expect(screen.getByText('(1 votes)')).toBeInTheDocument();
+        expect(screen.queryByText('Aggregate Rankings (Street Cred)')).not.toBeInTheDocument();
     });
 
     it('shows the Mapping and Aggregate Rankings boxes in Stage 3', async () => {
