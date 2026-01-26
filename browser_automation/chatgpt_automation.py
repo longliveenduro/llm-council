@@ -261,6 +261,25 @@ async def wait_for_chat_interface(page: Page, timeout: int = 30000):
     raise Exception("Could not find chat input element")
 
 
+async def check_already_uploaded_modal(page: Page) -> bool:
+    """Check for 'You've already uploaded this file' modal and dismiss it."""
+    modal_text = "You've already uploaded this file"
+    try:
+        # Look for a modal with this text
+        # Using a broad selector to catch different UI versions
+        modal = await page.query_selector(f'div:has-text("{modal_text}"), h2:has-text("{modal_text}"), [role="dialog"]:has-text("{modal_text}")')
+        if modal:
+            print(f"[DEBUG] Detected '{modal_text}' modal. Clicking OK...")
+            ok_btn = await page.query_selector('button:has-text("OK"), [role="dialog"] button:has-text("OK")')
+            if ok_btn:
+                await ok_btn.click()
+                await asyncio.sleep(0.5)
+                return True
+    except:
+        pass
+    return False
+
+
 async def send_prompt(page: Page, prompt: str, input_selector: str = None, image_paths: list = None) -> str:
     """
     Send a prompt to ChatGPT and wait for the response.
@@ -286,7 +305,16 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None, image
 
     # Handle image uploads
     if image_paths:
-        print(f"[DEBUG] Processing {len(image_paths)} images for ChatGPT...")
+        # Deduplicate paths while preserving order
+        unique_paths = []
+        seen = set()
+        for p in image_paths:
+            if p and p not in seen:
+                unique_paths.append(p)
+                seen.add(p)
+        image_paths = unique_paths
+        
+        print(f"[DEBUG] Processing {len(image_paths)} unique images for ChatGPT...")
         attached_direct = False
         # 1. Plus Menu Check (Most robust way to detect quota)
         print("[DEBUG] Opening Plus menu to check for upload quota...")
@@ -339,25 +367,55 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None, image
             # (If we use hidden input, we don't need the menu open, but keeping it open doesn't hurt much if we find the input)
             await page.keyboard.press("Escape")
             await asyncio.sleep(0.3)
+            
+            # Dismiss any initial modal
+            await check_already_uploaded_modal(page)
         except Exception as e:
             if "quota exceeded" in str(e).lower():
                 raise
             print(f"[DEBUG] Menu check failed or timed out: {e}")
 
-        # 2. Try direct upload via hidden input
+        # 1.5 Check if images are ALREADY attached (e.g. from previous turn or failed previous attempt)
+        # We check this to avoid trying to upload again if they are already there.
+        already_attached_count = 0
         try:
-            file_input = await page.query_selector('input[type="file"]')
-            if file_input:
-                print("[DEBUG] Found hidden file input in ChatGPT, setting all files...")
-                await file_input.set_input_files(image_paths)
-                # Wait for any thumbnail
-                await page.wait_for_selector('button[aria-label="Remove attachment"], [data-testid="attachment-thumbnail"], [data-testid="bubble-file"], div[class*="attachment"]', timeout=15000)
-                print("[DEBUG] Images attached via hidden input in ChatGPT.")
-                attached_direct = True
-            else:
-                print("[DEBUG] No hidden file input found initially in ChatGPT.")
-        except Exception as e:
-            print(f"[DEBUG] Direct upload attempt in ChatGPT failed: {e}")
+            attachment_markers = await page.query_selector_all('button[aria-label="Remove attachment"], [data-testid="attachment-thumbnail"], [data-testid="bubble-file"], div[class*="attachment"]')
+            already_attached_count = len(attachment_markers)
+            if already_attached_count >= len(image_paths):
+                print(f"[DEBUG] {already_attached_count} images already attached. Skipping upload steps.")
+                attached_direct = True # Skip fallback
+        except:
+            pass
+
+        # 2. Try direct upload via hidden input
+        if not attached_direct:
+            try:
+                file_input = await page.query_selector('input[type="file"]')
+                if file_input:
+                    print("[DEBUG] Found hidden file input in ChatGPT, setting all files...")
+                    await file_input.set_input_files(image_paths)
+                    
+                    # Wait for thumbnails OR modal
+                    # We use a race-like approach: wait for selector but also check for modal
+                    for _ in range(30): # 15 seconds max
+                        if await check_already_uploaded_modal(page):
+                            print("[DEBUG] Modal handled during direct upload. Proceeding.")
+                            attached_direct = True
+                            break
+                        
+                        attached = await page.query_selector('button[aria-label="Remove attachment"], [data-testid="attachment-thumbnail"], [data-testid="bubble-file"], div[class*="attachment"]')
+                        if attached:
+                            print("[DEBUG] Images attached via hidden input in ChatGPT.")
+                            attached_direct = True
+                            break
+                        await asyncio.sleep(0.5)
+                else:
+                    print("[DEBUG] No hidden file input found initially in ChatGPT.")
+            except Exception as e:
+                print(f"[DEBUG] Direct upload attempt in ChatGPT failed: {e}")
+                # Check modal one last time before fallback
+                if await check_already_uploaded_modal(page):
+                    attached_direct = True
 
         # 3. Sequential fallback (only if direct didn't work)
         if not attached_direct:
@@ -396,6 +454,11 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None, image
                     
                 except Exception as e:
                     print(f"[ERROR] Failed to upload image {image_path}: {e}")
+                    
+                    # Check for "already uploaded" modal even in sequential case
+                    if await check_already_uploaded_modal(page):
+                        continue
+
                     # FINAL CHECK: if it failed, it might be quota
                     if await check_image_upload_quota_error(page):
                          error_msg = f"ChatGPT image upload quota exceeded. Free tier users have a daily limit on image uploads. Please wait, upgrade to ChatGPT Plus, or try logging out and back in with a different free account for more uploads."
@@ -412,15 +475,17 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None, image
              if not attached:
                   # One last check for quick quota message
                   if await check_image_upload_quota_error(page):
-                      raise Exception("Quota exceeded")
-                  raise Exception("No attachment detected after upload process.")
+                       raise Exception("Quota exceeded")
+                  # IF we didn't find them, but we might have dismissed a modal that said "already uploaded", 
+                  # we should still try to proceed with the prompt.
+                  print("[WARNING] No attachment detected after upload process. Attempting to proceed anyway.")
         except Exception as e:
              if "Quota exceeded" in str(e):
                   error_msg = "ChatGPT image upload quota exceeded. Free tier users have a daily limit on image uploads. Please wait, upgrade to ChatGPT Plus, or try logging out and back in with a different free account for more uploads."
                   print_json_output(error_msgs=error_msg, error=True, error_type="quota_exceeded")
                   raise Exception(error_msg)
              else:
-                  raise Exception(f"Image upload verification failed: {e}")
+                  print(f"[WARNING] Image upload verification warning: {e}")
 
 
     # Click on the input to focus it
