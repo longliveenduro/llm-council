@@ -101,14 +101,13 @@ describe('WebChatBotWizard Scores and Parsing', () => {
         expect(screen.queryByText('Aggregate Rankings (Street Cred)')).not.toBeInTheDocument();
     });
 
-    it('shows the Mapping and Aggregate Rankings boxes in Stage 3', async () => {
+    it('shows the Mapping box in Stage 3', async () => {
         const savedDraft = {
             step: 3,
             userQuery: 'Test query',
             stage1Responses: [{ model: 'Model A', response: 'A' }],
             labelToModel: { 'Response A': 'Model A' },
             stage2Responses: [{ model: 'Model A', ranking: 'FINAL RANKING:\n1. Response A' }],
-            aggregateRankings: [{ model: 'Model A', average_rank: 1.0, rankings_count: 1 }],
             stage3Prompt: 'Synthesize...',
             stage3Response: { model: 'Model A', response: '' }
         };
@@ -120,7 +119,7 @@ describe('WebChatBotWizard Scores and Parsing', () => {
 
         // In Stage 3
         expect(screen.getByText('Mapping:')).toBeInTheDocument();
-        expect(screen.getByText('Aggregate Rankings (Street Cred)')).toBeInTheDocument();
-        expect(screen.getByText('Avg: 1.00')).toBeInTheDocument();
+        // Aggregate Rankings (Street Cred) should NOT be in the document
+        expect(screen.queryByText('Aggregate Rankings (Street Cred)')).not.toBeInTheDocument();
     });
 });

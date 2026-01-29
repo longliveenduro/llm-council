@@ -39,9 +39,6 @@ def test_web_chatbot_flow():
     processed = data["stage2_results"]
     assert len(processed) == 2
     assert processed[0]["parsed_ranking"] == ["Response B1", "Response A1"]
-    
-    aggregate = data["aggregate_rankings"]
-    assert len(aggregate) == 2
 
     # 3. Test Stage 3 Prompt Generation
     response = client.post(
@@ -68,7 +65,7 @@ def test_web_chatbot_flow():
         "stage1": stage1_results,
         "stage2": processed,
         "stage3": {"model": "Chairman", "response": "Final Answer is Paris."},
-        "metadata": {"label_to_model": label_to_model, "aggregate_rankings": aggregate},
+        "metadata": {"label_to_model": label_to_model},
         "title": manual_title
     }
     

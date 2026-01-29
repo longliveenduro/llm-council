@@ -230,7 +230,6 @@ export default function ChatInterface({
                         <Stage2
                           rankings={msg.stage2}
                           labelToModel={msg.metadata?.label_to_model}
-                          aggregateRankings={msg.metadata?.aggregate_rankings}
                         />
                       )}
 
@@ -245,7 +244,6 @@ export default function ChatInterface({
                         <Stage3
                           finalResponse={msg.stage3}
                           labelToModel={msg.metadata?.label_to_model}
-                          aggregateRankings={msg.metadata?.aggregate_rankings}
                         />
                       )}
                     </div>

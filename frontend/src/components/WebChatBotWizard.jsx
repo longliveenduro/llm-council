@@ -160,7 +160,6 @@ export default function WebChatBotWizard({ conversationId, currentTitle, previou
     const [stage3Prompt, setStage3Prompt] = useState(savedDraft.stage3Prompt || '');
     const [stage3Response, setStage3Response] = useState(savedDraft.stage3Response || { model: '', response: '' }); // { model, response }
     const [manualTitle, setManualTitle] = useState(savedDraft.manualTitle || (currentTitle !== 'New Conversation' ? currentTitle : ''));
-    const [aggregateRankings, setAggregateRankings] = useState(savedDraft.aggregateRankings || []);
     const [aiStudioModel, setAiStudioModel] = useState(savedDraft.aiStudioModel || (automationModels.ai_studio[0]?.name) || 'Gemini 2.5 Flash');
     const [preselectionReason, setPreselectionReason] = useState(savedDraft.preselectionReason || '');
     const [selectedImages, setSelectedImages] = useState(savedDraft.selectedImages || (savedDraft.selectedImage ? [savedDraft.selectedImage] : []));
@@ -252,11 +251,11 @@ export default function WebChatBotWizard({ conversationId, currentTitle, previou
         const draft = {
             step, userQuery, stage1Responses, stage2Prompt, labelToModel,
             stage2Responses, stage3Prompt, stage3Response, manualTitle,
-            aggregateRankings, aiStudioModel, currentModel, currentText, preselectionReason,
+            aiStudioModel, currentModel, currentText, preselectionReason,
             selectedImages, roundsPerModel
         };
         localStorage.setItem(draftKey, JSON.stringify(draft));
-    }, [draftKey, step, userQuery, stage1Responses, stage2Prompt, labelToModel, stage2Responses, stage3Prompt, stage3Response, manualTitle, aggregateRankings, aiStudioModel, currentModel, currentText, selectedImages, roundsPerModel]);
+    }, [draftKey, step, userQuery, stage1Responses, stage2Prompt, labelToModel, stage2Responses, stage3Prompt, stage3Response, manualTitle, aiStudioModel, currentModel, currentText, selectedImages, roundsPerModel]);
 
     const [isGeneratingTitle, setIsGeneratingTitle] = useState(false);
     const generatingLock = useRef(false);
@@ -733,7 +732,6 @@ Title:`;
             const promptData = await api.getStage3Prompt(userQuery, stage1Responses, processed.stage2_results, cleanHistory);
             setStage3Prompt(promptData.prompt);
             setStage2Responses(processed.stage2_results);
-            setAggregateRankings(processed.aggregate_rankings);
 
             const scores = calculateCurrentScores(processed.stage2_results, labelToModel);
             // Scores are now keyed by label (e.g., "Response A1"), find the winners
@@ -783,7 +781,7 @@ Title:`;
                 stage1: stage1Responses,
                 stage2: stage2Responses,
                 stage3: { ...stage3Response, model: finalStage3Model },
-                metadata: { label_to_model: labelToModel, aggregate_rankings: aggregateRankings, rounds_per_model: roundsPerModel },
+                metadata: { label_to_model: labelToModel, rounds_per_model: roundsPerModel },
                 title: manualTitle,
                 images: selectedImages,
                 image: selectedImages.length > 0 ? selectedImages[0] : null // Legacy support
@@ -1264,29 +1262,6 @@ Title:`;
                             </div>
                         </div>
                     </div>
-
-                    {aggregateRankings && aggregateRankings.length > 0 && (
-                        <div className="aggregate-rankings-card">
-                            <div className="card-header">
-                                <h4>Aggregate Rankings (Street Cred)</h4>
-                                <span className="header-hint">Combined results across all peer evaluations (lower score is better)</span>
-                            </div>
-                            <div className="aggregate-list">
-                                {aggregateRankings.map((agg, index) => (
-                                    <div key={index} className="aggregate-item-modern">
-                                        <div className="rank-badge">#{index + 1}</div>
-                                        <div className="rank-model-info">
-                                            <ModelBadge model={agg.model} />
-                                        </div>
-                                        <div className="rank-stats">
-                                            <span className="rank-avg-value">Avg: {agg.average_rank.toFixed(2)}</span>
-                                            <span className="rank-votes-count">{agg.rankings_count} votes</span>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
                 </div>
             </div>
 

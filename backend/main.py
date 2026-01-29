@@ -15,7 +15,7 @@ from . import storage
 
 from .council import (
     run_full_council, generate_conversation_title, stage1_collect_responses,
-    stage2_collect_rankings, stage3_synthesize_final, calculate_aggregate_rankings,
+    stage2_collect_rankings, stage3_synthesize_final,
     build_ranking_prompt, build_chairman_prompt, parse_ranking_from_text,
     run_ai_studio_automation, run_chatgpt_automation, run_claude_automation,
     check_automation_session, clear_automation_session, run_interactive_login,
@@ -248,8 +248,7 @@ async def send_message_stream(conversation_id: str, request: SendMessageRequest)
             # Stage 2: Collect rankings
             yield f"data: {json.dumps({'type': 'stage2_start'})}\n\n"
             stage2_results, label_to_model = await stage2_collect_rankings(request.content, stage1_results)
-            aggregate_rankings = calculate_aggregate_rankings(stage2_results, label_to_model)
-            yield f"data: {json.dumps({'type': 'stage2_complete', 'data': stage2_results, 'metadata': {'label_to_model': label_to_model, 'aggregate_rankings': aggregate_rankings}})}\n\n"
+            yield f"data: {json.dumps({'type': 'stage2_complete', 'data': stage2_results, 'metadata': {'label_to_model': label_to_model}})}\n\n"
 
             # Stage 3: Synthesize final answer
             yield f"data: {json.dumps({'type': 'stage3_start'})}\n\n"
@@ -268,7 +267,7 @@ async def send_message_stream(conversation_id: str, request: SendMessageRequest)
                 stage1_results,
                 stage2_results,
                 stage3_result,
-                {"label_to_model": label_to_model, "aggregate_rankings": aggregate_rankings}
+                {"label_to_model": label_to_model}
             )
 
             # Send completion event
@@ -405,14 +404,11 @@ async def web_chatbot_process_rankings(request: WebChatBotRankingProcessRequest)
     # Ensure label_to_model uses clean names
     clean_label_to_model = {label: clean_model_name(model) for label, model in request.label_to_model.items()}
     
-    aggregate_rankings = calculate_aggregate_rankings(processed_results, clean_label_to_model)
-    
     # Update persistent scores
     update_scores(processed_results, clean_label_to_model)
     
     return {
-        "stage2_results": processed_results,
-        "aggregate_rankings": aggregate_rankings
+        "stage2_results": processed_results
     }
 
 
