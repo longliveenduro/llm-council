@@ -26,6 +26,7 @@ def isolated_test_data():
     with patch("backend.storage.DATA_DIR", conv_dir), \
          patch("backend.scores.DATA_DIR", conv_dir), \
          patch("backend.scores.SCORES_FILE", scores_file), \
+         patch("backend.scores.get_scores_file_path", return_value=scores_file), \
          patch("backend.main.IMAGES_DIR", Path(images_dir)):
         
         yield

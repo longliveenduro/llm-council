@@ -5,9 +5,10 @@ import os
 SCORES_FILE = "data/model_scores.json"
 
 initial_scores = {
-  "Chat GPT 5.2 Thinking": 0,
+  "ChatGPT 5.2": 0,
   "Gemini 3 Pro Preview": 0,
-  "Claude Sonnet 4.5 [Ext. Thinking]": 0
+  "Claude Sonnet 4.5": 0,
+  "Gemini 3 Flash Preview": 0
 }
 
 try:

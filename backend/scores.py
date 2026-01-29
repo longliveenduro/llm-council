@@ -26,7 +26,12 @@ RANKING_POINTS = {
     # 7th or lower (index 6+) gets 0 points
 }
 
-SCORES_FILE = os.path.join(str(Path(DATA_DIR).parent), "model_scores.json")
+def get_scores_file_path() -> str:
+    """Get the path to the scores file, which is one level up from DATA_DIR."""
+    return os.path.join(str(Path(DATA_DIR).parent), "model_scores.json")
+
+# Compatibility with existing code
+SCORES_FILE = get_scores_file_path()
 
 def get_scores() -> Dict[str, float]:
     """
@@ -35,11 +40,12 @@ def get_scores() -> Dict[str, float]:
     Returns:
         Dict mapping model names to their score (float).
     """
-    if not os.path.exists(SCORES_FILE):
+    scores_file = get_scores_file_path()
+    if not os.path.exists(scores_file):
         return {}
     
     try:
-        with open(SCORES_FILE, 'r') as f:
+        with open(scores_file, 'r') as f:
             return json.load(f)
     except Exception as e:
         print(f"Error loading scores: {e}")
@@ -54,7 +60,8 @@ def save_scores(scores: Dict[str, float]):
         scores: Dict mapping model names to their score.
     """
     try:
-        with open(SCORES_FILE, 'w') as f:
+        scores_file = get_scores_file_path()
+        with open(scores_file, 'w') as f:
             json.dump(scores, f, indent=2)
     except Exception as e:
         print(f"Error saving scores: {e}")
