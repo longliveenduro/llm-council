@@ -40,7 +40,62 @@ AI_STUDIO_JS = r'''
     const lastTurn = document.querySelector('ms-chat-turn:last-of-type');
     if (!lastTurn) return null;
     
-    const clone = lastTurn.cloneNode(true);
+    // Helper to find the markdown content container, penetrating Shadow DOM
+    function findMarkdownBlock(node) {
+        if (!node) return null;
+        const candidates = ['ms-markdown-block', '.markdown-renderer', 'ms-text-chunk', '.content'];
+        
+        // 0. Check if node itself matches
+        if (node.tagName && candidates.some(c => node.matches && node.matches(c))) return node;
+
+        // 1. Check Light DOM
+        for (const selector of candidates) {
+            const found = node.querySelector(selector);
+            if (found) return found;
+        }
+        
+        // 2. Check Shadow DOM
+        if (node.shadowRoot) {
+             for (const selector of candidates) {
+                const found = node.shadowRoot.querySelector(selector);
+                if (found) return found;
+             }
+            
+            // Deep check in nested shadow roots
+            const shadowChildren = node.shadowRoot.querySelectorAll('*');
+            for (const child of shadowChildren) {
+                if (child.shadowRoot) {
+                    const deepFound = linkTraverse(child); 
+                    if (deepFound) return deepFound;
+                }
+            }
+        }
+        return null;
+    }
+    
+    // Separate recursive function
+    function linkTraverse(node) {
+         const candidates = ['ms-markdown-block', '.markdown-renderer', 'ms-text-chunk', '.content'];
+         if (node.tagName && candidates.some(c => node.matches && node.matches(c))) return node;
+         
+         if (node.shadowRoot) {
+             for (const selector of candidates) {
+                const found = node.shadowRoot.querySelector(selector);
+                if (found) return found;
+             }
+             const kids = node.shadowRoot.querySelectorAll('*');
+             for (const k of kids) {
+                 if (k.shadowRoot) {
+                     const f = linkTraverse(k);
+                     if (f) return f;
+                 }
+             }
+         }
+         return null;
+    }
+
+    const contentEl = findMarkdownBlock(lastTurn) || lastTurn;
+    const clone = contentEl.cloneNode(true);
     
     // 1. Process Math Elements - convert to LaTeX syntax before Turndown
     const mathElements = clone.querySelectorAll('ms-katex, ms-math-block, .math, .math-inline, .math-display, [latex]');
