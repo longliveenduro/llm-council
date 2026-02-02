@@ -62,7 +62,6 @@ export default function Stage1({ responses }) {
             />
           )}
           <div className="model-name">{responses[activeTab].model}</div>
-          {console.log("DEBUG: Rendering response:", responses[activeTab].response)}
         </div>
         <div className="response-text markdown-content">
           <ReactMarkdown
