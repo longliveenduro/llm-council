@@ -27,7 +27,11 @@ import json
 # Directory to store browser profile (keeps you logged in)
 BROWSER_DATA_DIR = Path(__file__).parent / ".chatgpt_browser_data"
 
-# Combined JS script for extraction
+# Turndown JS Library Content (Loaded locally to bypass CSP)
+TURNDOWN_LIB_PATH = Path(__file__).parent / "turndown.min.js"
+TURNDOWN_LIB = TURNDOWN_LIB_PATH.read_text()
+
+# Combined JS script for extraction (uses Turndown for proper markdown)
 CHATGPT_JS = r'''
 (() => {
     const assistantMessages = document.querySelectorAll('[data-message-author-role="assistant"]');
@@ -38,23 +42,24 @@ CHATGPT_JS = r'''
     // Clone to avoid side effects
     const clone = lastMessage.cloneNode(true);
     
-    // 1. Process Math Elements (KaTeX)
+    // 1. Process Math Elements (KaTeX) - convert to LaTeX syntax before Turndown
     const mathContainers = clone.querySelectorAll('.katex-display, .math-display, :not(.katex-display) > .katex, :not(.math-display) > .math');
     mathContainers.forEach(container => {
         const annotation = container.querySelector('annotation[encoding="application/x-tex"]');
         if (annotation) {
             const latex = annotation.textContent.trim();
             const isBlock = container.classList.contains('katex-display') || container.classList.contains('math-display');
-            container.textContent = isBlock ? `\n$$\n${latex}\n$$\n` : `$${latex}$`;
+            container.innerHTML = isBlock ? `<pre>$$\n${latex}\n$$</pre>` : `<code>$${latex}$</code>`;
         }
     });
     
     clone.querySelectorAll('.katex, .math').forEach(el => {
         if (el.textContent.includes('$')) return;
         const ann = el.querySelector('annotation');
-        if (ann) el.textContent = ann.textContent;
+        if (ann) el.innerHTML = `<code>$${ann.textContent}$</code>`;
     });
 
+    // 2. Remove UI noise (buttons, citations, etc.)
     const allElements = clone.querySelectorAll('button, span, .cit-button, [data-testid*="citation"]');
     allElements.forEach(el => {
         const text = (el.textContent || "").trim();
@@ -69,13 +74,29 @@ CHATGPT_JS = r'''
     clone.style.left = '-9999px';
     clone.style.whiteSpace = 'pre-wrap';
     document.body.appendChild(clone);
-    
+
+    // 3. Use Turndown to convert HTML to Markdown
     let resultText = null;
     try {
         const content = clone.querySelector('.markdown, .prose') || clone;
+        
+        if (typeof TurndownService !== 'undefined') {
+            const turndownService = new TurndownService({
+                headingStyle: 'atx',
+                codeBlockStyle: 'fenced',
+                bulletListMarker: '-',
+                emDelimiter: '*',
+                strongDelimiter: '**'
+            });
+            resultText = turndownService.turndown(content.innerHTML).trim();
+        } else {
+            // Fallback to innerText if Turndown not loaded
+            resultText = content.innerText.trim();
+        }
+    } catch (e) {
+        // Fallback on error
+        const content = clone.querySelector('.markdown, .prose') || clone;
         resultText = content.innerText.trim();
-    } finally {
-        document.body.removeChild(clone);
     }
     
     return resultText;
@@ -610,6 +631,17 @@ async def extract_response(page: Page) -> str:
     
     if elapsed >= max_stabilization_wait:
         print(f"DEBUG: Stabilization timeout reached, proceeding with extraction (length: {prev_len})")
+    
+    # Inject Turndown library for HTML-to-Markdown conversion
+    try:
+        turndown_loaded = await page.evaluate("typeof TurndownService !== 'undefined'")
+        if not turndown_loaded:
+            # Use evaluate to inject the code (bypassing CSP script-src 'self')
+            await page.evaluate(TURNDOWN_LIB + "; window.TurndownService = TurndownService;")
+            await page.wait_for_function("typeof TurndownService !== 'undefined'", timeout=5000)
+            print("DEBUG: Turndown library injected successfully via evaluate")
+    except Exception as e:
+        print(f"DEBUG: Failed to inject Turndown (will use fallback): {e}")
     
     # Use JavaScript for intelligent extraction
     try:

@@ -30,7 +30,11 @@ import json
 # Directory to store browser profile (keeps you logged in)
 BROWSER_DATA_DIR = Path(__file__).parent / ".ai_studio_browser_data"
 
-# Combined JS script for extraction
+# Turndown JS Library Content (Loaded locally to bypass CSP)
+TURNDOWN_LIB_PATH = Path(__file__).parent / "turndown.min.js"
+TURNDOWN_LIB = TURNDOWN_LIB_PATH.read_text()
+
+# Combined JS script for extraction (uses Turndown for proper markdown)
 AI_STUDIO_JS = r'''
 (() => {
     const lastTurn = document.querySelector('ms-chat-turn:last-of-type');
@@ -38,7 +42,7 @@ AI_STUDIO_JS = r'''
     
     const clone = lastTurn.cloneNode(true);
     
-    // 1. Process Math Elements
+    // 1. Process Math Elements - convert to LaTeX syntax before Turndown
     const mathElements = clone.querySelectorAll('ms-katex, ms-math-block, .math, .math-inline, .math-display, [latex]');
     
     mathElements.forEach(el => {
@@ -54,7 +58,8 @@ AI_STUDIO_JS = r'''
                               el.tagName === 'MS-MATH-BLOCK' ||
                               el.closest('ms-math-block');
             
-            el.textContent = isDisplay ? `\n$$\n${latex}\n$$\n` : `$${latex}$`;
+            // Use HTML elements that Turndown will preserve
+            el.innerHTML = isDisplay ? `<pre>$$\n${latex}\n$$</pre>` : `<code>$${latex}$</code>`;
         }
     });
 
@@ -80,13 +85,32 @@ AI_STUDIO_JS = r'''
     clone.style.whiteSpace = 'pre-wrap';
     document.body.appendChild(clone);
     
+    // 3. Use Turndown to convert HTML to Markdown
     let resultText = null;
     try {
         const contentEls = clone.querySelectorAll('ms-markdown-block, ms-text-chunk, .text-content');
-        if (contentEls.length > 0) {
-            resultText = Array.from(contentEls).map(el => el.innerText).join('\n').trim();
+        
+        if (typeof TurndownService !== 'undefined') {
+            const turndownService = new TurndownService({
+                headingStyle: 'atx',
+                codeBlockStyle: 'fenced',
+                bulletListMarker: '-',
+                emDelimiter: '*',
+                strongDelimiter: '**'
+            });
+            
+            if (contentEls.length > 0) {
+                resultText = Array.from(contentEls).map(el => turndownService.turndown(el.innerHTML)).join('\n\n').trim();
+            } else {
+                resultText = turndownService.turndown(clone.innerHTML).trim();
+            }
         } else {
-            resultText = clone.innerText.trim();
+            // Fallback to innerText if Turndown not loaded
+            if (contentEls.length > 0) {
+                resultText = Array.from(contentEls).map(el => el.innerText).join('\n').trim();
+            } else {
+                resultText = clone.innerText.trim();
+            }
         }
 
         // 3. Extract and Refine Reference Links (URLs)
@@ -666,6 +690,17 @@ async def extract_response(page: Page) -> str:
 
     # Fallback to AI Studio specific selectors based on HTML analysis
     print("DEBUG: Falling back to visual extraction...")
+    
+    # Inject Turndown library for HTML-to-Markdown conversion
+    try:
+        turndown_loaded = await page.evaluate("typeof TurndownService !== 'undefined'")
+        if not turndown_loaded:
+            # Use evaluate to inject the code (bypassing CSP script-src 'self')
+            await page.evaluate(TURNDOWN_LIB + "; window.TurndownService = TurndownService;")
+            await page.wait_for_function("typeof TurndownService !== 'undefined'", timeout=5000)
+            print("DEBUG: Turndown library injected successfully via evaluate")
+    except Exception as e:
+        print(f"DEBUG: Failed to inject Turndown (will use fallback): {e}")
     
     try:
         text = await page.evaluate(AI_STUDIO_JS)

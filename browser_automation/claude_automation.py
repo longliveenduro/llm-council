@@ -27,7 +27,11 @@ import json
 # Directory to store browser profile (keeps you logged in)
 BROWSER_DATA_DIR = Path(__file__).parent / ".claude_browser_data"
 
-# Combined JS script for extraction
+# Turndown JS Library Content (Loaded locally to bypass CSP)
+TURNDOWN_LIB_PATH = Path(__file__).parent / "turndown.min.js"
+TURNDOWN_LIB = TURNDOWN_LIB_PATH.read_text()
+
+# Combined JS script for extraction (uses Turndown for proper markdown)
 CLAUDE_JS = r'''
 (() => {
     // Find potential message containers
@@ -46,7 +50,7 @@ CLAUDE_JS = r'''
     // Clone to avoid side effects
     const clone = lastMessage.cloneNode(true);
 
-    // 1. Process Math Elements
+    // 1. Process Math Elements - convert to LaTeX syntax before Turndown
     // Claude uses KaTeX. LaTeX source is usually in <annotation encoding="application/x-tex">
     const mathElements = clone.querySelectorAll('.katex, .math, .math-inline, .math-display');
     mathElements.forEach(el => {
@@ -54,50 +58,62 @@ CLAUDE_JS = r'''
         if (annotation) {
             const latex = annotation.textContent;
             const isBlock = el.classList.contains('math-display') || el.closest('.math-display');
-            el.textContent = isBlock ? `\n$$\n${latex}\n$$\n` : `$${latex}$`;
+            // Use HTML elements that Turndown will preserve
+            el.innerHTML = isBlock ? `<pre>$$\n${latex}\n$$</pre>` : `<code>$${latex}$</code>`;
         }
     });
 
-    // 2. Hidden Append Strategy for Correct line breaks (innerText needs layout)
+    // 2. Remove thinking sections before conversion
+    const thinkingSelectors = [
+        'details',
+        '[class*="thinking"]',
+        '[class*="Thinking"]',
+        '[data-testid*="thinking"]',
+        'summary',
+        '.border-border-300.rounded-lg',
+    ];
+    
+    for (const selector of thinkingSelectors) {
+        const elements = clone.querySelectorAll(selector);
+        elements.forEach(el => el.remove());
+    }
+
     clone.style.position = 'absolute';
     clone.style.left = '-9999px';
-    clone.style.whiteSpace = 'pre-wrap'; // Ensure whitespace is preserved
+    clone.style.whiteSpace = 'pre-wrap';
     document.body.appendChild(clone);
-    
+
+    // 3. Use Turndown to convert HTML to Markdown
     let resultText = null;
     
     try {
         // Strategy 1: Look for the standard markdown container
         const allMarkdown = clone.querySelectorAll('.standard-markdown');
+        let targetEl = null;
+        
         if (allMarkdown.length > 0) {
-            const lastMarkdown = allMarkdown[allMarkdown.length - 1];
-            resultText = lastMarkdown.innerText.trim();
+            targetEl = allMarkdown[allMarkdown.length - 1];
         } else {
-            // Strategy 2: Remove thinking sections and return clean text (fallback)
-            const thinkingSelectors = [
-                'details',
-                '[class*="thinking"]',
-                '[class*="Thinking"]',
-                '[data-testid*="thinking"]',
-                'summary',
-                '.border-border-300.rounded-lg',
-            ];
-            
-            for (const selector of thinkingSelectors) {
-                const elements = clone.querySelectorAll(selector);
-                elements.forEach(el => el.remove());
-            }
-            
-            const prose = clone.querySelector('.prose');
-            if (prose) {
-                resultText = prose.innerText.trim();
-            } else {
-                resultText = clone.innerText.trim();
-            }
+            targetEl = clone.querySelector('.prose') || clone;
         }
-    } finally {
-        // Cleanup
-        document.body.removeChild(clone);
+        
+        if (typeof TurndownService !== 'undefined') {
+            const turndownService = new TurndownService({
+                headingStyle: 'atx',
+                codeBlockStyle: 'fenced',
+                bulletListMarker: '-',
+                emDelimiter: '*',
+                strongDelimiter: '**'
+            });
+            resultText = turndownService.turndown(targetEl.innerHTML).trim();
+        } else {
+            // Fallback to innerText if Turndown not loaded
+            resultText = targetEl.innerText.trim();
+        }
+    } catch (e) {
+        // Fallback on error
+        const prose = clone.querySelector('.prose');
+        resultText = prose ? prose.innerText.trim() : clone.innerText.trim();
     }
     
     return resultText;
@@ -509,6 +525,17 @@ async def extract_response(page: Page, prompt: str = None, model: str = "auto") 
     if elapsed >= max_stabilization_wait:
         print(f"DEBUG: Stabilization timeout reached, proceeding with extraction (length: {prev_len})")
     
+    # Inject Turndown library for HTML-to-Markdown conversion
+    try:
+        turndown_loaded = await page.evaluate("typeof TurndownService !== 'undefined'")
+        if not turndown_loaded:
+            # Use evaluate to inject the code (bypassing CSP script-src 'self')
+            await page.evaluate(TURNDOWN_LIB + "; window.TurndownService = TurndownService;")
+            await page.wait_for_function("typeof TurndownService !== 'undefined'", timeout=5000)
+            print("DEBUG: Turndown library injected successfully via evaluate")
+    except Exception as e:
+        print(f"DEBUG: Failed to inject Turndown (will use fallback): {e}")
+
     # Use JavaScript to extract text while excluding thinking sections
     # Claude's Extended Thinking is typically in a <details> element or similar collapsible container
     try:

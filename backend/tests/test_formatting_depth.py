@@ -1,15 +1,24 @@
 import pytest
 import asyncio
+from pathlib import Path
 from playwright.async_api import async_playwright
 from browser_automation.ai_studio_automation import clean_ai_studio_text, AI_STUDIO_JS
 from browser_automation.claude_automation import clean_claude_text, CLAUDE_JS
 from browser_automation.chatgpt_automation import clean_chatgpt_text, CHATGPT_JS
+
+# Read local Turndown lib
+TURNDOWN_LIB = (Path(__file__).parent.parent.parent / "browser_automation" / "turndown.min.js").read_text()
 
 @pytest.mark.asyncio
 async def test_complex_formatting_pipeline():
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
+        
+        # Inject Turndown for tests
+        # Inject Turndown for tests
+        await page.evaluate(TURNDOWN_LIB + "; window.TurndownService = TurndownService;")
+        await page.wait_for_function("typeof TurndownService !== 'undefined'")
         
         # Scenario 1: AI Studio with complex nested lists and display math
         ai_studio_html = r'''
@@ -107,6 +116,11 @@ async def test_extra_whitespace_and_empty_lines():
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
+        
+        # Inject Turndown for tests
+        # Inject Turndown for tests
+        await page.evaluate(TURNDOWN_LIB + "; window.TurndownService = TurndownService;")
+        await page.wait_for_function("typeof TurndownService !== 'undefined'")
         
         # Test that cleaning functions consolidate multiple empty lines (\n\n\n) into \n\n
         content = r'''
