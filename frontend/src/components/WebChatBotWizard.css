@@ -31,10 +31,11 @@
 }
 
 /* Fix Synthesis Textarea and Preview Height */
+/* Fix Synthesis Textarea and Preview Height */
 .stage3-tabs-container textarea,
 .stage3-tabs-container .input-preview-content {
-    max-height: 400px;
     min-height: 200px;
+    /* max-height removed for auto-expand */
 }
 
 .stage3-wizard {
@@ -45,7 +46,8 @@
     min-height: 0;
 }
 
-.step3-scroll-area {
+.step3-scroll-area,
+.wizard-scroll-area {
     flex: 1;
     overflow-y: auto;
     padding-right: 4px;
@@ -937,7 +939,9 @@
 }
 
 .input-content-wrapper textarea {
-    resize: vertical;
+    resize: none;
+    overflow-y: hidden;
+    /* Hide scrollbar for auto-expand */
     background: var(--input-bg);
     border: 1px solid var(--border-color);
     color: var(--text-primary);
@@ -957,7 +961,7 @@
     padding: 10px;
     color: var(--text-primary);
     min-height: 0;
-    max-height: 300px;
+    /* max-height removed */
     flex: 1;
     overflow-y: auto;
     font-size: 14px;
