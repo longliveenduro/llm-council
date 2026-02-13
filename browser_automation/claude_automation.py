@@ -799,6 +799,7 @@ async def select_thinking_mode(page: Page, wants_thinking: bool = True) -> bool:
          '[aria-label*="thinking"]',
          'button:has(svg[data-icon="clock"])',
          'div[role="switch"]', # Sometimes it's a switch
+         'input[type="checkbox"][name*="thinking"]',
     ]
     
     # First, wait for chat interface to ensure elements are loaded
@@ -822,28 +823,144 @@ async def select_thinking_mode(page: Page, wants_thinking: bool = True) -> bool:
         print(f"DEBUG: Thinking state already matches desire ({wants_thinking}) according to page text.")
         return True
 
-    # Try to find and click the toggle
+    # Helper to check and click a toggle
+    async def check_and_click_toggle(element):
+        target_to_click = element
+        state_element = element
+        
+        # If it's a label, find the input inside
+        tag_name = await element.evaluate("el => el.tagName.toLowerCase()")
+        if tag_name == 'label':
+             input_el = await element.query_selector('input')
+             if input_el:
+                 state_element = input_el
+        
+        # If it's an input but invisible (sr-only), try to find parent label to click
+        if tag_name == 'input' and not await element.is_visible():
+             # Check if it has a parent label
+             parent = await element.evaluate_handle('el => el.closest("label")')
+             if parent:
+                 target_to_click = parent
+                 state_element = element
+             else:
+                 return False # Can't click invisible input with no label
+        elif not await target_to_click.is_visible():
+             return False
+
+        # Determine current state
+        is_currently_on = False
+        
+        # Method 1: Playwright is_checked() (works for checkbox/radio)
+        try:
+             is_currently_on = await state_element.is_checked()
+        except:
+             # Method 2: Attributes
+             checked = await state_element.get_attribute("checked") # returns string if present, None if not
+             aria_checked = await state_element.get_attribute("aria-checked")
+             aria_pressed = await state_element.get_attribute("aria-pressed")
+             
+             is_currently_on = (
+                 checked is not None or 
+                 aria_checked == "true" or 
+                 aria_pressed == "true"
+             )
+        
+        if is_currently_on != wants_thinking:
+            print(f"DEBUG: Clicking thinking toggle (current: {is_currently_on})")
+            try:
+                # Ensure we click the interactive element
+                await target_to_click.click(force=True) 
+                await asyncio.sleep(1)
+                
+                # Verify change?
+                # Sometimes checking again is good practice
+                return True
+            except Exception as e:
+                print(f"DEBUG: Click failed: {e}")
+                return False
+        else:
+            print(f"DEBUG: Toggle already in correct state ({is_currently_on})")
+            return True # Found and correct
+
+    # Strategy 1: Look for the toggle directly (Top level)
     for selector in potential_toggles:
         try:
             elements = await page.query_selector_all(selector)
             for el in elements:
-                if await el.is_visible():
-                    # Check aria-checked or aria-pressed
-                    checked = await el.get_attribute("aria-checked")
-                    pressed = await el.get_attribute("aria-pressed")
-                    
-                    is_currently_on = (checked == "true" or pressed == "true")
-                    
-                    if is_currently_on != wants_thinking:
-                        print(f"DEBUG: Clicking thinking toggle {selector} (current: {is_currently_on})")
-                        await el.click()
-                        await asyncio.sleep(1)
-                    else:
-                        print(f"DEBUG: Toggle {selector} already in correct state ({is_currently_on})")
-                        
+                if await check_and_click_toggle(el):
                     return True
         except:
             continue
+
+    # Strategy 2: Look inside the model selector menu
+    # The toggle might be hidden inside the model picker dropdown
+    print("DEBUG: Toggle not found at top level. Checking inside model selector menu...")
+    
+    model_selector_candidates = [
+        'button[data-testid="model-selector-dropdown"]',
+        'button[aria-label="Model selector"]',
+        'div[data-testid="model-selector-dropdown"]',
+        # Fallback to finding the button that contains the current model name
+        'button:has-text("Sonnet")',
+        'button:has-text("Opus")',
+        'button:has-text("Haiku")',
+        'button:has-text("Claude")',
+    ]
+
+    menu_opened = False
+    
+    for selector in model_selector_candidates:
+        try:
+            # We want the one that is visible
+            els = await page.query_selector_all(selector)
+            for el in els:
+                if await el.is_visible():
+                    print(f"DEBUG: Found likely model selector: {selector}")
+                    await el.click()
+                    menu_opened = True
+                    await asyncio.sleep(1) # Wait for animation
+                    break
+            if menu_opened:
+                break
+        except:
+            continue
+            
+    if menu_opened:
+        # Now look for the toggle inside the menu
+        menu_toggle_selectors = [
+            'label:has(input[role="switch"])', # Label wrapping the switch
+            'label:has(input[type="checkbox"])', 
+            'div[role="switch"]',
+            'button[role="switch"]',
+            'input[type="checkbox"][role="switch"]', 
+            '.thinking-toggle',
+            # Fallback text search nearby?
+        ]
+        
+        found_in_menu = False
+        for selector in menu_toggle_selectors:
+            try:
+                elements = await page.query_selector_all(selector)
+                for el in elements:
+                     if await check_and_click_toggle(el):
+                         found_in_menu = True
+                         break
+                if found_in_menu:
+                    break
+            except:
+                continue
+        
+        # Close the menu by clicking the model selector again or body
+        # Try clicking escape first
+        try:
+             await page.keyboard.press("Escape")
+        except:
+             pass
+        await asyncio.sleep(0.5)
+        
+        if found_in_menu:
+            print("DEBUG: Successfully toggled thinking in model menu.")
+            return True
 
     print("Warning: Could not definitively find Extended Thinking toggle. detailed debug info below:")
     # Dump HTML of input area for debugging
