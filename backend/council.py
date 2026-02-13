@@ -683,6 +683,11 @@ async def run_ai_studio_automation(prompt: str, model: str, images: list = None,
             output = stdout.decode().strip()
             stderr_str = stderr.decode().strip()
 
+            # Print debug lines from subprocess output
+            for line in output.split('\n'):
+                if line.startswith('DEBUG:') or 'AI_STUDIO_JS' in line:
+                    print(f"  [subprocess] {line}")
+
             # Initialize result
             result: AutomationResult = {
                 "response": None,

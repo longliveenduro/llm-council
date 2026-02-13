@@ -37,8 +37,16 @@ TURNDOWN_LIB = TURNDOWN_LIB_PATH.read_text()
 # Combined JS script for extraction (uses Turndown for proper markdown)
 AI_STUDIO_JS = r'''
 (() => {
+    const DEBUG = [];
+    DEBUG.push('AI_STUDIO_JS starting');
+    
     const lastTurn = document.querySelector('ms-chat-turn:last-of-type');
-    if (!lastTurn) return null;
+    if (!lastTurn) {
+        DEBUG.push('ERROR: No ms-chat-turn found');
+        console.error('AI_STUDIO_JS:', DEBUG.join(' | '));
+        return null;
+    }
+    DEBUG.push('Found lastTurn');
     
     // Helper to find the markdown content container, penetrating Shadow DOM
     function findMarkdownBlock(node) {
@@ -97,6 +105,24 @@ AI_STUDIO_JS = r'''
     const contentEl = findMarkdownBlock(lastTurn) || lastTurn;
     const clone = contentEl.cloneNode(true);
     
+    // Create a Trusted Types policy to allow innerHTML assignments
+    // AI Studio enforces Trusted Types CSP which blocks raw innerHTML
+    if (window.trustedTypes && window.trustedTypes.createPolicy) {
+        try {
+            if (!window.__aiStudioTurndownPolicy) {
+                window.__aiStudioTurndownPolicy = window.trustedTypes.createPolicy('ai-studio-turndown', {
+                    createHTML: (s) => s
+                });
+            }
+        } catch(e) {
+            DEBUG.push('TrustedTypes policy creation note: ' + e.message);
+        }
+    }
+    const trustHTML = (s) => {
+        if (window.__aiStudioTurndownPolicy) return window.__aiStudioTurndownPolicy.createHTML(s);
+        return s;
+    };
+    
     // 1. Process Math Elements - convert to LaTeX syntax before Turndown
     const mathElements = clone.querySelectorAll('ms-katex, ms-math-block, .math, .math-inline, .math-display, [latex]');
     
@@ -114,7 +140,7 @@ AI_STUDIO_JS = r'''
                               el.closest('ms-math-block');
             
             // Use HTML elements that Turndown will preserve
-            el.innerHTML = isDisplay ? `<pre>$$\n${latex}\n$$</pre>` : `<code>$${latex}$</code>`;
+            el.innerHTML = trustHTML(isDisplay ? `<pre>$$\n${latex}\n$$</pre>` : `<code>$${latex}$</code>`);
         }
     });
 
@@ -144,8 +170,10 @@ AI_STUDIO_JS = r'''
     let resultText = null;
     try {
         const contentEls = clone.querySelectorAll('ms-markdown-block, ms-text-chunk, .text-content');
+        DEBUG.push('contentEls count: ' + contentEls.length);
         
         if (typeof TurndownService !== 'undefined') {
+            DEBUG.push('Using Turndown');
             const turndownService = new TurndownService({
                 headingStyle: 'atx',
                 codeBlockStyle: 'fenced',
@@ -159,8 +187,11 @@ AI_STUDIO_JS = r'''
             } else {
                 resultText = turndownService.turndown(clone.innerHTML).trim();
             }
+            DEBUG.push('Turndown result length: ' + (resultText ? resultText.length : 0));
         } else {
             // Fallback to innerText if Turndown not loaded
+            console.error('AI_STUDIO_JS: TurndownService is NOT defined - falling back to innerText');
+            DEBUG.push('ERROR: Turndown NOT available, using innerText fallback');
             if (contentEls.length > 0) {
                 resultText = Array.from(contentEls).map(el => el.innerText).join('\n').trim();
             } else {
@@ -267,6 +298,9 @@ AI_STUDIO_JS = r'''
     } finally {
         document.body.removeChild(clone);
     }
+    
+    DEBUG.push('Final result length: ' + (resultText ? resultText.length : 0));
+    console.log('AI_STUDIO_JS Debug:', DEBUG.join(' | '));
     
     return resultText;
 })()
@@ -640,113 +674,47 @@ async def extract_response(page: Page) -> str:
     if elapsed >= max_stabilization_wait:
         print(f"DEBUG: Stabilization timeout reached, proceeding with extraction (length: {prev_len})")
 
-    # Prioritize JS Visual Extraction for Math content
-    # AI Studio's copy button flattens rendered MathML/HTML-math to Unicode text, 
-    # losing the underlying LaTeX. We prefer DOM parsing if math blocks are present.
+    # Always use JS Visual Extraction with Turndown for proper markdown formatting.
+    # AI Studio's clipboard copy functionality returns plain text, stripping markdown.
+    # We follow the same pattern as Claude and ChatGPT by using Turndown conversion.
+    
+    # Debug: Save HTML of the last turn to help identify structure issues
     try:
-        # Use Playwright locator to check for math elements (automatically pierces Shadow DOM)
-        # Check for common math tags/classes
         last_turn = page.locator('ms-chat-turn:last-of-type')
-        math_locator = last_turn.locator('ms-math-block, .math-display, .math-inline, math, [latex]')
-        math_count = await math_locator.count()
-        
-        # Debug: Dump HTML of the last turn to help identify structure
-        try:
-            # We need to get the HTML. innerHTML might not show Shadow DOM content if it's open.
-            # But let's try to get what we can.
-            debug_html = await last_turn.evaluate("el => el.outerHTML")
-            with open("ai_studio_last_turn.html", "w") as f:
-                f.write(debug_html)
-            print(f"DEBUG: Saved last turn HTML to ai_studio_last_turn.html. Math elements found: {math_count}")
-        except Exception as e:
-            print(f"DEBUG: Failed to save debug HTML: {e}")
-
-        if math_count > 0:
-            print(f"DEBUG: Math elements detected ({math_count}), skipping clipboard to use high-fidelity visual extraction")
-            # Skip clipboard attempts to fall through to the visual extraction block below
-            pass 
-        else:
-            # Try Clipboard Extraction (High Fidelity for tables/markdown without math)
-            # Retry up to 3 times if content looks truncated
-            MAX_CLIPBOARD_RETRIES = 3
-            
-            for attempt in range(MAX_CLIPBOARD_RETRIES):
-                try:
-                    # Grant permissions if possible
-                    try:
-                        await page.context.grant_permissions(['clipboard-read', 'clipboard-write'])
-                    except:
-                        pass
-
-                    turn_selector = 'ms-chat-turn:last-of-type'
-                    turn = await page.query_selector(turn_selector)
-                    
-                    if turn:
-                        # Hover to potentially reveal buttons
-                        try:
-                             await turn.hover()
-                        except:
-                             pass
-                        
-                        # 1. Try direct copy button
-                        copy_btn = await turn.query_selector('button[aria-label*="copy" i]')
-                        
-                        # 2. Try 'more_vert' menu if direct button missing
-                        if not copy_btn:
-                            menu_btn = await turn.query_selector('button[aria-label="Open options"]')
-                            if menu_btn:
-                                await menu_btn.click()
-                                # Wait/Find menu
-                                try:
-                                    await page.wait_for_selector('div[role="menu"]', timeout=2000)
-                                    menu_items = await page.query_selector_all('div[role="menu"] button')
-                                    for item in menu_items:
-                                        txt = await item.text_content()
-                                        if "copy" in txt.lower():
-                                            copy_btn = item
-                                            break
-                                except:
-                                    pass
-                        
-                        if copy_btn:
-                            await copy_btn.click()
-                            # Wait for clipboard write
-                            await asyncio.sleep(0.8)
-                            clipboard_text = await page.evaluate("navigator.clipboard.readText()")
-                            
-                            if clipboard_text and len(clipboard_text) > 5:
-                                # Check if text looks truncated (ends mid-word/sentence without proper ending)
-                                text_stripped = clipboard_text.strip()
-                                
-                                # Heuristic: Check if text ends with a proper sentence ending or natural break
-                                proper_endings = ('.', '!', '?', ':', '"', "'", ')', ']', '}', '\n', '```')
-                                looks_complete = any(text_stripped.endswith(e) for e in proper_endings)
-                                
-                                # Also check that it's not ending with an incomplete word (letter followed by nothing)
-                                if not looks_complete and len(text_stripped) > 20:
-                                    # The text might be streaming - wait and retry
-                                    if attempt < MAX_CLIPBOARD_RETRIES - 1:
-                                        print(f"DEBUG: Clipboard text may be truncated (attempt {attempt + 1}), retrying...")
-                                        await asyncio.sleep(1.5)
-                                        continue
-                                
-                                print(f"DEBUG: Extracted response via Clipboard (attempt {attempt + 1}, {len(clipboard_text)} chars)")
-                                return clipboard_text
-                        else:
-                            # No copy button found, break out of retry loop
-                            break
-
-                except Exception as e:
-                    print(f"DEBUG: Clipboard extraction failed (attempt {attempt + 1}): {e}")
-                    if attempt < MAX_CLIPBOARD_RETRIES - 1:
-                        await asyncio.sleep(1)
+        debug_html = await last_turn.evaluate("el => el.outerHTML")
+        with open("ai_studio_last_turn.html", "w") as f:
+            f.write(debug_html)
+        print(f"DEBUG: Saved last turn HTML to ai_studio_last_turn.html ({len(debug_html)} bytes)")
     except Exception as e:
-        print(f"DEBUG: Error checking for math: {e}, proceeding to visual extraction")
+        print(f"DEBUG: Failed to save debug HTML: {e}")
 
-    # Fallback to AI Studio specific selectors based on HTML analysis
-    print("DEBUG: Falling back to visual extraction...")
+    # Primary extraction using Turndown for HTML-to-Markdown conversion
+    print("DEBUG: Using Turndown visual extraction for proper markdown formatting...")
+    
+    # Create a Trusted Types default policy to allow innerHTML in Turndown
+    # AI Studio enforces Trusted Types CSP which blocks innerHTML assignments
+    try:
+        await page.evaluate("""
+            if (window.trustedTypes && window.trustedTypes.createPolicy && !window.__defaultTTPolicyCreated) {
+                try {
+                    window.trustedTypes.createPolicy('default', {
+                        createHTML: (s) => s,
+                        createScriptURL: (s) => s,
+                        createScript: (s) => s
+                    });
+                    window.__defaultTTPolicyCreated = true;
+                    console.log('Created default Trusted Types policy');
+                } catch(e) {
+                    console.log('Default Trusted Types policy already exists or failed:', e.message);
+                }
+            }
+        """)
+        print("DEBUG: Trusted Types default policy created")
+    except Exception as e:
+        print(f"DEBUG: Trusted Types policy creation note: {e}")
     
     # Inject Turndown library for HTML-to-Markdown conversion
+    turndown_loaded = False
     try:
         turndown_loaded = await page.evaluate("typeof TurndownService !== 'undefined'")
         if not turndown_loaded:
@@ -754,15 +722,25 @@ async def extract_response(page: Page) -> str:
             await page.evaluate(TURNDOWN_LIB + "; window.TurndownService = TurndownService;")
             await page.wait_for_function("typeof TurndownService !== 'undefined'", timeout=5000)
             print("DEBUG: Turndown library injected successfully via evaluate")
+        
+        # Verify Turndown is actually available now
+        turndown_loaded = await page.evaluate("typeof TurndownService !== 'undefined'")
+        print(f"DEBUG: Turndown available before AI_STUDIO_JS: {turndown_loaded}")
     except Exception as e:
         print(f"DEBUG: Failed to inject Turndown (will use fallback): {e}")
+        turndown_loaded = False
     
     try:
         text = await page.evaluate(AI_STUDIO_JS)
         
         if text:
             print(f"DEBUG: Extracted response via JS visual evaluation ({len(text)} chars)")
+            # Log first 200 chars to see if it has markdown
+            preview = text[:200].replace('\n', '\\n')
+            print(f"DEBUG: Preview: {preview}...")
             return text
+        else:
+            print("DEBUG: AI_STUDIO_JS returned None or empty string")
     except Exception as e:
         print(f"DEBUG: JS visual extraction failed: {e}")
 
