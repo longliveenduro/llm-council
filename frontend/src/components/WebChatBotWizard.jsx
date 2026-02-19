@@ -494,7 +494,7 @@ Title:`;
 
             if (!modelToUse) {
                 // Fallback if not loaded yet
-                if (provider === 'ai_studio') modelToUse = 'Gemini 3 Pro Preview';
+                if (provider === 'ai_studio') modelToUse = 'Gemini 3.1 Pro';
                 if (provider === 'chatgpt') modelToUse = 'ChatGPT 5.2';
                 if (provider === 'claude') modelToUse = 'Claude 4.6 Sonnet';
             }

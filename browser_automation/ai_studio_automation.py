@@ -330,7 +330,10 @@ async def get_browser_context() -> tuple[BrowserContext, Page]:
         user_data_dir=str(BROWSER_DATA_DIR),
         headless=False,
         viewport={"width": 1400, "height": 900},
-        args=["--disable-blink-features=AutomationControlled"],
+        args=[
+            "--disable-blink-features=AutomationControlled",
+            "--disable-dev-shm-usage"
+        ],
     )
     
     # Get existing page or create new one
@@ -845,8 +848,9 @@ async def select_model(page: Page, model_name: str):
     # IDs based on HTML analysis
     model_map = {
         "Gemini 3 Flash Preview": "gemini-3-flash-preview",
-        "Gemini 3 Pro": "gemini-3-pro-preview", 
-        "Gemini 3 Pro Preview": "gemini-3-pro-preview",
+        "Gemini 3.1 Pro": "gemini-3.1-pro-preview",
+        "Gemini 3 Pro": "gemini-3.1-pro-preview", 
+        "Gemini 3 Pro Preview": "gemini-3.1-pro-preview",
         "Gemini Flash Latest": "gemini-flash-latest",
         "Gemini 2.5 Flash": "gemini-flash-latest",
         "Gemini Flash-Lite Latest": "gemini-flash-lite-latest",
@@ -1104,8 +1108,9 @@ async def main():
         if args.model:
             model_map = {
                 "Gemini 3 Flash Preview": "gemini-3-flash-preview",
-                "Gemini 3 Pro": "gemini-3-pro-preview", 
-                "Gemini 3 Pro Preview": "gemini-3-pro-preview",
+                "Gemini 3.1 Pro": "gemini-3.1-pro-preview",
+                "Gemini 3 Pro": "gemini-3.1-pro-preview", 
+                "Gemini 3 Pro Preview": "gemini-3.1-pro-preview",
                 "Gemini Flash Latest": "gemini-flash-latest",
                 "Gemini 2.5 Flash": "gemini-flash-latest",
                 "Gemini Flash-Lite Latest": "gemini-flash-lite-latest",
@@ -1114,7 +1119,7 @@ async def main():
                 "Imagen 4": "imagen-4",
             }
             target_suffix = model_map.get(args.model)
-            if target_suffix:
+            if target_suffix and target_suffix != "gemini-3.1-pro-preview":
                 model_url_param = f"?model={target_suffix}"
 
         # Navigate to AI Studio with model selection via URL (more reliable than clicking)

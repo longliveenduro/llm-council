@@ -10,7 +10,7 @@ describe('WebChatBotWizard Contrast', () => {
         currentTitle: 'Contrast Test',
         llmNames: ['Claude 4.6 Sonnet'],
         automationModels: {
-            ai_studio: [{ name: 'Gemini 3 Pro Preview', id: 'g3p' }],
+            ai_studio: [{ name: 'Gemini 3.1 Pro', id: 'gemini-3.1-pro' }],
             chatgpt: [{ name: 'ChatGPT 5.2', id: 'c52' }],
             claude: [{ name: 'Claude 4.6 Sonnet', id: 'c45s' }],
         },

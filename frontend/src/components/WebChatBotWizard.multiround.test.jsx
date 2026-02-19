@@ -16,9 +16,9 @@ describe('WebChatBotWizard Multi-Round Automation', () => {
     const defaultProps = {
         conversationId: 'conv-123',
         currentTitle: 'New Conversation',
-        llmNames: ['Claude 3.5 Sonnet', 'Gemini 3 Pro'],
+        llmNames: ['Claude 3.5 Sonnet', 'Gemini 3.1 Pro'],
         automationModels: {
-            ai_studio: [{ name: 'Gemini 3 Pro', id: 'gemini-3-pro' }],
+            ai_studio: [{ name: 'Gemini 3.1 Pro', id: 'gemini-3.1-pro' }],
             chatgpt: [],
             claude: [{ name: 'Claude 3.5 Sonnet', id: 'claude-3-5-sonnet' }],
         },

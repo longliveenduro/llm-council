@@ -18,9 +18,9 @@ describe('WebChatBotWizard Claude Integration', () => {
     const defaultProps = {
         conversationId: 'conv-123',
         currentTitle: 'New Conversation',
-        llmNames: ['Claude 4.6 Sonnet', 'Gemini 3 Pro'],
+        llmNames: ['Claude 4.6 Sonnet', 'Gemini 3.1 Pro'],
         automationModels: {
-            ai_studio: [{ name: 'Gemini 3 Pro', id: 'gemini-3-pro' }],
+            ai_studio: [{ name: 'Gemini 3.1 Pro', id: 'gemini-3.1-pro' }],
             chatgpt: [],
             claude: [{ name: 'Claude 4.6 Sonnet', id: 'claude-3-5-sonnet' }],
         },
@@ -48,7 +48,7 @@ describe('WebChatBotWizard Claude Integration', () => {
         expect(screen.queryByText('Run via ChatGPT')).not.toBeInTheDocument();
 
         // Select Gemini 2.5 Flash (default automation model if currentModel is cleared, but here we test explicit selection)
-        fireEvent.change(modelSelect, { target: { value: 'Gemini 3 Pro' } });
+        fireEvent.change(modelSelect, { target: { value: 'Gemini 3.1 Pro' } });
         const aiStudioBtn = screen.getByText('Run via AI Studio');
         expect(aiStudioBtn).not.toBeDisabled();
         expect(screen.queryByText('Run via Claude')).not.toBeInTheDocument();
@@ -399,9 +399,9 @@ describe('WebChatBotWizard Gemini Reference Display', () => {
     const defaultProps = {
         conversationId: 'test-conv-refs',
         currentTitle: 'New Conversation',
-        llmNames: ['Gemini 3 Pro'],
+        llmNames: ['Gemini 3.1 Pro'],
         automationModels: {
-            ai_studio: [{ name: 'Gemini 3 Pro', id: 'gemini-3-pro' }],
+            ai_studio: [{ name: 'Gemini 3.1 Pro', id: 'gemini-3.1-pro' }],
             chatgpt: [],
             claude: [],
         },
@@ -422,7 +422,7 @@ describe('WebChatBotWizard Gemini Reference Display', () => {
 
         // Select Gemini model
         const modelSelect = screen.getByLabelText('Current Model');
-        fireEvent.change(modelSelect, { target: { value: 'Gemini 3 Pro' } });
+        fireEvent.change(modelSelect, { target: { value: 'Gemini 3.1 Pro' } });
 
         // Click run
         const aiStudioBtn = screen.getByText('Run via AI Studio');

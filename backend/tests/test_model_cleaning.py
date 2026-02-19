@@ -13,7 +13,7 @@ def test_clean_model_name_spacing():
     assert clean_model_name("Chat GPT 5.2 Thinking") == "ChatGPT 5.2"
 
 def test_clean_model_name_no_change():
-    assert clean_model_name("Gemini 3 Pro Preview") == "Gemini 3 Pro Preview"
+    assert clean_model_name("Gemini 3.1 Pro") == "Gemini 3.1 Pro"
     assert clean_model_name("GPT-4o") == "GPT-4o"
 
 def test_clean_model_name_empty():

@@ -16,9 +16,9 @@ describe('WebChatBotWizard Stage 1 Deduplication', () => {
     const defaultProps = {
         conversationId: 'dedup-test-123',
         currentTitle: 'New Conversation',
-        llmNames: ['Claude 4.6 Sonnet', 'Gemini 3 Pro'],
+        llmNames: ['Claude 4.6 Sonnet', 'Gemini 3.1 Pro'],
         automationModels: {
-            ai_studio: [{ name: 'Gemini 3 Pro', id: 'gemini-3-pro' }],
+            ai_studio: [{ name: 'Gemini 3.1 Pro', id: 'gemini-3.1-pro' }],
             chatgpt: [],
             claude: [{ name: 'Claude 4.6 Sonnet', id: 'claude-sonnet-4-5' }],
         },
@@ -144,7 +144,7 @@ describe('WebChatBotWizard Stage 1 Deduplication', () => {
         fireEvent.click(screen.getByText('Add Response'));
 
         // Add Gemini response
-        fireEvent.change(modelSelect, { target: { value: 'Gemini 3 Pro' } });
+        fireEvent.change(modelSelect, { target: { value: 'Gemini 3.1 Pro' } });
         fireEvent.click(screen.getByText('Run via AI Studio'));
         await waitFor(() => {
             expect(screen.getByPlaceholderText('Response by LLM will go here...').value).toBe('Gemini response');
