@@ -8,11 +8,11 @@ describe('WebChatBotWizard Contrast', () => {
     const defaultProps = {
         conversationId: 'contrast-test',
         currentTitle: 'Contrast Test',
-        llmNames: ['Claude 4.5 Sonnet'],
+        llmNames: ['Claude 4.6 Sonnet'],
         automationModels: {
             ai_studio: [{ name: 'Gemini 3 Pro Preview', id: 'g3p' }],
             chatgpt: [{ name: 'ChatGPT 5.2', id: 'c52' }],
-            claude: [{ name: 'Claude 4.5 Sonnet', id: 'c45s' }],
+            claude: [{ name: 'Claude 4.6 Sonnet', id: 'c45s' }],
         },
     };
 

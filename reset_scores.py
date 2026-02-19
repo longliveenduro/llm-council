@@ -7,7 +7,7 @@ SCORES_FILE = "data/model_scores.json"
 initial_scores = {
   "ChatGPT 5.2": 0,
   "Gemini 3 Pro Preview": 0,
-  "Claude Sonnet 4.5": 0,
+  "Claude Sonnet 4.6": 0,
   "Gemini 3 Flash Preview": 0
 }
 

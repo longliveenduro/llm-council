@@ -637,7 +637,7 @@ def clean_claude_text(text: str, prompt: str = None, model: str = "auto") -> str
     # Post-process to remove known UI noise/disclaimers
     garbage_strings = [
         "Claude is AI and can make mistakes. Please double-check responses.",
-        "Sonnet 4.5",
+        "Sonnet 4.6",
         "Claude 3.5 Sonnet",
         "Claude 3 Opus",
         "Claude 3 Haiku",

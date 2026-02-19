@@ -16,11 +16,11 @@ describe('WebChatBotWizard Stage 1 Deduplication', () => {
     const defaultProps = {
         conversationId: 'dedup-test-123',
         currentTitle: 'New Conversation',
-        llmNames: ['Claude 4.5 Sonnet', 'Gemini 3 Pro'],
+        llmNames: ['Claude 4.6 Sonnet', 'Gemini 3 Pro'],
         automationModels: {
             ai_studio: [{ name: 'Gemini 3 Pro', id: 'gemini-3-pro' }],
             chatgpt: [],
-            claude: [{ name: 'Claude 4.5 Sonnet', id: 'claude-sonnet-4-5' }],
+            claude: [{ name: 'Claude 4.6 Sonnet', id: 'claude-sonnet-4-5' }],
         },
         onComplete: vi.fn(),
         onCancel: vi.fn(),
@@ -53,7 +53,7 @@ describe('WebChatBotWizard Stage 1 Deduplication', () => {
 
         // Select Claude model
         const modelSelect = screen.getByLabelText('Current Model');
-        fireEvent.change(modelSelect, { target: { value: 'Claude 4.5 Sonnet' } });
+        fireEvent.change(modelSelect, { target: { value: 'Claude 4.6 Sonnet' } });
 
         // First automation run
         const claudeBtn = screen.getByText('Run via Claude');
@@ -75,7 +75,7 @@ describe('WebChatBotWizard Stage 1 Deduplication', () => {
         // Verify first response was added
         await waitFor(() => {
             const responsesList = document.querySelector('.responses-list');
-            expect(responsesList.textContent).toContain('Claude 4.5 Sonnet [Ext. Thinking]');
+            expect(responsesList.textContent).toContain('Claude 4.6 Sonnet [Ext. Thinking]');
         });
 
         // Count responses - should be 1
@@ -83,7 +83,7 @@ describe('WebChatBotWizard Stage 1 Deduplication', () => {
         expect(responseItems.length).toBe(1);
 
         // Re-select Claude model (it gets cleared after adding)
-        fireEvent.change(modelSelect, { target: { value: 'Claude 4.5 Sonnet' } });
+        fireEvent.change(modelSelect, { target: { value: 'Claude 4.6 Sonnet' } });
 
         // Second automation run
         fireEvent.click(screen.getByText('Run via Claude'));
@@ -103,7 +103,7 @@ describe('WebChatBotWizard Stage 1 Deduplication', () => {
         // Check that confirm was called with the correct model name (including suffix)
         await waitFor(() => {
             expect(window.confirm).toHaveBeenCalledWith(
-                expect.stringContaining('Claude 4.5 Sonnet [Ext. Thinking]')
+                expect.stringContaining('Claude 4.6 Sonnet [Ext. Thinking]')
             );
         });
 
@@ -135,7 +135,7 @@ describe('WebChatBotWizard Stage 1 Deduplication', () => {
 
         // Add Claude response
         const modelSelect = screen.getByLabelText('Current Model');
-        fireEvent.change(modelSelect, { target: { value: 'Claude 4.5 Sonnet' } });
+        fireEvent.change(modelSelect, { target: { value: 'Claude 4.6 Sonnet' } });
 
         fireEvent.click(screen.getByText('Run via Claude'));
         await waitFor(() => {

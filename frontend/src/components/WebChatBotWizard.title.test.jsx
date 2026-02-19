@@ -16,7 +16,7 @@ describe('WebChatBotWizard Title Generation', () => {
     const defaultProps = {
         conversationId: 'title-test-123',
         currentTitle: 'New Conversation',
-        llmNames: ['Claude 4.5 Sonnet'],
+        llmNames: ['Claude 4.6 Sonnet'],
         automationModels: {
             ai_studio: [{ name: 'Gemini Flash Latest', id: 'gfl' }],
             chatgpt: [],
@@ -35,7 +35,7 @@ describe('WebChatBotWizard Title Generation', () => {
         });
         api.getStage2Prompt.mockResolvedValueOnce({
             prompt: 'Stage 2 Prompt',
-            label_to_model: { 'Response A': 'Claude 4.5 Sonnet' }
+            label_to_model: { 'Response A': 'Claude 4.6 Sonnet' }
         });
 
         render(<WebChatBotWizard {...defaultProps} />);
@@ -46,7 +46,7 @@ describe('WebChatBotWizard Title Generation', () => {
 
         // Add a response so we can move to Stage 2
         const modelSelect = screen.getByLabelText('Current Model');
-        fireEvent.change(modelSelect, { target: { value: 'Claude 4.5 Sonnet' } });
+        fireEvent.change(modelSelect, { target: { value: 'Claude 4.6 Sonnet' } });
 
         // Manual entry or automation (mocked)
         fireEvent.click(screen.getByText('Write'));

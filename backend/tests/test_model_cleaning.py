@@ -3,8 +3,8 @@ from backend.utils import clean_model_name
 
 def test_clean_model_name_thinking():
     assert clean_model_name("ChatGPT 5.2 Thinking") == "ChatGPT 5.2"
-    assert clean_model_name("Claude Sonnet 4.5 [Ext. Thinking]") == "Claude Sonnet 4.5"
-    assert clean_model_name("Claude Sonnet 4.5 (Ext) Thinking") == "Claude Sonnet 4.5"
+    assert clean_model_name("Claude Sonnet 4.6 [Ext. Thinking]") == "Claude Sonnet 4.6"
+    assert clean_model_name("Claude Sonnet 4.6 (Ext) Thinking") == "Claude Sonnet 4.6"
     assert clean_model_name("ChatGPT 5.2 [Thinking]") == "ChatGPT 5.2"
     assert clean_model_name("ChatGPT 5.2 (Thinking)") == "ChatGPT 5.2"
 

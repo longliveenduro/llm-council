@@ -857,7 +857,9 @@ def sort_claude_models(models: List[Dict[str, str]]) -> List[Dict[str, str]]:
             return keyword in name
 
         # 1. Version
-        if contains("4.5"):
+        if contains("4.6"):
+            score += 35000
+        elif contains("4.5"):
             score += 30000
         elif contains("3.5"):
             score += 20000
@@ -881,6 +883,9 @@ async def get_claude_models() -> List[Dict[str, str]]:
     """Get Claude models (currently hardcoded as we can't easily list them via script yet)."""
     # Based on known available models
     models = [
+        {"name": "Claude 4.6 Sonnet", "id": "claude-4-6-sonnet"},
+        {"name": "Claude 4.6 Opus", "id": "claude-4-6-opus"},
+        {"name": "Claude 4.6 Haiku", "id": "claude-4-6-haiku"},
         {"name": "Claude 4.5 Sonnet", "id": "claude-4-5-sonnet"},
         {"name": "Claude 4.5 Opus", "id": "claude-4-5-opus"},
         {"name": "Claude 4.5 Haiku", "id": "claude-4-5-haiku"},
