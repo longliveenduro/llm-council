@@ -284,13 +284,11 @@ async def wait_for_chat_interface(page: Page, timeout: int = 30000):
 
 async def check_already_uploaded_modal(page: Page) -> bool:
     """Check for 'You've already uploaded this file' modal and dismiss it."""
-    modal_text = "You've already uploaded this file"
     try:
-        # Look for a modal with this text
-        # Using a broad selector to catch different UI versions
-        modal = await page.query_selector(f'div:has-text("{modal_text}"), h2:has-text("{modal_text}"), [role="dialog"]:has-text("{modal_text}")')
+        # Use partial text match to handle apostrophe encoding differences
+        modal = await page.query_selector('div:has-text("already uploaded"), h2:has-text("already uploaded"), [role="dialog"]:has-text("already uploaded")')
         if modal:
-            print(f"[DEBUG] Detected '{modal_text}' modal. Clicking OK...")
+            print("[DEBUG] Detected 'already uploaded' modal. Clicking OK...")
             ok_btn = await page.query_selector('button:has-text("OK"), [role="dialog"] button:has-text("OK")')
             if ok_btn:
                 await ok_btn.click()
@@ -298,6 +296,34 @@ async def check_already_uploaded_modal(page: Page) -> bool:
                 return True
     except:
         pass
+    return False
+
+async def robust_click_send_button(page: Page) -> bool:
+    """Robustly click the send button, handling potential re-renders."""
+    send_button_selectors = [
+        '[data-testid="send-button"]',
+        'button[aria-label*="Send" i]',
+        'button:has-text("Send")',
+    ]
+    
+    for i in range(3): # Retry loop
+        for selector in send_button_selectors:
+            try:
+                # Use wait_for_selector to ensure element exists and is visible
+                # We use a short timeout because we cycle through selectors
+                btn = await page.wait_for_selector(selector, state='visible', timeout=2000)
+                if btn and not await btn.is_disabled():
+                    print(f"[DEBUG] Clicking send button with selector: {selector} (Attempt {i+1})")
+                    # Use page.click(selector) instead of handle.click() for robustness against re-renders
+                    # This re-queries the element immediately before clicking
+                    await page.click(selector, timeout=2000)
+                    return True
+            except Exception:
+                # Ignore errors and try next selector/retry
+                pass
+        
+        await asyncio.sleep(0.5)
+
     return False
 
 
@@ -409,27 +435,35 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None, image
             pass
 
         # 2. Try direct upload via hidden input
+        files_sent_via_input = False
         if not attached_direct:
             try:
                 file_input = await page.query_selector('input[type="file"]')
                 if file_input:
                     print("[DEBUG] Found hidden file input in ChatGPT, setting all files...")
                     await file_input.set_input_files(image_paths)
+                    files_sent_via_input = True
                     
                     # Wait for thumbnails OR modal
                     # We use a race-like approach: wait for selector but also check for modal
-                    for _ in range(30): # 15 seconds max
+                    for _ in range(60): # 30 seconds max
                         if await check_already_uploaded_modal(page):
                             print("[DEBUG] Modal handled during direct upload. Proceeding.")
                             attached_direct = True
                             break
                         
-                        attached = await page.query_selector('button[aria-label="Remove attachment"], [data-testid="attachment-thumbnail"], [data-testid="bubble-file"], div[class*="attachment"]')
+                        attached = await page.query_selector('button[aria-label="Remove attachment"], [data-testid="attachment-thumbnail"], [data-testid="bubble-file"], div[class*="attachment"], img[alt="Image attachment"], img[src^="blob:"]')
                         if attached:
                             print("[DEBUG] Images attached via hidden input in ChatGPT.")
                             attached_direct = True
                             break
                         await asyncio.sleep(0.5)
+                    
+                    if not attached_direct:
+                        # Files were sent but we couldn't confirm — treat as attached
+                        # to avoid re-uploading (which causes "already uploaded" error)
+                        print("[WARNING] Files were sent via hidden input but confirmation not detected. Assuming success to avoid double upload.")
+                        attached_direct = True
                 else:
                     print("[DEBUG] No hidden file input found initially in ChatGPT.")
             except Exception as e:
@@ -438,8 +472,9 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None, image
                 if await check_already_uploaded_modal(page):
                     attached_direct = True
 
-        # 3. Sequential fallback (only if direct didn't work)
-        if not attached_direct:
+        # 3. Sequential fallback (only if direct upload was never attempted)
+        # If files_sent_via_input is True, we already sent the files — do NOT re-upload
+        if not attached_direct and not files_sent_via_input:
             for image_path in image_paths:
                 if not image_path: continue
                 
@@ -470,7 +505,7 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None, image
                                  raise Exception("Could not find attachment mechanism in menu or hidden input.")
                     
                     # Wait for upload to complete
-                    await page.wait_for_selector('button[aria-label="Remove attachment"], [data-testid="attachment-thumbnail"], [data-testid="bubble-file"], div[class*="attachment"]', timeout=30000)
+                    await page.wait_for_selector('button[aria-label="Remove attachment"], [data-testid="attachment-thumbnail"], [data-testid="bubble-file"], div[class*="attachment"], img[alt="Image attachment"], img[src^="blob:"]', timeout=30000)
                     print(f"Image {image_path} uploaded successfully to ChatGPT.")
                     
                 except Exception as e:
@@ -491,7 +526,7 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None, image
 
         # FINAL VERIFICATION: Ensure images are actually attached
         # Look for thumbnail or remove button
-        attached = await page.query_selector('button[aria-label="Remove attachment"], [data-testid="attachment-thumbnail"], [data-testid="bubble-file"], div[class*="attachment"]')
+        attached = await page.query_selector('button[aria-label="Remove attachment"], [data-testid="attachment-thumbnail"], [data-testid="bubble-file"], div[class*="attachment"], img[alt="Image attachment"], img[src^="blob:"]')
         if not attached:
              # One last check for quick quota message
              if await check_image_upload_quota_error(page):
@@ -543,30 +578,15 @@ async def send_prompt(page: Page, prompt: str, input_selector: str = None, image
     print(f"Typed prompt: {prompt[:50]}...")
     await asyncio.sleep(0.2)
     
-    # Click Send button
-    send_button_selectors = [
-        '[data-testid="send-button"]',
-        'button[aria-label*="Send" i]',
-        'button:has-text("Send")',
-    ]
+    # Click Send button using robust helper
+    clicked = await robust_click_send_button(page)
     
-    send_button = None
-    for selector in send_button_selectors:
-        try:
-            send_button = await page.wait_for_selector(selector, timeout=1000)
-            if send_button and await send_button.is_visible() and not await send_button.is_disabled():
-                print(f"Found send button with selector: {selector}")
-                break
-        except:
-            continue
-            
-    if send_button:
-        await send_button.click()
-    else:
-        print("No send button found, trying Enter key...")
+    if not clicked:
+        print("No send button found or clickable, trying Enter key...")
         await page.keyboard.press("Enter")
     
     print("Prompt sent, waiting for response...")
+
     
     # Wait for response generation to complete
     # ChatGPT usually shows a "Stop generating" button or similar while working

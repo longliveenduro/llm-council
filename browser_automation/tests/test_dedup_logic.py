@@ -4,7 +4,7 @@ from pathlib import Path
 # Add the directory containing chatgpt_automation to the path
 sys.path.append(str(Path(__file__).parent.parent))
 
-async def test_deduplication():
+def test_deduplication():
     # We want to test the logic inside send_prompt
     # Since we can't easily call it without Playwright, we'll verify the logic manually or extract it
     
@@ -26,5 +26,4 @@ async def test_deduplication():
     print("Deduplication test passed!")
 
 if __name__ == "__main__":
-    import asyncio
-    asyncio.run(test_deduplication())
+    test_deduplication()
