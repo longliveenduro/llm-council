@@ -82,7 +82,7 @@ async def test_run_automation_multiple_images(mock_run):
         "/api/web-chatbot/run-automation",
         json={
             "prompt": "Test multi-image",
-            "model": "Gemini 2.5 Flash",
+            "model": "Gemini 3.1 Pro Preview",
             "provider": "ai_studio",
             "images": test_images
         }

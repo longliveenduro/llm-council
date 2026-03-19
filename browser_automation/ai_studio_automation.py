@@ -851,6 +851,7 @@ async def select_model(page: Page, model_name: str):
         "Gemini 3.1 Pro": "gemini-3.1-pro-preview",
         "Gemini 3 Pro": "gemini-3.1-pro-preview", 
         "Gemini 3 Pro Preview": "gemini-3.1-pro-preview",
+        "Gemini 3.1 Pro Preview": "gemini-3.1-pro-preview",
         "Gemini Flash Latest": "gemini-flash-latest",
         "Gemini 2.5 Flash": "gemini-flash-latest",
         "Gemini Flash-Lite Latest": "gemini-flash-lite-latest",
@@ -1056,8 +1057,8 @@ async def main():
     parser.add_argument("--interactive", "-i", action="store_true", 
                         help="Run in interactive mode")
     parser.add_argument("--login", action="store_true", help="Run in login mode")
-    parser.add_argument("--model", "-m", default="Gemini 2.5 Flash",
-                        help="Model to use (default: Gemini 2.5 Flash)")
+    parser.add_argument("--model", "-m", default="Gemini 3.1 Pro Preview",
+                        help="Model to use (default: Gemini 3.1 Pro Preview)")
     parser.add_argument("--list-models", "-l", action="store_true",
                         help="List available models and exit")
     parser.add_argument("--image", "-img", action="append", help="Path to image file to upload (can be used multiple times)", default=[])
@@ -1111,6 +1112,7 @@ async def main():
                 "Gemini 3.1 Pro": "gemini-3.1-pro-preview",
                 "Gemini 3 Pro": "gemini-3.1-pro-preview", 
                 "Gemini 3 Pro Preview": "gemini-3.1-pro-preview",
+                "Gemini 3.1 Pro Preview": "gemini-3.1-pro-preview",
                 "Gemini Flash Latest": "gemini-flash-latest",
                 "Gemini 2.5 Flash": "gemini-flash-latest",
                 "Gemini Flash-Lite Latest": "gemini-flash-lite-latest",
@@ -1119,7 +1121,7 @@ async def main():
                 "Imagen 4": "imagen-4",
             }
             target_suffix = model_map.get(args.model)
-            if target_suffix and target_suffix != "gemini-3.1-pro-preview":
+            if target_suffix:
                 model_url_param = f"?model={target_suffix}"
 
         # Navigate to AI Studio with model selection via URL (more reliable than clicking)

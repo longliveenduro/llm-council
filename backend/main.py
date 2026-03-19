@@ -103,7 +103,7 @@ class SaveWebChatBotMessageRequest(BaseModel):
 
 class AutomationRequest(BaseModel):
     prompt: str
-    model: str = "Gemini 2.5 Flash"
+    model: str = "Gemini 3.1 Pro Preview"
     provider: str = "ai_studio"  # "ai_studio" or "chatgpt"
     image: Optional[str] = None # Legacy: Base64 encoded image string
     images: Optional[List[str]] = None # Base64 encoded image strings

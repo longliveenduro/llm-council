@@ -185,7 +185,7 @@ export default function WebChatBotWizard({ conversationId, currentTitle, previou
     const [stage3Prompt, setStage3Prompt] = useState(savedDraft.stage3Prompt || '');
     const [stage3Response, setStage3Response] = useState(savedDraft.stage3Response || { model: '', response: '' }); // { model, response }
     const [manualTitle, setManualTitle] = useState(savedDraft.manualTitle || (currentTitle !== 'New Conversation' ? currentTitle : ''));
-    const [aiStudioModel, setAiStudioModel] = useState(savedDraft.aiStudioModel || (automationModels.ai_studio[0]?.name) || 'Gemini 2.5 Flash');
+    const [aiStudioModel, setAiStudioModel] = useState(savedDraft.aiStudioModel || (automationModels.ai_studio[0]?.name) || 'Gemini 3.1 Pro Preview');
     const [preselectionReason, setPreselectionReason] = useState(savedDraft.preselectionReason || '');
     const [selectedImages, setSelectedImages] = useState(savedDraft.selectedImages || (savedDraft.selectedImage ? [savedDraft.selectedImage] : []));
     const [roundsPerModel, setRoundsPerModel] = useState(savedDraft.roundsPerModel || 1); // Number of rounds (responses) per model
@@ -233,7 +233,7 @@ export default function WebChatBotWizard({ conversationId, currentTitle, previou
 
     // Sync aiStudioModel with available models
     useEffect(() => {
-        const fallbacks = ['Gemini 3 Flash', 'Gemini 2.5 Flash', 'Gemini 1.5 Flash'];
+        const fallbacks = ['Gemini 3.1 Pro Preview', 'Gemini 3 Flash', 'Gemini 2.5 Flash', 'Gemini 1.5 Flash'];
         const isFallback = !aiStudioModel || fallbacks.includes(aiStudioModel);
 
         if (automationModels.ai_studio.length > 0) {
@@ -494,7 +494,7 @@ Title:`;
 
             if (!modelToUse) {
                 // Fallback if not loaded yet
-                if (provider === 'ai_studio') modelToUse = 'Gemini 3.1 Pro';
+                if (provider === 'ai_studio') modelToUse = 'Gemini 3.1 Pro Preview';
                 if (provider === 'chatgpt') modelToUse = 'ChatGPT 5.2';
                 if (provider === 'claude') modelToUse = 'Claude 4.6 Sonnet';
             }

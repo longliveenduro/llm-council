@@ -22,7 +22,7 @@ describe('WebChatBotWizard Error Handling', () => {
         onComplete: vi.fn(),
         onCancel: vi.fn(),
         automationModels: {
-            ai_studio: [{ name: 'Gemini 2.5 Flash', id: 'gemini-1' }],
+            ai_studio: [{ name: 'Gemini 3.1 Pro Preview', id: 'gemini-1' }],
             chatgpt: [{ name: 'GPT-4o', id: 'gpt-1' }],
             claude: [{ name: 'Claude 3.5 Sonnet', id: 'claude-1' }]
         },

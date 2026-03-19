@@ -47,7 +47,7 @@ describe('WebChatBotWizard Claude Integration', () => {
         expect(screen.queryByText('Run via AI Studio')).not.toBeInTheDocument();
         expect(screen.queryByText('Run via ChatGPT')).not.toBeInTheDocument();
 
-        // Select Gemini 2.5 Flash (default automation model if currentModel is cleared, but here we test explicit selection)
+        // Select Gemini 3.1 Pro Preview (default automation model if currentModel is cleared, but here we test explicit selection)
         fireEvent.change(modelSelect, { target: { value: 'Gemini 3.1 Pro' } });
         const aiStudioBtn = screen.getByText('Run via AI Studio');
         expect(aiStudioBtn).not.toBeDisabled();
@@ -216,9 +216,9 @@ describe('WebChatBotWizard UI Changes - Thinking Status', () => {
     const defaultProps = {
         conversationId: 'test-conv-123',
         currentTitle: 'New Conversation',
-        llmNames: ['GPT-4o', 'Claude 4.6 Sonnet', 'Gemini 2.5 Flash'],
+        llmNames: ['GPT-4o', 'Claude 4.6 Sonnet', 'Gemini 3.1 Pro Preview'],
         automationModels: {
-            ai_studio: [{ name: 'Gemini 2.5 Flash', id: 'gemini-flash' }],
+            ai_studio: [{ name: 'Gemini 3.1 Pro Preview', id: 'gemini-flash' }],
             chatgpt: [{ name: 'GPT-4o', id: 'gpt-4o' }],
             claude: [{ name: 'Claude 4.6 Sonnet', id: 'claude-sonnet' }],
         },
@@ -295,7 +295,7 @@ describe('WebChatBotWizard UI Changes - Thinking Status', () => {
 
         // Select Gemini model to show AI Studio button
         const modelSelect = screen.getByLabelText('Current Model');
-        fireEvent.change(modelSelect, { target: { value: 'Gemini 2.5 Flash' } });
+        fireEvent.change(modelSelect, { target: { value: 'Gemini 3.1 Pro Preview' } });
 
         // Click the AI Studio automation button
         const aiStudioBtn = screen.getByText('Run via AI Studio');
@@ -366,7 +366,7 @@ describe('WebChatBotWizard UI Changes - Thinking Status', () => {
 
         // Select Gemini model
         const modelSelect = screen.getByLabelText('Current Model');
-        fireEvent.change(modelSelect, { target: { value: 'Gemini 2.5 Flash' } });
+        fireEvent.change(modelSelect, { target: { value: 'Gemini 3.1 Pro Preview' } });
 
         // Click the AI Studio automation button
         const aiStudioBtn = screen.getByText('Run via AI Studio');
@@ -385,7 +385,7 @@ describe('WebChatBotWizard UI Changes - Thinking Status', () => {
         await waitFor(() => {
             const responsesList = document.querySelector('.responses-list');
             expect(responsesList).toBeInTheDocument();
-            expect(responsesList.textContent).toContain('Gemini 2.5 Flash');
+            expect(responsesList.textContent).toContain('Gemini 3.1 Pro Preview');
             expect(responsesList.textContent).not.toContain('Thinking');
         });
 

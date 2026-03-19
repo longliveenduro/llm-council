@@ -106,7 +106,7 @@ def test_broken_image_path_automation():
     # Passing a path that shouldn't exist
     payload = {
         "prompt": "Test broken path",
-        "model": "Gemini 2.5 Flash",
+        "model": "Gemini 3.1 Pro Preview",
         "provider": "ai_studio",
         "images": ["/api/images/non_existent_uuid.jpg"]
     }
@@ -128,7 +128,7 @@ def test_legacy_base64_automation():
     
     payload = {
         "prompt": "Test base64",
-        "model": "Gemini 2.5 Flash",
+        "model": "Gemini 3.1 Pro Preview",
         "provider": "ai_studio",
         "image": b64 # Legacy field
     }
