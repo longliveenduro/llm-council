@@ -1062,8 +1062,19 @@ async def main():
     parser.add_argument("--list-models", "-l", action="store_true",
                         help="List available models and exit")
     parser.add_argument("--image", "-img", action="append", help="Path to image file to upload (can be used multiple times)", default=[])
+    parser.add_argument("--prompt-file", help="Path to file containing the prompt (alternative to positional arg for large prompts)")
     
     args = parser.parse_args()
+    
+    # Read prompt from file if --prompt-file is provided
+    if args.prompt_file:
+        with open(args.prompt_file, 'r') as f:
+            args.prompt = f.read()
+        # Clean up temp file
+        try:
+            os.remove(args.prompt_file)
+        except OSError:
+            pass
     
     if args.login:
         await run_login_mode()

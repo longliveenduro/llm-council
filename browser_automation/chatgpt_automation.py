@@ -1140,8 +1140,19 @@ async def main():
     parser.add_argument("--login", action="store_true", help="Run in login mode (checks Memory settings)")
     parser.add_argument("--model", "-m", help="Model to use (default: auto)")
     parser.add_argument("--image", "-img", action="append", help="Path to image file to upload (can be used multiple times)", default=[])
+    parser.add_argument("--prompt-file", help="Path to file containing the prompt (alternative to positional arg for large prompts)")
     
     args = parser.parse_args()
+    
+    # Read prompt from file if --prompt-file is provided
+    if args.prompt_file:
+        with open(args.prompt_file, 'r') as f:
+            args.prompt = f.read()
+        # Clean up temp file
+        try:
+            os.remove(args.prompt_file)
+        except OSError:
+            pass
     
     if args.login:
         await run_login_mode()

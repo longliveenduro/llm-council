@@ -10,6 +10,7 @@ import subprocess
 import os
 import sys
 import asyncio
+import tempfile
 from pathlib import Path
 import shutil
 
@@ -632,9 +633,22 @@ async def run_ai_studio_automation(prompt: str, model: str, images: list = None,
     """
     script_path = Path(__file__).parent.parent / "browser_automation" / "ai_studio_automation.py"
     
-    args = [sys.executable, str(script_path), prompt, "--model", model]
-    
     temp_image_paths = []
+    
+    if len(prompt) > 30000:
+        print(f"Prompt is very large ({len(prompt)} chars). Attaching as a .txt file instead of pasting.")
+        large_prompt_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, dir=str(Path(__file__).parent.parent / "browser_automation" / "temp_images"), prefix="evaluation_prompt_")
+        large_prompt_file.write(prompt)
+        large_prompt_file.close()
+        temp_image_paths.append(large_prompt_file.name)
+        prompt = "Please read the attached text file and perform the evaluation exactly as instructed inside it."
+    
+    # Write prompt to temp file to avoid OS ARG_MAX limits with large prompts
+    prompt_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, dir=str(Path(__file__).parent.parent / "browser_automation" / "temp_images"))
+    prompt_file.write(prompt)
+    prompt_file.close()
+    
+    args = [sys.executable, str(script_path), "--prompt-file", prompt_file.name, "--model", model]
     
     # Handle single legacy image arg if provided
     if image_base64:
@@ -917,9 +931,22 @@ async def run_chatgpt_automation(prompt: str, model: str = "auto", images: list 
     """
     script_path = Path(__file__).parent.parent / "browser_automation" / "chatgpt_automation.py"
     
-    args = [sys.executable, str(script_path), prompt, "--model", model]
-    
     temp_image_paths = []
+    
+    if len(prompt) > 30000:
+        print(f"Prompt is very large ({len(prompt)} chars). Attaching as a .txt file instead of pasting.")
+        large_prompt_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, dir=str(Path(__file__).parent.parent / "browser_automation" / "temp_images"), prefix="evaluation_prompt_")
+        large_prompt_file.write(prompt)
+        large_prompt_file.close()
+        temp_image_paths.append(large_prompt_file.name)
+        prompt = "Please read the attached text file and perform the evaluation exactly as instructed inside it."
+    
+    # Write prompt to temp file to avoid OS ARG_MAX limits with large prompts
+    prompt_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, dir=str(Path(__file__).parent.parent / "browser_automation" / "temp_images"))
+    prompt_file.write(prompt)
+    prompt_file.close()
+    
+    args = [sys.executable, str(script_path), "--prompt-file", prompt_file.name, "--model", model]
     
     if image_base64:
         path = _save_temp_image(image_base64)
@@ -1016,9 +1043,22 @@ async def run_claude_automation(prompt: str, model: str = "auto", images: list =
     script_path = Path(__file__).parent.parent / "browser_automation" / "claude_automation.py"
     
     # Use the same python interpreter as the current process
-    args = [sys.executable, str(script_path), prompt, "--model", model]
-    
     temp_image_paths = []
+    
+    if len(prompt) > 30000:
+        print(f"Prompt is very large ({len(prompt)} chars). Attaching as a .txt file instead of pasting.")
+        large_prompt_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, dir=str(Path(__file__).parent.parent / "browser_automation" / "temp_images"), prefix="evaluation_prompt_")
+        large_prompt_file.write(prompt)
+        large_prompt_file.close()
+        temp_image_paths.append(large_prompt_file.name)
+        prompt = "Please read the attached text file and perform the evaluation exactly as instructed inside it."
+        
+    # Write prompt to temp file to avoid OS ARG_MAX limits with large prompts
+    prompt_file = tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False, dir=str(Path(__file__).parent.parent / "browser_automation" / "temp_images"))
+    prompt_file.write(prompt)
+    prompt_file.close()
+    
+    args = [sys.executable, str(script_path), "--prompt-file", prompt_file.name, "--model", model]
     
     if image_base64:
         path = _save_temp_image(image_base64)
